@@ -7,11 +7,25 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority, type Profile } from '@/types'
 
 interface Props {
-  searchParams: Promise<{ status?: string; type?: string; role?: string }>
+  searchParams: Promise<{ status?: string; tab?: string }>
+}
+
+const TABS = [
+  { key: 'all', label: '전체' },
+  { key: 'sales', label: '영업' },
+  { key: 'cs', label: 'CS팀' },
+  { key: 'tech', label: '기술지원' },
+]
+
+const TAB_STATUSES: Record<string, TicketStatus[]> = {
+  sales: ['sales'],
+  cs: ['cs_pending', 'cs_progress', 'scheduled'],
+  tech: ['tech_pending', 'in_progress'],
 }
 
 export default async function TicketsPage({ searchParams }: Props) {
   const params = await searchParams
+  const tab = params.tab ?? 'all'
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,16 +41,15 @@ export default async function TicketsPage({ searchParams }: Props) {
     .order('created_at', { ascending: false })
 
   if (params.status) query = query.eq('status', params.status)
-  if (params.type) query = query.eq('type', params.type)
-  if (params.role === 'sales') query = query.in('status', ['sales'])
-  if (params.role === 'cs') query = query.in('status', ['cs_pending', 'cs_progress', 'scheduled'])
-  if (params.role === 'tech') query = query.in('status', ['tech_pending', 'in_progress'])
+  if (tab !== 'all' && !params.status) query = query.in('status', TAB_STATUSES[tab] ?? [])
   if (p.role === 'sales') query = query.eq('sales_id', user.id)
   if (p.role === 'tech') query = query.eq('tech_id', user.id)
 
   const { data: tickets } = await query
 
-  const statuses: TicketStatus[] = ['sales', 'cs_pending', 'cs_progress', 'scheduled', 'tech_pending', 'in_progress', 'done', 'canceled']
+  const statusFilters: TicketStatus[] = tab === 'all'
+    ? ['sales', 'cs_pending', 'cs_progress', 'scheduled', 'tech_pending', 'in_progress', 'done', 'canceled']
+    : (TAB_STATUSES[tab] ?? [])
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -46,30 +59,34 @@ export default async function TicketsPage({ searchParams }: Props) {
           <p className="text-slate-500 text-sm mt-1">총 {tickets?.length ?? 0}건</p>
         </div>
         {(p.role === 'sales' || p.role === 'admin') && (
-          <Link
-            href="/tickets/new"
-            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200"
-          >
-            <Plus size={16} />
-            새 작업
+          <Link href="/tickets/new"
+            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200">
+            <Plus size={16} />새 작업
           </Link>
         )}
       </div>
 
+      {/* 팀 탭 */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-5 w-fit">
+        {TABS.map(t => (
+          <Link key={t.key} href={`/tickets?tab=${t.key}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}>
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
       {/* 상태 필터 */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
-        <Link
-          href="/tickets"
-          className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${!params.status ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-5">
+        <Link href={`/tickets?tab=${tab}`}
+          className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${!params.status ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
           전체
         </Link>
-        {statuses.map(s => (
-          <Link
-            key={s}
-            href={`/tickets?status=${s}`}
-            className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${params.status === s ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
+        {statusFilters.map(s => (
+          <Link key={s} href={`/tickets?tab=${tab}&status=${s}`}
+            className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${params.status === s ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
             {STATUS_LABEL[s]}
           </Link>
         ))}
@@ -84,11 +101,8 @@ export default async function TicketsPage({ searchParams }: Props) {
         )}
         <div className="divide-y divide-slate-50">
           {tickets?.map(ticket => (
-            <Link
-              key={ticket.id}
-              href={`/tickets/${ticket.id}`}
-              className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
-            >
+            <Link key={ticket.id} href={`/tickets/${ticket.id}`}
+              className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
               <div className="flex flex-col gap-2 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_COLOR[ticket.status as TicketStatus]}`}>

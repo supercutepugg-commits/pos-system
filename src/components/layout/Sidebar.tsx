@@ -17,15 +17,12 @@ const ROLE_COLOR = {
 }
 
 const NAV = [
-  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
-  { href: '/tickets', label: '전체 작업', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
-  { href: '/tickets?role=sales', label: '영업', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
-  { href: '/tickets?role=cs', label: 'CS팀', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
-  { href: '/tickets?role=tech', label: '기술지원', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
-  { href: '/merchants', label: '가맹점', icon: Store, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
-  { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
-  { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'], section: '' },
-  { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
+  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/tickets', label: '작업 목록', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/merchants', label: '가맹점', icon: Store, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'] },
+  { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'] },
 ]
 
 interface Props {

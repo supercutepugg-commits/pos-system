@@ -43,6 +43,7 @@ export default async function TicketsPage({ searchParams }: Props) {
   if (params.status) query = query.eq('status', params.status)
   if (tab !== 'all' && !params.status) query = query.in('status', TAB_STATUSES[tab] ?? [])
   if (p.role === 'sales') query = query.eq('sales_id', user.id)
+  if (p.role === 'cs') query = query.eq('cs_id', user.id)
   if (p.role === 'tech') query = query.eq('tech_id', user.id)
 
   const { data: tickets } = await query

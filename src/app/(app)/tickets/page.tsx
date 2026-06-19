@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronRight } from 'lucide-react'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority, type Profile } from '@/types'
 
 interface Props {
@@ -38,11 +38,14 @@ export default async function TicketsPage({ searchParams }: Props) {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">작업 목록</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">작업 목록</h1>
+          <p className="text-slate-500 text-sm mt-1">총 {tickets?.length ?? 0}건</p>
+        </div>
         {(p.role === 'sales' || p.role === 'admin') && (
           <Link
             href="/tickets/new"
-            className="flex items-center gap-1.5 bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200"
           >
             <Plus size={16} />
             새 작업
@@ -51,10 +54,10 @@ export default async function TicketsPage({ searchParams }: Props) {
       </div>
 
       {/* 상태 필터 */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
         <Link
           href="/tickets"
-          className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${!params.status ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${!params.status ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
         >
           전체
         </Link>
@@ -62,7 +65,7 @@ export default async function TicketsPage({ searchParams }: Props) {
           <Link
             key={s}
             href={`/tickets?status=${s}`}
-            className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${params.status === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+            className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${params.status === s ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             {STATUS_LABEL[s]}
           </Link>
@@ -70,42 +73,49 @@ export default async function TicketsPage({ searchParams }: Props) {
       </div>
 
       {/* 목록 */}
-      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {tickets?.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-12">작업이 없습니다</p>
+          <div className="text-center py-16">
+            <p className="text-slate-400 text-sm">작업이 없습니다</p>
+          </div>
         )}
-        {tickets?.map(ticket => (
-          <Link
-            key={ticket.id}
-            href={`/tickets/${ticket.id}`}
-            className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
-                  {STATUS_LABEL[ticket.status as TicketStatus]}
-                </span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[ticket.priority as Priority]}`}>
-                  {PRIORITY_LABEL[ticket.priority as Priority]}
-                </span>
-                <span className="text-xs text-gray-500">{TYPE_LABEL[ticket.type as TicketType]}</span>
+        <div className="divide-y divide-slate-50">
+          {tickets?.map(ticket => (
+            <Link
+              key={ticket.id}
+              href={`/tickets/${ticket.id}`}
+              className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
+            >
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
+                    {STATUS_LABEL[ticket.status as TicketStatus]}
+                  </span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${PRIORITY_COLOR[ticket.priority as Priority]}`}>
+                    {PRIORITY_LABEL[ticket.priority as Priority]}
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">{TYPE_LABEL[ticket.type as TicketType]}</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-900 truncate">{ticket.title}</p>
+                <div className="flex items-center gap-3 text-xs text-slate-400">
+                  <span className="font-medium">{(ticket.merchant as any)?.business_name}</span>
+                  {ticket.scheduled_at && (
+                    <span>📅 {format(new Date(ticket.scheduled_at), 'M/d HH:mm', { locale: ko })}</span>
+                  )}
+                </div>
               </div>
-              <p className="text-sm font-medium text-gray-900 truncate">{ticket.title}</p>
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span>{(ticket.merchant as any)?.business_name}</span>
-                {ticket.scheduled_at && (
-                  <span>예약: {format(new Date(ticket.scheduled_at), 'M/d HH:mm', { locale: ko })}</span>
-                )}
+              <div className="text-right flex-shrink-0 flex items-center gap-2">
+                <div>
+                  <p className="text-xs text-slate-400">{format(new Date(ticket.created_at), 'M/d', { locale: ko })}</p>
+                  {(ticket.tech as any)?.name && (
+                    <p className="text-xs text-slate-500 mt-1 font-medium">{(ticket.tech as any).name}</p>
+                  )}
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-400 transition-colors" />
               </div>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-xs text-gray-400">{format(new Date(ticket.created_at), 'M/d', { locale: ko })}</p>
-              {(ticket.tech as any)?.name && (
-                <p className="text-xs text-gray-500 mt-1">{(ticket.tech as any).name}</p>
-              )}
-            </div>
-          </Link>
-        ))}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )

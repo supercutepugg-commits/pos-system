@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { ChevronRight, Trash2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { deleteTickets } from './actions'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority } from '@/types'
 
 interface Ticket {
@@ -45,10 +45,9 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
-    const supabase = createClient()
-    const { error } = await supabase.from('tickets').delete().in('id', [...selected])
+    const { error } = await deleteTickets([...selected])
     setDeleting(false)
-    if (error) { alert('삭제 실패: ' + error.message); return }
+    if (error) { alert('삭제 실패: ' + error); return }
     setSelected(new Set())
     startTransition(() => router.refresh())
   }

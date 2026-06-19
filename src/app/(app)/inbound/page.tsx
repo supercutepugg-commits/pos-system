@@ -7,10 +7,24 @@ export default async function InboundPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: rows, error } = await supabase
-    .from('crm_inbound')
-    .select('*')
-    .order('date', { ascending: false })
+  // Supabase 기본 limit 1000 → 전체 페이징
+  const PAGE = 1000
+  let allRows: any[] = []
+  let from = 0
+  let fetchError = null
+  while (true) {
+    const { data, error: err } = await supabase
+      .from('crm_inbound')
+      .select('*')
+      .order('date', { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (err) { fetchError = err; break }
+    if (data) allRows = allRows.concat(data)
+    if (!data || data.length < PAGE) break
+    from += PAGE
+  }
+  const rows = allRows
+  const error = fetchError
 
   return (
     <div className="flex flex-col h-screen p-6 gap-4">

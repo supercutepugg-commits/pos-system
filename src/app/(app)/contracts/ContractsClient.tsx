@@ -66,34 +66,22 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     setSubmitting(true)
     setUploading(true)
 
-    // Supabase Storage 업로드
-    const ext = pdfFile.name.split('.').pop() ?? 'pdf'
-    const fileName = `${Date.now()}.${ext}`
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('contracts')
-      .upload(fileName, pdfFile, { contentType: 'application/pdf' })
+    const fd = new FormData()
+    fd.append('file', pdfFile)
+    fd.append('title', form.title)
+    fd.append('signerName', form.signerName)
+    fd.append('signerEmail', form.signerEmail)
+    fd.append('signerPhone', form.signerPhone)
+    fd.append('createdBy', profile.id)
+
+    const res = await fetch('/api/contracts/create', { method: 'POST', body: fd })
+    const json = await res.json()
 
     setUploading(false)
-    if (uploadError || !uploadData) {
-      alert('PDF 업로드 실패: ' + uploadError?.message)
-      setSubmitting(false)
-      return
-    }
-
-    const { data: { publicUrl } } = supabase.storage.from('contracts').getPublicUrl(fileName)
-
-    const { data: inserted, error } = await supabase.from('contracts').insert({
-      title: form.title,
-      pdf_url: publicUrl,
-      signer_name: form.signerName,
-      signer_email: form.signerEmail || null,
-      signer_phone: form.signerPhone || null,
-      created_by: profile.id,
-      status: 'pending',
-    }).select('sign_token').single()
-
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (!res.ok || json.error) { alert(json.error ?? '등록 실패'); return }
+
+    const inserted = { sign_token: json.sign_token }
 
     // 서명 요청 알림톡 발송
     if (form.signerPhone && inserted?.sign_token) {

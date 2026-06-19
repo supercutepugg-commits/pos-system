@@ -70,43 +70,27 @@ export default function Sidebar({ profile, unreadCount }: Props) {
 
       {/* 네비게이션 */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {(() => {
-          let lastSection = ''
-          return navItems.map(item => {
-            const active = pathname === item.href ||
-              (item.href.includes('?') ? false : pathname.startsWith(item.href + '/'))
-            const isSubItem = item.section === '작업' && item.href !== '/tickets'
-            const showSectionHeader = item.section === '작업' && item.href === '/tickets'
-
-            const el = (
-              <div key={item.href}>
-                {showSectionHeader && (
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 pt-4 pb-1">작업</p>
-                )}
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${
-                    isSubItem ? 'pl-7' : ''
-                  } ${
-                    active
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  {!isSubItem && <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />}
-                  {isSubItem && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : 'bg-slate-300'}`} />}
-                  {item.label}
-                  {item.href === '/notifications' && unreadCount > 0 && (
-                    <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </Link>
-              </div>
-            )
-            return el
-          })
-        })()}
+        {navItems.map(item => {
+          const active = pathname === item.href ||
+            (pathname.startsWith(item.href + '/') && !item.href.includes('?'))
+          return (
+            <Link key={item.href} href={item.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${
+                active
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />
+              {item.label}
+              {item.href === '/notifications' && unreadCount > 0 && (
+                <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* 로그아웃 */}

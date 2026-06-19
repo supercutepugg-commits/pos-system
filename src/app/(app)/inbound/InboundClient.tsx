@@ -63,6 +63,8 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
   const [channelFilter, setChannelFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -88,14 +90,20 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
     if (channelFilter) result = result.filter(r => r.channel === channelFilter)
     if (categoryFilter) result = result.filter(r => r.category === categoryFilter)
     if (statusFilter) result = result.filter(r => r.status === statusFilter)
+    if (dateFrom) result = result.filter(r => r.date && r.date >= dateFrom)
+    if (dateTo) result = result.filter(r => r.date && r.date <= dateTo)
 
     return [...result].sort((a, b) => {
-      const va = a[sortKey] ?? ''
-      const vb = b[sortKey] ?? ''
+      // null을 항상 뒤로
+      if (!a[sortKey] && !b[sortKey]) return 0
+      if (!a[sortKey]) return 1
+      if (!b[sortKey]) return -1
+      const va = a[sortKey]!
+      const vb = b[sortKey]!
       const cmp = va < vb ? -1 : va > vb ? 1 : 0
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, search, staffFilter, channelFilter, categoryFilter, statusFilter, sortKey, sortDir])
+  }, [rows, search, staffFilter, channelFilter, categoryFilter, statusFilter, dateFrom, dateTo, sortKey, sortDir])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -148,6 +156,19 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
           <option value="">진행상황 전체</option>
           {statuses.map(s => <option key={s}>{s}</option>)}
         </select>
+        <div className="flex items-center gap-1">
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <span className="text-slate-400 text-sm">~</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        {(search || staffFilter || channelFilter || categoryFilter || statusFilter || dateFrom || dateTo) && (
+          <button onClick={() => { setSearch(''); setStaffFilter(''); setChannelFilter(''); setCategoryFilter(''); setStatusFilter(''); setDateFrom(''); setDateTo('') }}
+            className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
+            초기화
+          </button>
+        )}
         <div className="ml-auto text-sm text-slate-500 flex items-center">
           {filtered.length.toLocaleString()}건 / 전체 {rows.length.toLocaleString()}건
         </div>

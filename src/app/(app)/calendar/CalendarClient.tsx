@@ -1,0 +1,230 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import Link from 'next/link'
+import { TYPE_LABEL, STATUS_LABEL, STATUS_COLOR, type TicketStatus, type TicketType } from '@/types'
+
+interface CalendarTicket {
+  id: string
+  title: string
+  type: string
+  status: string
+  scheduled_at?: string | null
+  install_date?: string | null
+  open_date?: string | null
+  card_apply_date?: string | null
+  merchant?: { business_name: string } | null
+  tech?: { name: string } | null
+  sales?: { name: string } | null
+}
+
+interface CalendarEvent {
+  ticket: CalendarTicket
+  date: string   // YYYY-MM-DD
+  label: string  // 어떤 날짜인지
+  color: string
+}
+
+const EVENT_TYPES = [
+  { key: 'scheduled_at',    label: '일정',    color: 'bg-indigo-500' },
+  { key: 'install_date',    label: '설치',    color: 'bg-emerald-500' },
+  { key: 'open_date',       label: '오픈',    color: 'bg-blue-500' },
+  { key: 'card_apply_date', label: '카드신청', color: 'bg-orange-500' },
+] as const
+
+const DAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+function toYMD(s: string | null | undefined): string | null {
+  if (!s) return null
+  return s.slice(0, 10)
+}
+
+export default function CalendarClient({ tickets }: { tickets: CalendarTicket[] }) {
+  const today = new Date()
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth()) // 0-indexed
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+
+  // 이벤트 맵: YYYY-MM-DD → CalendarEvent[]
+  const eventMap = useMemo(() => {
+    const map: Record<string, CalendarEvent[]> = {}
+    for (const ticket of tickets) {
+      for (const et of EVENT_TYPES) {
+        const date = toYMD(ticket[et.key as keyof CalendarTicket] as string)
+        if (!date) continue
+        if (!map[date]) map[date] = []
+        map[date].push({ ticket, date, label: et.label, color: et.color })
+      }
+    }
+    return map
+  }, [tickets])
+
+  function prevMonth() {
+    if (month === 0) { setYear(y => y - 1); setMonth(11) }
+    else setMonth(m => m - 1)
+    setSelectedDate(null)
+  }
+  function nextMonth() {
+    if (month === 11) { setYear(y => y + 1); setMonth(0) }
+    else setMonth(m => m + 1)
+    setSelectedDate(null)
+  }
+  function goToday() {
+    setYear(today.getFullYear())
+    setMonth(today.getMonth())
+    setSelectedDate(null)
+  }
+
+  // 달력 날짜 계산
+  const firstDay = new Date(year, month, 1).getDay()  // 0=일
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+  // 6주 맞추기
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  function dateStr(day: number) {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  const selectedEvents = selectedDate ? (eventMap[selectedDate] ?? []) : []
+
+  // 이번달 총 이벤트 수
+  const monthTotal = Object.entries(eventMap).filter(([d]) =>
+    d.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)
+  ).reduce((s, [, evs]) => s + evs.length, 0)
+
+  return (
+    <div className="flex gap-4 h-full">
+      {/* 캘린더 본체 */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* 헤더 */}
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <ChevronLeft size={18} className="text-slate-500" />
+          </button>
+          <h2 className="text-lg font-bold text-slate-900 min-w-[120px] text-center">
+            {year}년 {month + 1}월
+          </h2>
+          <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <ChevronRight size={18} className="text-slate-500" />
+          </button>
+          <button onClick={goToday} className="ml-2 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">
+            오늘
+          </button>
+          <span className="ml-auto text-sm text-slate-400">이번달 일정 {monthTotal}건</span>
+        </div>
+
+        {/* 요일 헤더 */}
+        <div className="grid grid-cols-7 mb-1">
+          {DAYS.map((d, i) => (
+            <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-500'}`}>
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* 날짜 그리드 */}
+        <div className="grid grid-cols-7 flex-1 border-t border-l border-slate-200 rounded-xl overflow-hidden">
+          {cells.map((day, idx) => {
+            if (!day) return (
+              <div key={`empty-${idx}`} className="border-b border-r border-slate-200 bg-slate-50/50 min-h-[90px]" />
+            )
+            const ds = dateStr(day)
+            const events = eventMap[ds] ?? []
+            const isToday = ds === todayStr
+            const isSelected = ds === selectedDate
+            const dow = (firstDay + day - 1) % 7
+            return (
+              <div
+                key={ds}
+                onClick={() => setSelectedDate(isSelected ? null : ds)}
+                className={`border-b border-r border-slate-200 min-h-[90px] p-1.5 cursor-pointer transition-colors ${
+                  isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold mb-1 ${
+                  isToday ? 'bg-blue-600 text-white' :
+                  dow === 0 ? 'text-red-500' :
+                  dow === 6 ? 'text-blue-500' :
+                  'text-slate-700'
+                }`}>
+                  {day}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {events.slice(0, 3).map((ev, i) => (
+                    <div key={i} className={`text-white text-[10px] font-medium px-1.5 py-0.5 rounded truncate ${ev.color}`}>
+                      {ev.label} {ev.ticket.merchant?.business_name ?? ev.ticket.title}
+                    </div>
+                  ))}
+                  {events.length > 3 && (
+                    <div className="text-[10px] text-slate-400 px-1">+{events.length - 3}건</div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 범례 */}
+        <div className="flex gap-3 mt-3">
+          {EVENT_TYPES.map(et => (
+            <div key={et.key} className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className={`w-2.5 h-2.5 rounded-sm ${et.color}`} />
+              {et.label}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 선택된 날짜 패널 */}
+      <div className={`w-72 flex-shrink-0 transition-all ${selectedDate ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {selectedDate && (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm h-fit">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <p className="font-semibold text-slate-900 text-sm">
+                {selectedDate.slice(5).replace('-', '/')} 일정
+              </p>
+              <button onClick={() => setSelectedDate(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={15} />
+              </button>
+            </div>
+            {selectedEvents.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-8">일정 없음</p>
+            ) : (
+              <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
+                {selectedEvents.map((ev, i) => (
+                  <Link key={i} href={`/tickets/${ev.ticket.id}`}
+                    className="block px-4 py-3 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded ${ev.color}`}>
+                        {ev.label}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[ev.ticket.status as TicketStatus]}`}>
+                        {STATUS_LABEL[ev.ticket.status as TicketStatus]}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {ev.ticket.merchant?.business_name ?? ev.ticket.title}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate mt-0.5">{ev.ticket.title}</p>
+                    <div className="flex gap-2 mt-1 text-xs text-slate-400">
+                      <span>{TYPE_LABEL[ev.ticket.type as TicketType]}</span>
+                      {ev.ticket.tech?.name && <span>· {ev.ticket.tech.name}</span>}
+                      {ev.ticket.sales?.name && <span>· {ev.ticket.sales.name}</span>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

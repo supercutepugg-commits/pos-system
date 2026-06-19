@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle
+  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
@@ -25,6 +25,10 @@ const NAV = [
   { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'] },
 ]
 
+const EXTERNAL_LINKS = [
+  { href: 'https://esign-app-three.vercel.app', label: '설치관리 / 전자서명', icon: ExternalLink, roles: ['admin', 'cs'] },
+]
+
 interface Props {
   profile: Profile
   unreadCount: number
@@ -42,6 +46,7 @@ export default function Sidebar({ profile, unreadCount }: Props) {
   }
 
   const navItems = NAV.filter(n => n.roles.includes(profile.role))
+  const externalItems = EXTERNAL_LINKS.filter(n => n.roles.includes(profile.role))
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm">
@@ -92,6 +97,20 @@ export default function Sidebar({ profile, unreadCount }: Props) {
           )
         })}
       </nav>
+
+      {/* 외부 링크 */}
+      {externalItems.length > 0 && (
+        <div className="px-3 pb-2 border-t border-slate-100 pt-3">
+          {externalItems.map(item => (
+            <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all mb-0.5">
+              <item.icon size={17} className="text-slate-400" />
+              {item.label}
+              <ExternalLink size={12} className="ml-auto text-slate-300" />
+            </a>
+          ))}
+        </div>
+      )}
 
       {/* 로그아웃 */}
       <div className="px-3 py-4 border-t border-slate-100">

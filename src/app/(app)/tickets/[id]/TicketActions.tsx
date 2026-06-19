@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Ticket, Profile } from '@/types'
+import { STATUS_LABEL } from '@/types'
 import { ArrowRight, UserCheck, Calendar, CheckCircle } from 'lucide-react'
 
 interface Props {
@@ -52,7 +53,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           : `[${ticket.merchant?.business_name}] 상태 변경`,
         body: isRejected
           ? `${ticket.title} - 반려됨${message ? ': ' + message : ''}`
-          : `${ticket.title} → ${newStatus}`,
+          : `${ticket.title} → ${STATUS_LABEL[newStatus as keyof typeof STATUS_LABEL] ?? newStatus}`,
       })
     }
 

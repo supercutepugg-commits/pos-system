@@ -155,18 +155,18 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
       <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 md:bottom-6">
         {toasts.map(toast => (
           <div key={toast.id}
-            className="bg-white border border-slate-200 rounded-2xl shadow-xl w-72 overflow-hidden flex items-stretch animate-in slide-in-from-right duration-200">
-            <div className="bg-[#3e6d9c] w-1 flex-shrink-0" />
-            <div className="flex items-start gap-3 px-3.5 py-3 flex-1">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <MessageCircle size={15} className="text-blue-600" />
+            className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-96 overflow-hidden flex items-stretch animate-in slide-in-from-right duration-200">
+            <div className="bg-[#3e6d9c] w-1.5 flex-shrink-0" />
+            <div className="flex items-start gap-4 px-4 py-4 flex-1">
+              <div className="w-11 h-11 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <MessageCircle size={20} className="text-blue-600" />
               </div>
               <button className="flex-1 text-left" onClick={() => { router.push(toast.href!); removeToast(toast.id) }}>
-                <p className="text-sm font-bold text-slate-900">{toast.title}</p>
-                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{toast.body}</p>
+                <p className="text-base font-bold text-slate-900">{toast.title}</p>
+                <p className="text-sm text-slate-500 mt-1 line-clamp-2">{toast.body}</p>
               </button>
-              <button onClick={() => removeToast(toast.id)} className="text-slate-300 hover:text-slate-500 flex-shrink-0">
-                <X size={15} />
+              <button onClick={() => removeToast(toast.id)} className="text-slate-300 hover:text-slate-500 flex-shrink-0 mt-0.5">
+                <X size={17} />
               </button>
             </div>
           </div>

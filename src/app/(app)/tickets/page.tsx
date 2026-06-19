@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { ko } from 'date-fns/locale'
-import { Plus, ChevronRight } from 'lucide-react'
-import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority, type Profile } from '@/types'
+import { Plus } from 'lucide-react'
+import { STATUS_LABEL, type TicketStatus, type Profile } from '@/types'
+import TicketsClient from './TicketsClient'
 
 interface Props {
   searchParams: Promise<{ status?: string; tab?: string }>
@@ -118,47 +117,7 @@ export default async function TicketsPage({ searchParams }: Props) {
       )}
 
       {/* 목록 */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {tickets?.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-slate-400 text-sm">작업이 없습니다</p>
-          </div>
-        )}
-        <div className="divide-y divide-slate-50">
-          {tickets?.map(ticket => (
-            <Link key={ticket.id} href={`/tickets/${ticket.id}`}
-              className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
-              <div className="flex flex-col gap-2 flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
-                    {STATUS_LABEL[ticket.status as TicketStatus]}
-                  </span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${PRIORITY_COLOR[ticket.priority as Priority]}`}>
-                    {PRIORITY_LABEL[ticket.priority as Priority]}
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">{TYPE_LABEL[ticket.type as TicketType]}</span>
-                </div>
-                <p className="text-sm font-semibold text-slate-900 truncate">{ticket.title}</p>
-                <div className="flex items-center gap-3 text-xs text-slate-400">
-                  <span className="font-medium">{(ticket.merchant as any)?.business_name}</span>
-                  {ticket.scheduled_at && (
-                    <span>📅 {format(new Date(ticket.scheduled_at), 'M/d HH:mm', { locale: ko })}</span>
-                  )}
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0 flex items-center gap-2">
-                <div>
-                  <p className="text-xs text-slate-400">{format(new Date(ticket.created_at), 'M/d', { locale: ko })}</p>
-                  {(ticket.tech as any)?.name && (
-                    <p className="text-xs text-slate-500 mt-1 font-medium">{(ticket.tech as any).name}</p>
-                  )}
-                </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-400 transition-colors" />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+      <TicketsClient tickets={(tickets ?? []) as any} />
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink
+  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
@@ -23,11 +23,11 @@ const NAV = [
   { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'] },
   { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'] },
   { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/contracts', label: '계약서 / 서명', icon: PenLine, roles: ['admin', 'cs'] },
+  { href: '/installs', label: '설치 관리', icon: Package, roles: ['admin', 'tech'] },
 ]
 
-const EXTERNAL_LINKS = [
-  { href: 'https://esign-app-three.vercel.app', label: '설치관리 / 전자서명', icon: ExternalLink, roles: ['admin', 'cs'] },
-]
+const EXTERNAL_LINKS: { href: string; label: string; icon: any; roles: string[] }[] = []
 
 interface Props {
   profile: Profile

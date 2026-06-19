@@ -38,18 +38,20 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
     if (newStatus === 'tech_pending' && ticket.tech_id) targets.push(ticket.tech_id)
     if (newStatus === 'done' && ticket.sales_id) targets.push(ticket.sales_id)
     if (newStatus === 'sales' && ticket.status === 'cs_pending' && ticket.sales_id) targets.push(ticket.sales_id)
+    if (newStatus === 'cs_pending' && (ticket.status === 'tech_pending' || ticket.status === 'scheduled') && ticket.cs_id) targets.push(ticket.cs_id)
 
     for (const uid of targets) {
-      const isRejected = newStatus === 'sales' && ticket.status === 'cs_pending'
+      const isRejected = (newStatus === 'sales' && ticket.status === 'cs_pending') ||
+        (newStatus === 'cs_pending' && (ticket.status === 'tech_pending' || ticket.status === 'scheduled'))
       await supabase.from('notifications').insert({
         user_id: uid,
         ticket_id: ticket.id,
         type: newStatus,
         title: isRejected
-          ? `[${ticket.merchant?.business_name}] CS 이관 거부`
+          ? `[${ticket.merchant?.business_name}] 반려`
           : `[${ticket.merchant?.business_name}] 상태 변경`,
         body: isRejected
-          ? `${ticket.title} - CS팀에서 반려됨${message ? ': ' + message : ''}`
+          ? `${ticket.title} - 반려됨${message ? ': ' + message : ''}`
           : `${ticket.title} → ${newStatus}`,
       })
     }
@@ -183,6 +185,17 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
             />
             <span className="text-xs text-gray-400 flex items-center gap-1"><Calendar size={13} /> 일정</span>
           </div>
+        )}
+
+        {/* 기술지원 → 반려 (CS로 되돌리기) */}
+        {(status === 'tech_pending' || status === 'scheduled') && (role === 'tech' || role === 'admin') && (
+          <button
+            onClick={() => updateStatus('cs_pending')}
+            disabled={loading}
+            className="flex items-center gap-1.5 bg-red-100 text-red-600 border border-red-200 text-sm px-4 py-2 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 font-medium"
+          >
+            ↩ 반려 (CS로 반환)
+          </button>
         )}
 
         {/* 작업 시작 */}

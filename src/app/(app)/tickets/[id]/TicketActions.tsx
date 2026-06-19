@@ -37,14 +37,20 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
     if (newStatus === 'cs_pending' && ticket.cs_id) targets.push(ticket.cs_id)
     if (newStatus === 'tech_pending' && ticket.tech_id) targets.push(ticket.tech_id)
     if (newStatus === 'done' && ticket.sales_id) targets.push(ticket.sales_id)
+    if (newStatus === 'sales' && ticket.status === 'cs_pending' && ticket.sales_id) targets.push(ticket.sales_id)
 
     for (const uid of targets) {
+      const isRejected = newStatus === 'sales' && ticket.status === 'cs_pending'
       await supabase.from('notifications').insert({
         user_id: uid,
         ticket_id: ticket.id,
         type: newStatus,
-        title: `[${ticket.merchant?.business_name}] 상태 변경`,
-        body: `${ticket.title} → ${newStatus}`,
+        title: isRejected
+          ? `[${ticket.merchant?.business_name}] CS 이관 거부`
+          : `[${ticket.merchant?.business_name}] 상태 변경`,
+        body: isRejected
+          ? `${ticket.title} - CS팀에서 반려됨${message ? ': ' + message : ''}`
+          : `${ticket.title} → ${newStatus}`,
       })
     }
 
@@ -130,6 +136,17 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
               CS팀으로 이관
             </button>
           </>
+        )}
+
+        {/* CS → 이관 거부 (영업으로 반려) */}
+        {status === 'cs_pending' && (role === 'cs' || role === 'admin') && (
+          <button
+            onClick={() => updateStatus('sales')}
+            disabled={loading}
+            className="flex items-center gap-1.5 bg-red-100 text-red-600 border border-red-200 text-sm px-4 py-2 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 font-medium"
+          >
+            ↩ 이관 거부 (반려)
+          </button>
         )}
 
         {/* CS → 기사 배정 */}

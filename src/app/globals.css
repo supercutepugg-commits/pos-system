@@ -17,6 +17,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-* {
-  color-scheme: light !important;
+*, *::before, *::after {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+  }
 }

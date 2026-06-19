@@ -29,8 +29,6 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
     reception_channel: '',
     progress_note: '',
     document_status: '미접수',
-    open_date: '',
-    install_date: '',
     internet: '',
     product: '',
     card_apply_date: '',
@@ -92,8 +90,6 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
       reception_channel: form.reception_channel || null,
       progress_note: form.progress_note || null,
       document_status: form.document_status,
-      open_date: form.open_date || null,
-      install_date: form.install_date || null,
       internet: form.internet || null,
       product: form.product || null,
       card_apply_date: form.card_apply_date || null,
@@ -245,16 +241,6 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
           <div>
             <Label>카드가맹 접수일</Label>
             <input type="date" value={form.card_apply_date} onChange={e => set('card_apply_date', e.target.value)} className={INPUT} />
-          </div>
-
-          <div>
-            <Label>오픈예정일</Label>
-            <input type="date" value={form.open_date} onChange={e => set('open_date', e.target.value)} className={INPUT} />
-          </div>
-
-          <div>
-            <Label>설치 및 발송일</Label>
-            <input type="date" value={form.install_date} onChange={e => set('install_date', e.target.value)} className={INPUT} />
           </div>
 
           <div>

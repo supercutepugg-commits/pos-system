@@ -25,8 +25,6 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
     reception_channel: ticket.reception_channel ?? '',
     progress_note: ticket.progress_note ?? '',
     document_status: ticket.document_status ?? '미접수',
-    open_date: ticket.open_date ?? '',
-    install_date: ticket.install_date ?? '',
     internet: ticket.internet ?? '',
     product: ticket.product ?? '',
     card_apply_date: ticket.card_apply_date ?? '',
@@ -48,8 +46,6 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
       reception_channel: form.reception_channel || null,
       progress_note: form.progress_note || null,
       document_status: form.document_status,
-      open_date: form.open_date || null,
-      install_date: form.install_date || null,
       internet: form.internet || null,
       product: form.product || null,
       card_apply_date: form.card_apply_date || null,
@@ -73,8 +69,6 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
     { label: 'VAN사', key: 'van_company', type: 'select', options: VAN_COMPANIES },
     { label: '인터넷', key: 'internet' },
     { label: '카드가맹 접수일', key: 'card_apply_date', type: 'date' },
-    { label: '오픈예정일', key: 'open_date', type: 'date' },
-    { label: '설치 및 발송일', key: 'install_date', type: 'date' },
     { label: '간편결제', key: 'simple_payment', type: 'select', options: SIMPLE_PAYMENTS },
   ]
 

@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('is_read', false)
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       <div className="hidden md:flex">
         <Sidebar profile={profile as Profile} unreadCount={unreadCount ?? 0} />
       </div>

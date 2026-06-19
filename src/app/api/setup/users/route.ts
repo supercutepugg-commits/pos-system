@@ -15,6 +15,7 @@ const USERS = [
   { name: '임경수', email: 'im.gyeongsu@pos.kr', role: 'tech' },
   { name: '박상준', email: 'park.sangjun@pos.kr', role: 'tech' },
   { name: '태효섭', email: 'tae.hyosub@pos.kr', role: 'tech' },
+  { name: '테스트영업', email: 'test.sales@pos.kr', role: 'sales' },
 ]
 
 export async function GET() {

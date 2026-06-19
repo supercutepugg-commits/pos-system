@@ -1,0 +1,99 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+export default function LoginPage() {
+  const router = useRouter()
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    // 이름으로 이메일 조회
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password }),
+    })
+    const data = await res.json()
+
+    if (!res.ok || data.error) {
+      setError(data.error || '이름을 찾을 수 없습니다.')
+      setLoading(false)
+      return
+    }
+
+    // 이메일+비밀번호로 로그인
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password,
+    })
+
+    if (signInError) {
+      setError('비밀번호가 올바르지 않습니다.')
+      setLoading(false)
+    } else {
+      router.push('/dashboard')
+      router.refresh()
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-4">
+            <span className="text-white text-2xl font-bold">P</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">POS 전산 시스템</h1>
+          <p className="text-gray-500 mt-1 text-sm">이름과 비밀번호로 로그인하세요</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">이름</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="홍길동"
+              required
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? '로그인 중...' : '로그인'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}

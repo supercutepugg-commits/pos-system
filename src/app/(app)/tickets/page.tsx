@@ -16,7 +16,7 @@ const TAB_STATUSES: Record<string, TicketStatus[]> = {
   sales: ['sales'],
   transferred: TRANSFERRED_STATUSES,
   cs: ['cs_pending', 'cs_progress', 'scheduled'],
-  tech: ['tech_pending', 'in_progress'],
+  tech: ['in_progress'],
 }
 
 export default async function TicketsPage({ searchParams }: Props) {

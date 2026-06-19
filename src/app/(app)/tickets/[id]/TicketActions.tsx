@@ -110,14 +110,26 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
       <div className="flex flex-wrap gap-2">
         {/* 영업 → CS 이관 */}
         {status === 'sales' && (role === 'sales' || role === 'admin') && (
-          <button
-            onClick={() => updateStatus('cs_pending')}
-            disabled={loading}
-            className="flex items-center gap-1.5 bg-yellow-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 font-medium"
-          >
-            <ArrowRight size={15} />
-            CS팀으로 이관
-          </button>
+          <>
+            <select
+              onChange={e => e.target.value && assignUser('cs_id', e.target.value)}
+              defaultValue=""
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">CS 담당자 선택</option>
+              {csUsers.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => updateStatus('cs_pending')}
+              disabled={loading || !ticket.cs_id}
+              className="flex items-center gap-1.5 bg-yellow-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 font-medium"
+            >
+              <ArrowRight size={15} />
+              CS팀으로 이관
+            </button>
+          </>
         )}
 
         {/* CS → 기사 배정 */}

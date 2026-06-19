@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 interface Props {
-  merchants: { id: string; business_name: string; phone: string }[]
   salesId: string
 }
 
@@ -15,10 +14,9 @@ const DOCUMENT_STATUSES = ['미접수', '일부접수', '완료']
 const VAN_COMPANIES = ['KIS', 'NICE', 'KCP', 'KSNET', '한국정보통신', '스마트로', 'JTNET', '기타']
 const SIMPLE_PAYMENTS = ['카카오페이', '네이버페이', '페이코', '삼성페이', 'SSG페이', 'L페이', '기타', '없음']
 
-export default function NewTicketForm({ merchants, salesId }: Props) {
+export default function NewTicketForm({ salesId }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [showNewMerchant, setShowNewMerchant] = useState(false)
   const [form, setForm] = useState({
     merchant_id: '',
     title: '',
@@ -56,27 +54,18 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
     setLoading(true)
     const supabase = createClient()
 
-    let merchantId = form.merchant_id
+    const { data: merchantData, error: merchantError } = await supabase.from('merchants').insert({
+      ...merchantForm,
+      sales_id: salesId,
+    }).select('id').single()
 
-    if (showNewMerchant) {
-      const { data, error } = await supabase.from('merchants').insert({
-        ...merchantForm,
-        sales_id: salesId,
-      }).select('id').single()
-
-      if (error || !data) {
-        alert('가맹점 등록 실패: ' + error?.message)
-        setLoading(false)
-        return
-      }
-      merchantId = data.id
-    }
-
-    if (!merchantId) {
-      alert('가맹점을 선택하거나 신규 가맹점을 등록해주세요.')
+    if (merchantError || !merchantData) {
+      alert('가맹점 등록 실패: ' + merchantError?.message)
       setLoading(false)
       return
     }
+
+    const merchantId = merchantData.id
 
     const { data: ticket, error } = await supabase.from('tickets').insert({
       merchant_id: merchantId,
@@ -116,50 +105,35 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* 가맹점 선택 */}
-      <Section title="가맹점">
-        <div className="flex gap-2 mb-3">
-          <TabBtn active={!showNewMerchant} onClick={() => setShowNewMerchant(false)}>기존 가맹점</TabBtn>
-          <TabBtn active={showNewMerchant} onClick={() => setShowNewMerchant(true)}>신규 가맹점</TabBtn>
-        </div>
-
-        {!showNewMerchant ? (
-          <select value={form.merchant_id} onChange={e => set('merchant_id', e.target.value)}
-            className={INPUT}>
-            <option value="">가맹점 선택</option>
-            {merchants.map(m => (
-              <option key={m.id} value={m.id}>{m.business_name} ({m.phone})</option>
-            ))}
-          </select>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              ['business_name', '상호명 *', true],
-              ['owner_name', '대표자명 *', true],
-              ['phone', '연락처 *', true],
-              ['business_number', '사업자번호', false],
-              ['pos_model', '포스 기종', false],
-              ['service_type', '서비스 종류', false],
-            ] as [string, string, boolean][]).map(([key, label, required]) => (
-              <div key={key}>
-                <Label>{label}</Label>
-                <input type="text" required={required}
-                  value={merchantForm[key as keyof typeof merchantForm]}
-                  onChange={e => setMerchantForm(f => ({ ...f, [key]: e.target.value }))}
-                  className={INPUT} />
-              </div>
-            ))}
-            <div className="col-span-2">
-              <Label>주소 *</Label>
-              <input required value={merchantForm.address}
-                onChange={e => setMerchantForm(f => ({ ...f, address: e.target.value }))}
-                className={INPUT + ' mb-2'} placeholder="기본 주소" />
-              <input value={merchantForm.address_detail}
-                onChange={e => setMerchantForm(f => ({ ...f, address_detail: e.target.value }))}
-                className={INPUT} placeholder="상세 주소" />
+      {/* 가맹점 정보 */}
+      <Section title="가맹점 정보">
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            ['business_name', '상호명 *', true],
+            ['owner_name', '대표자명 *', true],
+            ['phone', '연락처 *', true],
+            ['business_number', '사업자번호', false],
+            ['pos_model', '포스 기종', false],
+            ['service_type', '서비스 종류', false],
+          ] as [string, string, boolean][]).map(([key, label, required]) => (
+            <div key={key}>
+              <Label>{label}</Label>
+              <input type="text" required={required}
+                value={merchantForm[key as keyof typeof merchantForm]}
+                onChange={e => setMerchantForm(f => ({ ...f, [key]: e.target.value }))}
+                className={INPUT} />
             </div>
+          ))}
+          <div className="col-span-2">
+            <Label>주소</Label>
+            <input value={merchantForm.address}
+              onChange={e => setMerchantForm(f => ({ ...f, address: e.target.value }))}
+              className={INPUT + ' mb-2'} placeholder="기본 주소" />
+            <input value={merchantForm.address_detail}
+              onChange={e => setMerchantForm(f => ({ ...f, address_detail: e.target.value }))}
+              className={INPUT} placeholder="상세 주소" />
           </div>
-        )}
+        </div>
       </Section>
 
       {/* 기본 정보 */}
@@ -304,11 +278,3 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" onClick={onClick}
-      className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${active ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-      {children}
-    </button>
-  )
-}

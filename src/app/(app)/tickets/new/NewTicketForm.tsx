@@ -7,6 +7,7 @@ import Link from 'next/link'
 
 interface Props {
   salesId: string
+  role: string
 }
 
 const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온라인', '기타']
@@ -14,7 +15,7 @@ const DOCUMENT_STATUSES = ['미접수', '일부접수', '완료']
 const VAN_COMPANIES = ['KIS', 'NICE', 'KCP', 'KSNET', '한국정보통신', '스마트로', 'JTNET', '기타']
 const SIMPLE_PAYMENTS = ['카카오페이', '네이버페이', '페이코', '삼성페이', 'SSG페이', 'L페이', '기타', '없음']
 
-export default function NewTicketForm({ salesId }: Props) {
+export default function NewTicketForm({ salesId, role }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
@@ -73,8 +74,9 @@ export default function NewTicketForm({ salesId }: Props) {
       type: form.type,
       priority: form.priority,
       memo: form.memo,
-      sales_id: salesId,
-      status: 'sales',
+      sales_id: role === 'sales' ? salesId : null,
+      cs_id: role === 'cs' ? salesId : null,
+      status: role === 'cs' ? 'cs_pending' : 'sales',
       business_type: form.business_type,
       reception_channel: form.reception_channel || null,
       progress_note: form.progress_note || null,
@@ -96,7 +98,7 @@ export default function NewTicketForm({ salesId }: Props) {
     await supabase.from('ticket_logs').insert({
       ticket_id: ticket.id,
       user_id: salesId,
-      to_status: 'sales',
+      to_status: role === 'cs' ? 'cs_pending' : 'sales',
       message: '신규 작업 등록',
     })
 

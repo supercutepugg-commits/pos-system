@@ -32,9 +32,10 @@ const EXTERNAL_LINKS: { href: string; label: string; icon: any; roles: string[] 
 interface Props {
   profile: Profile
   unreadCount: number
+  unreadDmCount?: number
 }
 
-export default function Sidebar({ profile, unreadCount }: Props) {
+export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -91,6 +92,11 @@ export default function Sidebar({ profile, unreadCount }: Props) {
               {item.href === '/notifications' && unreadCount > 0 && (
                 <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
                   {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+              {item.href === '/chat' && unreadDmCount > 0 && (
+                <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
+                  {unreadDmCount > 9 ? '9+' : unreadDmCount}
                 </span>
               )}
             </Link>

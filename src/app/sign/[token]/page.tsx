@@ -17,6 +17,22 @@ export default async function SignPage({ params }: Props) {
     .single()
 
   if (!contract) notFound()
+  if (contract.status === 'signed') return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center p-8">
+        <p className="text-2xl font-bold text-green-600 mb-2">이미 서명 완료된 계약서입니다</p>
+        <p className="text-slate-500 text-sm">중복 서명은 불가합니다.</p>
+      </div>
+    </div>
+  )
+  if (new Date(contract.token_expires_at) < new Date()) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center p-8">
+        <p className="text-2xl font-bold text-red-500 mb-2">만료된 서명 링크입니다</p>
+        <p className="text-slate-500 text-sm">담당자에게 새 링크를 요청해주세요.</p>
+      </div>
+    </div>
+  )
 
   return <SignClient contract={contract} />
 }

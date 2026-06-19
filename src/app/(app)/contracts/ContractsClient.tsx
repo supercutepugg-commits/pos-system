@@ -106,7 +106,17 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
 
   async function handleDelete(id: string) {
     if (!confirm('삭제하시겠습니까?')) return
+    const contract = contracts.find(c => c.id === id)
     await supabase.from('contracts').delete().eq('id', id)
+    // Storage 파일도 삭제
+    if (contract?.pdf_url) {
+      const path = contract.pdf_url.split('/contracts/')[1]
+      if (path) await supabase.storage.from('contracts').remove([path])
+    }
+    if (contract?.signed_pdf_url) {
+      const path = contract.signed_pdf_url.split('/contracts/')[1]
+      if (path) await supabase.storage.from('contracts').remove([path])
+    }
     setContracts(prev => prev.filter(c => c.id !== id))
   }
 

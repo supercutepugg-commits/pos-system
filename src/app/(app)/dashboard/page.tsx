@@ -29,10 +29,16 @@ export default async function DashboardPage() {
 
   const { data: tickets } = await query.limit(10)
 
-  const { data: allTickets } = await supabase
+  let countQuery = supabase
     .from('tickets')
     .select('status')
     .neq('status', 'canceled')
+
+  if (p.role === 'sales') countQuery = countQuery.eq('sales_id', user.id)
+  if (p.role === 'cs') countQuery = countQuery.in('status', ['cs_pending', 'cs_progress', 'scheduled'])
+  if (p.role === 'tech') countQuery = countQuery.eq('tech_id', user.id)
+
+  const { data: allTickets } = await countQuery
 
   const counts: Record<string, number> = {}
   allTickets?.forEach(t => { counts[t.status] = (counts[t.status] ?? 0) + 1 })

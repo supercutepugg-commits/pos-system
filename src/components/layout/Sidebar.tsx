@@ -17,12 +17,15 @@ const ROLE_COLOR = {
 }
 
 const NAV = [
-  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/tickets', label: '작업 목록', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/merchants', label: '가맹점', icon: Store, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'] },
-  { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
+  { href: '/tickets', label: '전체 작업', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
+  { href: '/tickets?role=sales', label: '영업', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
+  { href: '/tickets?role=cs', label: 'CS팀', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
+  { href: '/tickets?role=tech', label: '기술지원', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'], section: '작업' },
+  { href: '/merchants', label: '가맹점', icon: Store, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
+  { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
+  { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'], section: '' },
+  { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'], section: '' },
 ]
 
 interface Props {
@@ -69,29 +72,44 @@ export default function Sidebar({ profile, unreadCount }: Props) {
       </div>
 
       {/* 네비게이션 */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(item => {
-          const active = pathname === item.href || pathname.startsWith(item.href + '/')
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                active
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />
-              {item.label}
-              {item.href === '/notifications' && unreadCount > 0 && (
-                <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Link>
-          )
-        })}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {(() => {
+          let lastSection = ''
+          return navItems.map(item => {
+            const active = pathname === item.href ||
+              (item.href.includes('?') ? false : pathname.startsWith(item.href + '/'))
+            const isSubItem = item.section === '작업' && item.href !== '/tickets'
+            const showSectionHeader = item.section === '작업' && item.href === '/tickets'
+
+            const el = (
+              <div key={item.href}>
+                {showSectionHeader && (
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 pt-4 pb-1">작업</p>
+                )}
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${
+                    isSubItem ? 'pl-7' : ''
+                  } ${
+                    active
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  {!isSubItem && <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />}
+                  {isSubItem && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : 'bg-slate-300'}`} />}
+                  {item.label}
+                  {item.href === '/notifications' && unreadCount > 0 && (
+                    <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
+              </div>
+            )
+            return el
+          })
+        })()}
       </nav>
 
       {/* 로그아웃 */}

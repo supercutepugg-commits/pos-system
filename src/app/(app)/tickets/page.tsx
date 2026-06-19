@@ -7,7 +7,7 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority, type Profile } from '@/types'
 
 interface Props {
-  searchParams: Promise<{ status?: string; type?: string }>
+  searchParams: Promise<{ status?: string; type?: string; role?: string }>
 }
 
 export default async function TicketsPage({ searchParams }: Props) {
@@ -28,6 +28,9 @@ export default async function TicketsPage({ searchParams }: Props) {
 
   if (params.status) query = query.eq('status', params.status)
   if (params.type) query = query.eq('type', params.type)
+  if (params.role === 'sales') query = query.in('status', ['sales'])
+  if (params.role === 'cs') query = query.in('status', ['cs_pending', 'cs_progress', 'scheduled'])
+  if (params.role === 'tech') query = query.in('status', ['tech_pending', 'in_progress'])
   if (p.role === 'sales') query = query.eq('sales_id', user.id)
   if (p.role === 'tech') query = query.eq('tech_id', user.id)
 

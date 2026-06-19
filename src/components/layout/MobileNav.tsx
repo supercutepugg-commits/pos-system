@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, FileText, Store, Bell } from 'lucide-react'
+import { LayoutDashboard, FileText, MessageCircle, Bell } from 'lucide-react'
 import type { Role } from '@/types'
 
 const NAV = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
   { href: '/tickets', label: '작업', icon: FileText },
-  { href: '/merchants', label: '가맹점', icon: Store },
+  { href: '/chat', label: '채팅', icon: MessageCircle },
   { href: '/notifications', label: '알림', icon: Bell },
 ]
 
@@ -21,7 +21,7 @@ export default function MobileNav({ role: _role, unreadCount }: Props) {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex md:hidden z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex md:hidden z-50">
       {NAV.map(item => {
         const active = pathname === item.href || pathname.startsWith(item.href + '/')
         return (
@@ -29,7 +29,7 @@ export default function MobileNav({ role: _role, unreadCount }: Props) {
             key={item.href}
             href={item.href}
             className={`flex-1 flex flex-col items-center py-2.5 text-xs gap-1 transition-colors ${
-              active ? 'text-blue-600' : 'text-gray-500'
+              active ? 'text-blue-600' : 'text-slate-500'
             }`}
           >
             <div className="relative">

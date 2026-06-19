@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
 import MobileNav from '@/components/layout/MobileNav'
+import RealtimeNotification from '@/components/layout/RealtimeNotification'
 import type { Profile } from '@/types'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="md:hidden">
         <MobileNav role={(profile as Profile).role} unreadCount={unreadCount ?? 0} />
       </div>
+      <RealtimeNotification userId={user.id} initialCount={unreadCount ?? 0} />
     </div>
   )
 }

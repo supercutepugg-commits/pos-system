@@ -12,6 +12,15 @@ interface SignatureItem {
   pageNumber: number
 }
 
+interface Zone {
+  id: string
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface Contract {
   id: string
   title: string
@@ -20,6 +29,8 @@ interface Contract {
   status: string
   sign_token: string
   token_expires_at: string
+  signature_zones?: Zone[]
+  signer_phone?: string
 }
 
 interface Props {
@@ -142,6 +153,13 @@ function SignaturePadModal({ onComplete, onClose }: { onComplete: (dataUrl: stri
 }
 
 export default function SignClient({ contract }: Props) {
+  const zones: Zone[] = contract.signature_zones ?? []
+  const hasZones = zones.length > 0
+
+  // zone-based signing state
+  const [signedZones, setSignedZones] = useState<Record<string, string>>({}) // zoneId → dataUrl
+  const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
+
   const [items, setItems] = useState<SignatureItem[]>([])
   const [showPad, setShowPad] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -156,6 +174,11 @@ export default function SignClient({ contract }: Props) {
 
   function handleSignatureComplete(dataUrl: string) {
     setShowPad(false)
+    if (activeZoneId) {
+      setSignedZones(prev => ({ ...prev, [activeZoneId]: dataUrl }))
+      setActiveZoneId(null)
+      return
+    }
     setItems(prev => [...prev, {
       id: `sig-${Date.now()}`, type: 'signature', dataUrl,
       x: 50, y: 50, width: 160, height: 80, pageNumber: 1,
@@ -186,7 +209,16 @@ export default function SignClient({ contract }: Props) {
   }
 
   async function handleSubmit() {
-    if (items.length === 0) { alert('서명 또는 도장을 추가해주세요.'); return }
+    if (hasZones) {
+      const missingZones = zones.filter(z => !signedZones[z.id])
+      if (missingZones.length > 0) {
+        alert(`아직 서명하지 않은 칸이 있습니다:\n${missingZones.map(z => z.label).join(', ')}`)
+        return
+      }
+    } else if (items.length === 0) {
+      alert('서명 또는 도장을 추가해주세요.')
+      return
+    }
     if (!confirm('서명을 완료하시겠습니까? 이후 수정이 불가합니다.')) return
     setSubmitting(true)
 
@@ -204,6 +236,18 @@ export default function SignClient({ contract }: Props) {
       signed_at: new Date().toISOString(),
       signature_zones: signedItems,
     }).eq('id', contract.id)
+
+    // 서명 완료 알림톡 발송
+    fetch('/api/contracts/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'sign_complete',
+        signerPhone: contract.signer_phone ?? '',
+        signerName: contract.signer_name,
+        contractTitle: contract.title,
+      }),
+    }).catch(() => {})
 
     setSubmitting(false)
     setDone(true)
@@ -252,20 +296,35 @@ export default function SignClient({ contract }: Props) {
             <p className="text-sm text-gray-500 mt-1">{contract.signer_name}님께 서명을 요청드립니다</p>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-gray-700">서명 / 도장</p>
-            <button onClick={() => setShowPad(true)}
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition">
-              서명 그리기
-            </button>
-            <button onClick={() => stampRef.current?.click()}
-              className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-white transition">
-              도장 이미지 업로드
-            </button>
-            <input ref={stampRef} type="file" accept="image/png,image/jpeg" onChange={handleStampFile} className="hidden" />
-          </div>
+          {hasZones ? (
+            <div>
+              <p className="text-xs font-medium text-gray-700 mb-2">서명 위치 ({Object.keys(signedZones).length}/{zones.length})</p>
+              <ul className="space-y-1.5">
+                {zones.map(zone => (
+                  <li key={zone.id} className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 border ${signedZones[zone.id] ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-100 text-gray-500'}`}>
+                    <span>{zone.label}</span>
+                    {signedZones[zone.id] ? <span>✓ 완료</span> : <span className="text-gray-300">미서명</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-gray-400 mt-3">PDF의 점선 박스를 클릭해서 서명하세요</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-700">서명 / 도장</p>
+              <button onClick={() => setShowPad(true)}
+                className="w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition">
+                서명 그리기
+              </button>
+              <button onClick={() => stampRef.current?.click()}
+                className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-white transition">
+                도장 이미지 업로드
+              </button>
+              <input ref={stampRef} type="file" accept="image/png,image/jpeg" onChange={handleStampFile} className="hidden" />
+            </div>
+          )}
 
-          {items.length > 0 && (
+          {!hasZones && items.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-700 mb-2">배치된 항목 ({items.length})</p>
               <ul className="space-y-1.5">
@@ -281,11 +340,14 @@ export default function SignClient({ contract }: Props) {
         </div>
 
         <div className="px-6 py-5 border-t border-gray-100">
-          <button onClick={handleSubmit} disabled={submitting || items.length === 0}
+          <button onClick={handleSubmit} disabled={submitting || (hasZones ? Object.keys(signedZones).length < zones.length : items.length === 0)}
             className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 transition">
             {submitting ? '처리 중...' : '서명 완료'}
           </button>
-          {items.length === 0 && <p className="text-xs text-gray-400 text-center mt-2">서명을 먼저 추가해주세요</p>}
+          {hasZones && Object.keys(signedZones).length < zones.length && (
+            <p className="text-xs text-gray-400 text-center mt-2">모든 서명 칸을 완료해주세요</p>
+          )}
+          {!hasZones && items.length === 0 && <p className="text-xs text-gray-400 text-center mt-2">서명을 먼저 추가해주세요</p>}
         </div>
       </div>
 
@@ -293,16 +355,38 @@ export default function SignClient({ contract }: Props) {
       <div className="flex-1 overflow-auto bg-gray-100 relative p-4">
         <div className="relative inline-block bg-white shadow-lg">
           <iframe src={contract.pdf_url} className="w-full min-h-screen" style={{ minWidth: 600, height: '90vh' }} />
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+
+          {/* 존 기반 서명 오버레이 */}
+          {hasZones && (
             <div className="absolute inset-0 pointer-events-none">
-              <div style={{ pointerEvents: 'auto', position: 'relative', width: '100%', height: '100%' }}>
-                {items.map(item => (
-                  <DraggableItem key={item.id} item={item} onResize={handleResize}
-                    onRemove={id => setItems(prev => prev.filter(i => i.id !== id))} />
-                ))}
-              </div>
+              {zones.map(zone => (
+                <div key={zone.id}
+                  style={{ position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height, pointerEvents: 'auto' }}
+                  className={`border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${signedZones[zone.id] ? 'border-green-400 bg-green-50/60' : 'border-blue-400 bg-blue-50/40 hover:bg-blue-100/60'}`}
+                  onClick={() => { if (!signedZones[zone.id]) { setActiveZoneId(zone.id); setShowPad(true) } }}>
+                  {signedZones[zone.id] ? (
+                    <img src={signedZones[zone.id]} alt="서명" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <span className="text-xs font-semibold text-blue-600 select-none">{zone.label} 클릭</span>
+                  )}
+                </div>
+              ))}
             </div>
-          </DndContext>
+          )}
+
+          {/* 자유 배치 서명 오버레이 (존 없을 때) */}
+          {!hasZones && (
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <div className="absolute inset-0 pointer-events-none">
+                <div style={{ pointerEvents: 'auto', position: 'relative', width: '100%', height: '100%' }}>
+                  {items.map(item => (
+                    <DraggableItem key={item.id} item={item} onResize={handleResize}
+                      onRemove={id => setItems(prev => prev.filter(i => i.id !== id))} />
+                  ))}
+                </div>
+              </div>
+            </DndContext>
+          )}
         </div>
       </div>
 

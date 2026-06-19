@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus, Copy, ExternalLink, Trash2, FileText } from 'lucide-react'
+import { Plus, Copy, ExternalLink, Trash2, FileText, PenLine } from 'lucide-react'
 import type { Profile } from '@/types'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -67,7 +67,8 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     setUploading(true)
 
     // Supabase Storage 업로드
-    const fileName = `${Date.now()}_${pdfFile.name}`
+    const ext = pdfFile.name.split('.').pop() ?? 'pdf'
+    const fileName = `${Date.now()}.${ext}`
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('contracts')
       .upload(fileName, pdfFile, { contentType: 'application/pdf' })
@@ -81,7 +82,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
 
     const { data: { publicUrl } } = supabase.storage.from('contracts').getPublicUrl(fileName)
 
-    const { error } = await supabase.from('contracts').insert({
+    const { data: inserted, error } = await supabase.from('contracts').insert({
       title: form.title,
       pdf_url: publicUrl,
       signer_name: form.signerName,
@@ -89,10 +90,25 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
       signer_phone: form.signerPhone || null,
       created_by: profile.id,
       status: 'pending',
-    })
+    }).select('sign_token').single()
 
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
+
+    // 서명 요청 알림톡 발송
+    if (form.signerPhone && inserted?.sign_token) {
+      fetch('/api/contracts/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'sign_request',
+          signerPhone: form.signerPhone,
+          signerName: form.signerName,
+          contractTitle: form.title,
+          signToken: inserted.sign_token,
+        }),
+      }).catch(() => {})
+    }
 
     setForm({ title: '', signerName: '', signerEmail: '', signerPhone: '' })
     setPdfFile(null)
@@ -194,6 +210,10 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
                   {STATUS_LABELS[c.status] ?? c.status}
                 </span>
                 <div className="flex gap-2 flex-shrink-0">
+                  <a href={`/contracts/${c.id}`}
+                    className="flex items-center gap-1 text-xs text-purple-600 border border-purple-200 px-2.5 py-1.5 rounded-lg hover:bg-purple-50">
+                    <PenLine size={12} />위치 지정
+                  </a>
                   <button onClick={() => copySignLink(c.sign_token)}
                     className="flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-2.5 py-1.5 rounded-lg hover:bg-slate-50">
                     <Copy size={12} />서명 링크

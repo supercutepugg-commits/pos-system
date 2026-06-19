@@ -12,7 +12,7 @@ export default async function SignPage({ params }: Props) {
 
   const { data: contract } = await supabase
     .from('contracts')
-    .select('id, title, pdf_url, signer_name, status, sign_token, token_expires_at')
+    .select('id, title, pdf_url, signer_name, signer_phone, status, sign_token, token_expires_at, signature_zones')
     .eq('sign_token', token)
     .single()
 

@@ -10,6 +10,11 @@ interface Props {
   salesId: string
 }
 
+const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온라인', '기타']
+const DOCUMENT_STATUSES = ['미접수', '일부접수', '완료']
+const VAN_COMPANIES = ['KIS', 'NICE', 'KCP', 'KSNET', '한국정보통신', '스마트로', 'JTNET', '기타']
+const SIMPLE_PAYMENTS = ['카카오페이', '네이버페이', '페이코', '삼성페이', 'SSG페이', 'L페이', '기타', '없음']
+
 export default function NewTicketForm({ merchants, salesId }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -20,6 +25,18 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
     type: 'install',
     priority: 'normal',
     memo: '',
+    business_type: '개인',
+    reception_channel: '',
+    progress_note: '',
+    document_status: '미접수',
+    open_date: '',
+    install_date: '',
+    internet: '',
+    product: '',
+    card_apply_date: '',
+    van_company: '',
+    baemin_apply: false,
+    simple_payment: '',
   })
   const [merchantForm, setMerchantForm] = useState({
     business_name: '',
@@ -32,7 +49,7 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
     service_type: '',
   })
 
-  function set(key: string, val: string) {
+  function set(key: string, val: string | boolean) {
     setForm(f => ({ ...f, [key]: val }))
   }
 
@@ -43,7 +60,6 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
 
     let merchantId = form.merchant_id
 
-    // 신규 가맹점 등록
     if (showNewMerchant) {
       const { data, error } = await supabase.from('merchants').insert({
         ...merchantForm,
@@ -72,6 +88,18 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
       memo: form.memo,
       sales_id: salesId,
       status: 'sales',
+      business_type: form.business_type,
+      reception_channel: form.reception_channel || null,
+      progress_note: form.progress_note || null,
+      document_status: form.document_status,
+      open_date: form.open_date || null,
+      install_date: form.install_date || null,
+      internet: form.internet || null,
+      product: form.product || null,
+      card_apply_date: form.card_apply_date || null,
+      van_company: form.van_company || null,
+      baemin_apply: form.baemin_apply,
+      simple_payment: form.simple_payment || null,
     }).select('id').single()
 
     if (error || !ticket) {
@@ -91,28 +119,17 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {/* 가맹점 선택 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">가맹점</h2>
-
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setShowNewMerchant(false)}
-            className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${!showNewMerchant ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600'}`}>
-            기존 가맹점
-          </button>
-          <button type="button" onClick={() => setShowNewMerchant(true)}
-            className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${showNewMerchant ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600'}`}>
-            신규 가맹점
-          </button>
+      <Section title="가맹점">
+        <div className="flex gap-2 mb-3">
+          <TabBtn active={!showNewMerchant} onClick={() => setShowNewMerchant(false)}>기존 가맹점</TabBtn>
+          <TabBtn active={showNewMerchant} onClick={() => setShowNewMerchant(true)}>신규 가맹점</TabBtn>
         </div>
 
         {!showNewMerchant ? (
-          <select
-            value={form.merchant_id}
-            onChange={e => set('merchant_id', e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
+          <select value={form.merchant_id} onChange={e => set('merchant_id', e.target.value)}
+            className={INPUT}>
             <option value="">가맹점 선택</option>
             {merchants.map(m => (
               <option key={m.id} value={m.id}>{m.business_name} ({m.phone})</option>
@@ -120,62 +137,74 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
           </select>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {[
+            {([
               ['business_name', '상호명 *', true],
               ['owner_name', '대표자명 *', true],
               ['phone', '연락처 *', true],
               ['business_number', '사업자번호', false],
               ['pos_model', '포스 기종', false],
               ['service_type', '서비스 종류', false],
-            ].map(([key, label, required]) => (
-              <div key={key as string} className={key === 'phone' || key === 'business_number' ? '' : ''}>
-                <label className="block text-xs text-gray-500 mb-1">{label as string}</label>
-                <input
-                  type="text"
-                  required={required as boolean}
+            ] as [string, string, boolean][]).map(([key, label, required]) => (
+              <div key={key}>
+                <Label>{label}</Label>
+                <input type="text" required={required}
                   value={merchantForm[key as keyof typeof merchantForm]}
-                  onChange={e => setMerchantForm(f => ({ ...f, [key as string]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  onChange={e => setMerchantForm(f => ({ ...f, [key]: e.target.value }))}
+                  className={INPUT} />
               </div>
             ))}
             <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">주소 *</label>
-              <input required value={merchantForm.address} onChange={e => setMerchantForm(f => ({ ...f, address: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2" placeholder="기본 주소" />
-              <input value={merchantForm.address_detail} onChange={e => setMerchantForm(f => ({ ...f, address_detail: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="상세 주소" />
+              <Label>주소 *</Label>
+              <input required value={merchantForm.address}
+                onChange={e => setMerchantForm(f => ({ ...f, address: e.target.value }))}
+                className={INPUT + ' mb-2'} placeholder="기본 주소" />
+              <input value={merchantForm.address_detail}
+                onChange={e => setMerchantForm(f => ({ ...f, address_detail: e.target.value }))}
+                className={INPUT} placeholder="상세 주소" />
             </div>
           </div>
         )}
-      </div>
+      </Section>
 
-      {/* 작업 정보 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">작업 정보</h2>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">작업 제목 *</label>
-          <input required value={form.title} onChange={e => set('title', e.target.value)}
-            placeholder="예: 신규 포스 설치"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-
+      {/* 기본 정보 */}
+      <Section title="기본 정보">
         <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Label>작업 제목 *</Label>
+            <input required value={form.title} onChange={e => set('title', e.target.value)}
+              placeholder="예: 신규 포스 설치"
+              className={INPUT} />
+          </div>
+
           <div>
-            <label className="block text-xs text-gray-500 mb-1">작업 유형</label>
-            <select value={form.type} onChange={e => set('type', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <Label>사업자 구분</Label>
+            <select value={form.business_type} onChange={e => set('business_type', e.target.value)} className={INPUT}>
+              <option value="개인">개인사업자</option>
+              <option value="법인">법인사업자</option>
+            </select>
+          </div>
+
+          <div>
+            <Label>접수 채널</Label>
+            <select value={form.reception_channel} onChange={e => set('reception_channel', e.target.value)} className={INPUT}>
+              <option value="">선택</option>
+              {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <Label>작업 유형</Label>
+            <select value={form.type} onChange={e => set('type', e.target.value)} className={INPUT}>
               <option value="install">신규 설치</option>
               <option value="as">A/S</option>
               <option value="consult">상담</option>
               <option value="other">기타</option>
             </select>
           </div>
+
           <div>
-            <label className="block text-xs text-gray-500 mb-1">우선순위</label>
-            <select value={form.priority} onChange={e => set('priority', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <Label>우선순위</Label>
+            <select value={form.priority} onChange={e => set('priority', e.target.value)} className={INPUT}>
               <option value="low">낮음</option>
               <option value="normal">보통</option>
               <option value="high">높음</option>
@@ -183,15 +212,85 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
             </select>
           </div>
         </div>
+      </Section>
 
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">메모</label>
-          <textarea value={form.memo} onChange={e => set('memo', e.target.value)} rows={3}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+      {/* CS 처리 정보 */}
+      <Section title="CS 처리 정보">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>서류 접수 상태</Label>
+            <select value={form.document_status} onChange={e => set('document_status', e.target.value)} className={INPUT}>
+              {DOCUMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <Label>상품</Label>
+            <input value={form.product} onChange={e => set('product', e.target.value)} className={INPUT} placeholder="예: 포스 단말기" />
+          </div>
+
+          <div>
+            <Label>VAN사</Label>
+            <select value={form.van_company} onChange={e => set('van_company', e.target.value)} className={INPUT}>
+              <option value="">선택</option>
+              {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <Label>인터넷</Label>
+            <input value={form.internet} onChange={e => set('internet', e.target.value)} className={INPUT} placeholder="예: KT, SKT" />
+          </div>
+
+          <div>
+            <Label>카드가맹 접수일</Label>
+            <input type="date" value={form.card_apply_date} onChange={e => set('card_apply_date', e.target.value)} className={INPUT} />
+          </div>
+
+          <div>
+            <Label>오픈예정일</Label>
+            <input type="date" value={form.open_date} onChange={e => set('open_date', e.target.value)} className={INPUT} />
+          </div>
+
+          <div>
+            <Label>설치 및 발송일</Label>
+            <input type="date" value={form.install_date} onChange={e => set('install_date', e.target.value)} className={INPUT} />
+          </div>
+
+          <div>
+            <Label>간편결제</Label>
+            <select value={form.simple_payment} onChange={e => set('simple_payment', e.target.value)} className={INPUT}>
+              <option value="">선택</option>
+              {SIMPLE_PAYMENTS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div className="col-span-2 flex items-center gap-3 py-1">
+            <input type="checkbox" id="baemin" checked={form.baemin_apply}
+              onChange={e => set('baemin_apply', e.target.checked)}
+              className="w-4 h-4 accent-blue-600 cursor-pointer" />
+            <label htmlFor="baemin" className="text-sm text-gray-700 cursor-pointer select-none">배민 접수</label>
+          </div>
         </div>
-      </div>
+      </Section>
 
-      <div className="flex gap-3">
+      {/* 진행 상황 / 비고 */}
+      <Section title="메모 / 비고">
+        <div className="space-y-3">
+          <div>
+            <Label>진행 상황</Label>
+            <textarea value={form.progress_note} onChange={e => set('progress_note', e.target.value)} rows={2}
+              className={INPUT + ' resize-none'} placeholder="현재 진행 상황을 입력하세요" />
+          </div>
+          <div>
+            <Label>비고</Label>
+            <textarea value={form.memo} onChange={e => set('memo', e.target.value)} rows={2}
+              className={INPUT + ' resize-none'} />
+          </div>
+        </div>
+      </Section>
+
+      <div className="flex gap-3 pb-6">
         <Link href="/tickets" className="flex-1 text-center py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
           취소
         </Link>
@@ -201,5 +300,29 @@ export default function NewTicketForm({ merchants, salesId }: Props) {
         </button>
       </div>
     </form>
+  )
+}
+
+const INPUT = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900'
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <label className="block text-xs text-gray-500 mb-1">{children}</label>
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+      <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      {children}
+    </div>
+  )
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${active ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+      {children}
+    </button>
   )
 }

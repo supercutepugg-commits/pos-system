@@ -50,6 +50,19 @@ export interface Ticket {
   cs_id?: string
   tech_id?: string
   memo?: string
+  // 영업/CS 추가 필드
+  business_type?: string
+  reception_channel?: string
+  progress_note?: string
+  document_status?: string
+  open_date?: string
+  install_date?: string
+  internet?: string
+  product?: string
+  card_apply_date?: string
+  van_company?: string
+  baemin_apply?: boolean
+  simple_payment?: string
   created_at: string
   updated_at: string
   merchant?: Merchant

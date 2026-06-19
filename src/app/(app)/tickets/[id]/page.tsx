@@ -5,6 +5,7 @@ import { ko } from 'date-fns/locale'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_LABEL, PRIORITY_COLOR, type TicketStatus, type TicketType, type Priority, type Profile } from '@/types'
 import TicketActions from './TicketActions'
 import TicketLogs from './TicketLogs'
+import TicketInfoEdit from './TicketInfoEdit'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -123,12 +124,11 @@ export default async function TicketDetailPage({ params }: Props) {
         )}
       </div>
 
-      {ticket.memo && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">메모</h2>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.memo}</p>
-        </div>
-      )}
+      {/* 영업/CS 정보 (수정 가능) */}
+      <TicketInfoEdit
+        ticket={ticket as any}
+        canEdit={['admin', 'sales', 'cs'].includes((profile as Profile).role)}
+      />
 
       {/* 액션 버튼들 */}
       <TicketActions

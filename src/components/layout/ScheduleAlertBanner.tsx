@@ -12,6 +12,7 @@ interface ScheduleAlert {
 }
 
 const DISMISS_KEY = 'schedule_alert_dismissed'
+const RECHECK_INTERVAL = 2 * 60 * 60 * 1000 // 2시간
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -27,40 +28,49 @@ function dDayLabel(n: number) {
   return `D-${n}`
 }
 
+function alertKey(a: ScheduleAlert) {
+  return `${a.ticketId}_${a.label}_${a.date}`
+}
+
+function readDismissed(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISS_KEY) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
 export default function ScheduleAlertBanner({ alerts }: { alerts: ScheduleAlert[] }) {
   const router = useRouter()
   const [visible, setVisible] = useState<ScheduleAlert[]>([])
 
-  useEffect(() => {
-    let dismissed: Record<string, string> = {}
-    try {
-      dismissed = JSON.parse(localStorage.getItem(DISMISS_KEY) ?? '{}')
-    } catch {}
-
-    const today = todayStr()
-    const key = (a: ScheduleAlert) => `${a.ticketId}_${a.label}_${a.date}`
-    const filtered = alerts.filter(a => dismissed[key(a)] !== today)
+  function recompute() {
+    const dismissed = readDismissed()
+    const now = Date.now()
+    const filtered = alerts.filter(a => {
+      const until = dismissed[alertKey(a)]
+      return !until || until <= now
+    })
     setVisible(filtered.sort((a, b) => a.date.localeCompare(b.date)))
+  }
+
+  useEffect(() => {
+    recompute()
+    const timer = setInterval(recompute, RECHECK_INTERVAL)
+    return () => clearInterval(timer)
   }, [alerts])
 
   function dismiss(a: ScheduleAlert) {
-    let dismissed: Record<string, string> = {}
-    try {
-      dismissed = JSON.parse(localStorage.getItem(DISMISS_KEY) ?? '{}')
-    } catch {}
-    const key = `${a.ticketId}_${a.label}_${a.date}`
-    dismissed[key] = todayStr()
+    const dismissed = readDismissed()
+    dismissed[alertKey(a)] = Date.now() + RECHECK_INTERVAL
     localStorage.setItem(DISMISS_KEY, JSON.stringify(dismissed))
     setVisible(prev => prev.filter(v => v !== a))
   }
 
   function dismissAll() {
-    let dismissed: Record<string, string> = {}
-    try {
-      dismissed = JSON.parse(localStorage.getItem(DISMISS_KEY) ?? '{}')
-    } catch {}
-    const today = todayStr()
-    visible.forEach(a => { dismissed[`${a.ticketId}_${a.label}_${a.date}`] = today })
+    const dismissed = readDismissed()
+    const until = Date.now() + RECHECK_INTERVAL
+    visible.forEach(a => { dismissed[alertKey(a)] = until })
     localStorage.setItem(DISMISS_KEY, JSON.stringify(dismissed))
     setVisible([])
   }

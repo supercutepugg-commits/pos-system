@@ -2,9 +2,15 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const CHUNK_SIZE = 100
+
 export async function deleteTickets(ids: string[]) {
   if (!ids.length) return { error: null }
   const supabase = createAdminClient()
-  const { error } = await supabase.from('tickets').delete().in('id', ids)
-  return { error: error?.message ?? null }
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE)
+    const { error } = await supabase.from('tickets').delete().in('id', chunk)
+    if (error) return { error: error.message }
+  }
+  return { error: null }
 }

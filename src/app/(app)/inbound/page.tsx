@@ -51,6 +51,7 @@ export default async function InboundPage({ searchParams }: Props) {
   const [rowsResult, optionsResult] = await Promise.all([
     applyFilters(supabase.from('crm_inbound').select('*', { count: 'exact' }))
       .order(sortKey, { ascending: sortDir === 'asc' })
+      .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
     supabase.from('crm_inbound').select('staff, channel, category, status'),
   ])

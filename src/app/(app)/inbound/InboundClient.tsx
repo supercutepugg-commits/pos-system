@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, Sparkles, X } from 'lucide-react'
 import { updateInboundRow, deleteInboundRows, extractAndSaveInbound } from './actions'
+import { createClient } from '@/lib/supabase/client'
 
 export interface InboundRow {
   id: string
@@ -89,6 +90,25 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
     setLocalRows(rows)
     setSelected(new Set())
   }, [rows])
+
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('crm_inbound-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'crm_inbound' }, () => {
+        if (refreshTimer.current) clearTimeout(refreshTimer.current)
+        refreshTimer.current = setTimeout(() => {
+          startTransition(() => router.refresh())
+        }, 400)
+      })
+      .subscribe()
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   function pushParams(next: Record<string, string | undefined>) {
     const merged = { ...currentParams, ...next }

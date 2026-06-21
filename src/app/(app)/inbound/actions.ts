@@ -22,7 +22,7 @@ export async function deleteInboundRows(ids: string[]) {
 }
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions'
-const DEEPSEEK_MODEL = 'deepseek-v4-pro'
+const DEEPSEEK_MODEL = 'deepseek-chat'
 
 const EXTRACT_SYSTEM =
   '당신은 포스모스 포스기 고객센터의 CRM 데이터 입력 전문가입니다.\n' +

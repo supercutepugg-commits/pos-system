@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Search, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { updateInboundRow, deleteInboundRows } from './actions'
 
 export interface InboundRow {
   id: string
@@ -54,63 +56,52 @@ const CATEGORY_COLORS: Record<string, string> = {
   '기타문의': 'bg-slate-100 text-slate-600',
 }
 
-type SortKey = keyof InboundRow
-type SortDir = 'asc' | 'desc'
+interface FilterOptions {
+  staffs: string[]
+  channels: string[]
+  categories: string[]
+  statuses: string[]
+}
 
-export default function InboundClient({ rows }: { rows: InboundRow[] }) {
-  const [search, setSearch] = useState('')
-  const [staffFilter, setStaffFilter] = useState('')
-  const [channelFilter, setChannelFilter] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('date')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+interface Props {
+  rows: InboundRow[]
+  totalCount: number
+  page: number
+  totalPages: number
+  filterOptions: FilterOptions
+  currentParams: Record<string, string | undefined>
+  sortKey: string
+  sortDir: 'asc' | 'desc'
+}
+
+export default function InboundClient({ rows, totalCount, page, totalPages, filterOptions, currentParams, sortKey, sortDir }: Props) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [search, setSearch] = useState(currentParams.q ?? '')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+  const [localRows, setLocalRows] = useState(rows)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
 
-  const staffs = useMemo(() => [...new Set(rows.map(r => r.staff).filter(Boolean))].sort() as string[], [rows])
-  const channels = useMemo(() => [...new Set(rows.map(r => r.channel).filter(Boolean))].sort() as string[], [rows])
-  const categories = useMemo(() => [...new Set(rows.map(r => r.category).filter(Boolean))].sort() as string[], [rows])
-  const statuses = useMemo(() => [...new Set(rows.map(r => r.status).filter(Boolean))].sort() as string[], [rows])
+  useEffect(() => {
+    setLocalRows(rows)
+    setSelected(new Set())
+  }, [rows])
 
-  const filtered = useMemo(() => {
-    let result = rows
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(r =>
-        r.business_name?.toLowerCase().includes(q) ||
-        r.owner_name?.toLowerCase().includes(q) ||
-        r.phone?.includes(q) ||
-        r.inquiry?.toLowerCase().includes(q) ||
-        r.staff?.toLowerCase().includes(q)
-      )
-    }
-    if (staffFilter) result = result.filter(r => r.staff === staffFilter)
-    if (channelFilter) result = result.filter(r => r.channel === channelFilter)
-    if (categoryFilter) result = result.filter(r => r.category === categoryFilter)
-    if (statusFilter) result = result.filter(r => r.status === statusFilter)
-    if (dateFrom) result = result.filter(r => r.date && r.date >= dateFrom)
-    if (dateTo) result = result.filter(r => r.date && r.date <= dateTo)
-
-    return [...result].sort((a, b) => {
-      // null을 항상 뒤로
-      if (!a[sortKey] && !b[sortKey]) return 0
-      if (!a[sortKey]) return 1
-      if (!b[sortKey]) return -1
-      const va = a[sortKey]!
-      const vb = b[sortKey]!
-      const cmp = va < vb ? -1 : va > vb ? 1 : 0
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-  }, [rows, search, staffFilter, channelFilter, categoryFilter, statusFilter, dateFrom, dateTo, sortKey, sortDir])
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('asc') }
+  function pushParams(next: Record<string, string | undefined>) {
+    const merged = { ...currentParams, ...next }
+    const qs = new URLSearchParams()
+    Object.entries(merged).forEach(([k, v]) => { if (v) qs.set(k, v) })
+    startTransition(() => router.push(`/inbound?${qs.toString()}`))
   }
 
-  function SortIcon({ col }: { col: SortKey }) {
+  function toggleSort(key: string) {
+    if (sortKey === key) pushParams({ sort: key, dir: sortDir === 'asc' ? 'desc' : 'asc' })
+    else pushParams({ sort: key, dir: 'asc' })
+  }
+
+  function SortIcon({ col }: { col: string }) {
     if (sortKey !== col) return <ChevronsUpDown size={13} className="text-slate-300" />
     return sortDir === 'asc'
       ? <ChevronUp size={13} className="text-blue-500" />
@@ -123,11 +114,74 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
     return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
   }
 
+  const allChecked = localRows.length > 0 && selected.size === localRows.length
+
+  function toggleAll() {
+    setSelected(allChecked ? new Set() : new Set(localRows.map(r => r.id)))
+  }
+
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  async function handleDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
+    setDeleting(true)
+    const { error } = await deleteInboundRows([...selected])
+    setDeleting(false)
+    if (error) { alert('삭제 실패: ' + error); return }
+    setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
+    setSelected(new Set())
+    startTransition(() => router.refresh())
+  }
+
+  async function saveField(id: string, field: string, value: string) {
+    setLocalRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
+    setSavingId(id)
+    const { error } = await updateInboundRow(id, { [field]: value || null })
+    setSavingId(null)
+    if (error) alert('수정 실패: ' + error)
+  }
+
+  function EditableText({ row, field, className }: { row: InboundRow; field: keyof InboundRow; className?: string }) {
+    const [value, setValue] = useState(row[field] ?? '')
+    return (
+      <input
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onBlur={() => { if (value !== (row[field] ?? '')) saveField(row.id, field, value) }}
+        onClick={e => e.stopPropagation()}
+        className={`w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 ${className ?? ''}`}
+      />
+    )
+  }
+
+  function EditableSelect({ row, field, options, colorMap }: { row: InboundRow; field: keyof InboundRow; options: string[]; colorMap: Record<string, string> }) {
+    const value = row[field] ?? ''
+    const cls = value ? (colorMap[value as string] || 'bg-slate-100 text-slate-600') : ''
+    return (
+      <select
+        value={value as string}
+        onChange={e => saveField(row.id, field, e.target.value)}
+        onClick={e => e.stopPropagation()}
+        className={`text-xs font-medium rounded-full px-2 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${cls}`}
+      >
+        <option value="">-</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* 필터 바 */}
       <div className="flex flex-wrap gap-2 mb-3">
-        <div className="relative">
+        <form onSubmit={e => { e.preventDefault(); pushParams({ q: search, page: undefined }) }} className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
             value={search}
@@ -135,42 +189,57 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
             placeholder="상호명, 대표자, 연락처, 문의내용..."
             className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-        </div>
-        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
+        </form>
+        <select value={currentParams.staff ?? ''} onChange={e => pushParams({ staff: e.target.value || undefined, page: undefined })}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">담당자 전체</option>
-          {staffs.map(s => <option key={s}>{s}</option>)}
+          {filterOptions.staffs.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
+        <select value={currentParams.channel ?? ''} onChange={e => pushParams({ channel: e.target.value || undefined, page: undefined })}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">인입채널 전체</option>
-          {channels.map(s => <option key={s}>{s}</option>)}
+          {filterOptions.channels.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+        <select value={currentParams.category ?? ''} onChange={e => pushParams({ category: e.target.value || undefined, page: undefined })}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">분류 전체</option>
-          {categories.map(s => <option key={s}>{s}</option>)}
+          {filterOptions.categories.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+        <select value={currentParams.status ?? ''} onChange={e => pushParams({ status: e.target.value || undefined, page: undefined })}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">진행상황 전체</option>
-          {statuses.map(s => <option key={s}>{s}</option>)}
+          {filterOptions.statuses.map(s => <option key={s}>{s}</option>)}
         </select>
         <div className="flex items-center gap-1">
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          <input type="date" value={currentParams.from ?? ''} onChange={e => pushParams({ from: e.target.value || undefined, page: undefined })}
             className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <span className="text-slate-400 text-sm">~</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          <input type="date" value={currentParams.to ?? ''} onChange={e => pushParams({ to: e.target.value || undefined, page: undefined })}
             className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        {(search || staffFilter || channelFilter || categoryFilter || statusFilter || dateFrom || dateTo) && (
-          <button onClick={() => { setSearch(''); setStaffFilter(''); setChannelFilter(''); setCategoryFilter(''); setStatusFilter(''); setDateFrom(''); setDateTo('') }}
+        {(currentParams.q || currentParams.staff || currentParams.channel || currentParams.category || currentParams.status || currentParams.from || currentParams.to) && (
+          <button onClick={() => { setSearch(''); router.push('/inbound') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
             초기화
           </button>
         )}
-        <div className="ml-auto text-sm text-slate-500 flex items-center">
-          {filtered.length.toLocaleString()}건 / 전체 {rows.length.toLocaleString()}건
+        <div className="ml-auto flex items-center gap-3">
+          {selected.size > 0 && (
+            <>
+              <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Trash2 size={14} />
+                {deleting ? '삭제 중...' : '선택 삭제'}
+              </button>
+            </>
+          )}
+          <div className="text-sm text-slate-500">
+            전체 {totalCount.toLocaleString()}건 ({page}/{totalPages} 페이지)
+          </div>
         </div>
       </div>
 
@@ -179,18 +248,21 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
         <table className="w-full text-sm border-collapse min-w-[1200px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
+              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+              </th>
               {([
                 ['date', '날짜', 90],
-                ['staff', '담당자', 70],
-                ['channel', '인입채널', 80],
-                ['category', '분류', 80],
-                ['status', '진행상황', 90],
-                ['owner_name', '대표자명', 80],
-                ['business_name', '상호명', 110],
-                ['phone', '연락처', 110],
+                ['staff', '담당자', 80],
+                ['channel', '인입채널', 90],
+                ['category', '분류', 90],
+                ['status', '진행상황', 100],
+                ['owner_name', '대표자명', 90],
+                ['business_name', '상호명', 120],
+                ['phone', '연락처', 120],
                 ['inquiry', '문의내용', null],
                 ['answer', '답변내용', null],
-              ] as [SortKey, string, number | null][]).map(([key, label, w]) => (
+              ] as [string, string, number | null][]).map(([key, label, w]) => (
                 <th
                   key={key}
                   onClick={() => toggleSort(key)}
@@ -205,60 +277,92 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(row => (
+            {localRows.map(row => (
               <>
                 <tr
                   key={row.id}
-                  onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
-                  className="border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors"
+                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${savingId === row.id ? 'opacity-60' : ''}`}
                 >
-                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => toggleOne(row.id)}
+                      onClick={e => e.stopPropagation()}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
                     {row.date ? row.date.slice(0, 10) : '-'}
                   </td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.staff || '-'}</td>
-                  <td className="px-3 py-2">
-                    <Badge text={row.channel} colorMap={CHANNEL_COLORS} />
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                    <EditableText row={row} field="staff" />
                   </td>
                   <td className="px-3 py-2">
-                    <Badge text={row.category} colorMap={CATEGORY_COLORS} />
+                    <EditableSelect row={row} field="channel" options={Object.keys(CHANNEL_COLORS)} colorMap={CHANNEL_COLORS} />
                   </td>
                   <td className="px-3 py-2">
-                    <Badge text={row.status} colorMap={STATUS_COLORS} />
+                    <EditableSelect row={row} field="category" options={Object.keys(CATEGORY_COLORS)} colorMap={CATEGORY_COLORS} />
                   </td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{row.business_name || '-'}</td>
-                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{row.phone || '-'}</td>
-                  <td className="px-3 py-2 text-slate-700 max-w-[250px]">
-                    <div className="truncate">{row.inquiry || '-'}</div>
+                  <td className="px-3 py-2">
+                    <EditableSelect row={row} field="status" options={Object.keys(STATUS_COLORS)} colorMap={STATUS_COLORS} />
                   </td>
-                  <td className="px-3 py-2 text-slate-600 max-w-[250px]">
-                    <div className="truncate">{row.answer || '-'}</div>
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                    <EditableText row={row} field="owner_name" />
+                  </td>
+                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">
+                    <EditableText row={row} field="business_name" />
+                  </td>
+                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
+                    <EditableText row={row} field="phone" />
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                    <div className="truncate cursor-pointer">{row.inquiry || '-'}</div>
+                  </td>
+                  <td className="px-3 py-2 text-slate-600 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                    <div className="truncate cursor-pointer">{row.answer || '-'}</div>
                   </td>
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50">
-                    <td colSpan={10} className="px-4 py-4">
+                    <td colSpan={11} className="px-4 py-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="font-semibold text-slate-700 mb-1">문의내용</p>
-                          <p className="text-slate-600 whitespace-pre-wrap">{row.inquiry || '-'}</p>
+                          <textarea
+                            defaultValue={row.inquiry ?? ''}
+                            onBlur={e => { if (e.target.value !== (row.inquiry ?? '')) saveField(row.id, 'inquiry', e.target.value) }}
+                            className="w-full text-slate-600 bg-white border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            rows={3}
+                          />
                         </div>
                         <div>
                           <p className="font-semibold text-slate-700 mb-1">답변내용</p>
-                          <p className="text-slate-600 whitespace-pre-wrap">{row.answer || '-'}</p>
+                          <textarea
+                            defaultValue={row.answer ?? ''}
+                            onBlur={e => { if (e.target.value !== (row.answer ?? '')) saveField(row.id, 'answer', e.target.value) }}
+                            className="w-full text-slate-600 bg-white border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            rows={3}
+                          />
                         </div>
-                        {row.tech_note && (
-                          <div>
-                            <p className="font-semibold text-slate-700 mb-1">추가내용 (기술적)</p>
-                            <p className="text-slate-600 whitespace-pre-wrap">{row.tech_note}</p>
-                          </div>
-                        )}
-                        {row.note && (
-                          <div>
-                            <p className="font-semibold text-slate-700 mb-1">비고</p>
-                            <p className="text-slate-600 whitespace-pre-wrap">{row.note}</p>
-                          </div>
-                        )}
+                        <div>
+                          <p className="font-semibold text-slate-700 mb-1">추가내용 (기술적)</p>
+                          <textarea
+                            defaultValue={row.tech_note ?? ''}
+                            onBlur={e => { if (e.target.value !== (row.tech_note ?? '')) saveField(row.id, 'tech_note', e.target.value) }}
+                            className="w-full text-slate-600 bg-white border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            rows={2}
+                          />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-700 mb-1">비고</p>
+                          <textarea
+                            defaultValue={row.note ?? ''}
+                            onBlur={e => { if (e.target.value !== (row.note ?? '')) saveField(row.id, 'note', e.target.value) }}
+                            className="w-full text-slate-600 bg-white border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            rows={2}
+                          />
+                        </div>
                         {row.ai_summary && (
                           <div className="col-span-2">
                             <p className="font-semibold text-slate-700 mb-1">AI 요약</p>
@@ -277,9 +381,9 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
                 )}
               </>
             ))}
-            {filtered.length === 0 && (
+            {localRows.length === 0 && (
               <tr>
-                <td colSpan={10} className="text-center py-16 text-slate-400">
+                <td colSpan={11} className="text-center py-16 text-slate-400">
                   검색 결과가 없습니다
                 </td>
               </tr>
@@ -287,6 +391,27 @@ export default function InboundClient({ rows }: { rows: InboundRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-3">
+          <button
+            onClick={() => pushParams({ page: String(Math.max(1, page - 1)) })}
+            disabled={page <= 1}
+            className="text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium text-slate-600 hover:bg-slate-50 disabled:text-slate-300 disabled:pointer-events-none"
+          >
+            이전
+          </button>
+          <span className="text-sm text-slate-500 font-medium">{page} / {totalPages}</span>
+          <button
+            onClick={() => pushParams({ page: String(Math.min(totalPages, page + 1)) })}
+            disabled={page >= totalPages}
+            className="text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium text-slate-600 hover:bg-slate-50 disabled:text-slate-300 disabled:pointer-events-none"
+          >
+            다음
+          </button>
+        </div>
+      )}
     </div>
   )
 }

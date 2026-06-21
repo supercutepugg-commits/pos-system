@@ -57,6 +57,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
       .from('contracts')
       .select('*, creator:profiles!contracts_created_by_fkey(name)')
       .order('created_at', { ascending: false })
+      .limit(300)
     setContracts((data as any) ?? [])
   }
 

@@ -8,13 +8,19 @@ export default async function ContractsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  if (!profile || !['cs', 'admin'].includes(profile.role)) redirect('/dashboard')
+  const [
+    { data: profile },
+    { data: contracts },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase
+      .from('contracts')
+      .select('*, creator:profiles!contracts_created_by_fkey(name)')
+      .order('created_at', { ascending: false })
+      .limit(300),
+  ])
 
-  const { data: contracts } = await supabase
-    .from('contracts')
-    .select('*, creator:profiles!contracts_created_by_fkey(name)')
-    .order('created_at', { ascending: false })
+  if (!profile || !['cs', 'admin'].includes(profile.role)) redirect('/dashboard')
 
   return (
     <ContractsClient

@@ -19,30 +19,26 @@ export default async function ChatListPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const [
+    { data: profile },
+    { data: users },
+    { data: dmRooms },
+    { data: lastGlobalMsg },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    // 전체 직원 목록
+    supabase.from('profiles').select('*').neq('id', user.id).order('name'),
+    // 내 DM 방 목록
+    supabase
+      .from('dm_rooms')
+      .select('*, user1:profiles!dm_rooms_user1_id_fkey(id,name,role), user2:profiles!dm_rooms_user2_id_fkey(id,name,role)')
+      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+      .order('created_at', { ascending: false }),
+    // 최근 메시지
+    supabase.from('messages').select('content, created_at').order('created_at', { ascending: false }).limit(1).single(),
+  ])
+
   if (!profile) redirect('/login')
-
-  // 전체 직원 목록
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*')
-    .neq('id', user.id)
-    .order('name')
-
-  // 내 DM 방 목록
-  const { data: dmRooms } = await supabase
-    .from('dm_rooms')
-    .select('*, user1:profiles!dm_rooms_user1_id_fkey(id,name,role), user2:profiles!dm_rooms_user2_id_fkey(id,name,role)')
-    .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-    .order('created_at', { ascending: false })
-
-  // 최근 메시지
-  const { data: lastGlobalMsg } = await supabase
-    .from('messages')
-    .select('content, created_at')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
   return (
     <div className="max-w-lg mx-auto">

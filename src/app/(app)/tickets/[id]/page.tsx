@@ -18,38 +18,36 @@ export default async function TicketDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const [
+    { data: profile },
+    { data: ticket },
+    { data: logs },
+    { data: techUsers },
+    { data: csUsers },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase
+      .from('tickets')
+      .select(`
+        *,
+        merchant:merchants(*),
+        sales:profiles!tickets_sales_id_fkey(*),
+        cs:profiles!tickets_cs_id_fkey(*),
+        tech:profiles!tickets_tech_id_fkey(*)
+      `)
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('ticket_logs')
+      .select('*, user:profiles(*)')
+      .eq('ticket_id', id)
+      .order('created_at', { ascending: false }),
+    supabase.from('profiles').select('id, name, phone').eq('role', 'tech'),
+    supabase.from('profiles').select('id, name').eq('role', 'cs'),
+  ])
+
   if (!profile) redirect('/login')
-
-  const { data: ticket } = await supabase
-    .from('tickets')
-    .select(`
-      *,
-      merchant:merchants(*),
-      sales:profiles!tickets_sales_id_fkey(*),
-      cs:profiles!tickets_cs_id_fkey(*),
-      tech:profiles!tickets_tech_id_fkey(*)
-    `)
-    .eq('id', id)
-    .single()
-
   if (!ticket) notFound()
-
-  const { data: logs } = await supabase
-    .from('ticket_logs')
-    .select('*, user:profiles(*)')
-    .eq('ticket_id', id)
-    .order('created_at', { ascending: false })
-
-  const { data: techUsers } = await supabase
-    .from('profiles')
-    .select('id, name, phone')
-    .eq('role', 'tech')
-
-  const { data: csUsers } = await supabase
-    .from('profiles')
-    .select('id, name')
-    .eq('role', 'cs')
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">

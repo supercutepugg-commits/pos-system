@@ -14,25 +14,29 @@ export default async function DMChatPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const [
+    { data: profile },
+    { data: room },
+    { data: messages },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase
+      .from('dm_rooms')
+      .select('*, user1:profiles!dm_rooms_user1_id_fkey(id,name,role), user2:profiles!dm_rooms_user2_id_fkey(id,name,role)')
+      .eq('id', roomId)
+      .single(),
+    supabase
+      .from('dm_messages')
+      .select('*, user:profiles(id, name, role)')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .limit(100),
+  ])
+
   if (!profile) redirect('/login')
-
-  const { data: room } = await supabase
-    .from('dm_rooms')
-    .select('*, user1:profiles!dm_rooms_user1_id_fkey(id,name,role), user2:profiles!dm_rooms_user2_id_fkey(id,name,role)')
-    .eq('id', roomId)
-    .single()
-
   if (!room) notFound()
 
   const otherUser = (room.user1 as any).id === user.id ? room.user2 as any : room.user1 as any
-
-  const { data: messages } = await supabase
-    .from('dm_messages')
-    .select('*, user:profiles(id, name, role)')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: true })
-    .limit(100)
 
   return <DMChatRoom profile={profile as Profile} otherUser={otherUser} roomId={roomId} initialMessages={messages ?? []} />
 }

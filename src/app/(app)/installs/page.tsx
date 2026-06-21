@@ -8,18 +8,21 @@ export default async function InstallsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const [
+    { data: profile },
+    { data: installs },
+    { data: techUsers },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase
+      .from('installations')
+      .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
+      .order('created_at', { ascending: false })
+      .limit(300),
+    supabase.from('profiles').select('id, name').eq('role', 'tech'),
+  ])
+
   if (!profile || !['tech', 'cs', 'admin'].includes(profile.role)) redirect('/dashboard')
-
-  const { data: installs } = await supabase
-    .from('installations')
-    .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
-    .order('created_at', { ascending: false })
-
-  const { data: techUsers } = await supabase
-    .from('profiles')
-    .select('id, name')
-    .eq('role', 'tech')
 
   return (
     <InstallsClient

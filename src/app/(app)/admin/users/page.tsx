@@ -14,14 +14,15 @@ export default async function UsersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') redirect('/dashboard')
+  const [
+    { data: profile },
+    { data: users },
+  ] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    supabase.from('profiles').select('*').order('role').order('name'),
+  ])
 
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('role')
-    .order('name')
+  if (!profile || profile.role !== 'admin') redirect('/dashboard')
 
   const grouped: Record<string, typeof users> = {}
   users?.forEach(u => {

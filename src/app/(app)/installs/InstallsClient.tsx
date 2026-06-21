@@ -66,6 +66,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       .from('installations')
       .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
       .order('created_at', { ascending: false })
+      .limit(300)
     setInstalls((data as any) ?? [])
     setLoading(false)
   }

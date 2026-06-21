@@ -2,8 +2,8 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, Sparkles, X } from 'lucide-react'
-import { updateInboundRow, deleteInboundRows, extractAndSaveInbound } from './actions'
+import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { updateInboundRow, deleteInboundRows } from './actions'
 import { createClient } from '@/lib/supabase/client'
 
 export interface InboundRow {
@@ -84,7 +84,6 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
   const [localRows, setLocalRows] = useState(rows)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [aiModalOpen, setAiModalOpen] = useState(false)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -245,13 +244,6 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
           </button>
         )}
         <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={() => setAiModalOpen(true)}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded-lg transition-colors"
-          >
-            <Sparkles size={14} />
-            AI 저장
-          </button>
           {selected.size > 0 && (
             <>
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
@@ -440,116 +432,6 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
           </button>
         </div>
       )}
-
-      {aiModalOpen && (
-        <AISaveModal
-          filterOptions={filterOptions}
-          onClose={() => setAiModalOpen(false)}
-          onSaved={() => { setAiModalOpen(false); startTransition(() => router.refresh()) }}
-        />
-      )}
-    </div>
-  )
-}
-
-function AISaveModal({ filterOptions, onClose, onSaved }: { filterOptions: FilterOptions; onClose: () => void; onSaved: () => void }) {
-  const [chatText, setChatText] = useState('')
-  const [nickname, setNickname] = useState('')
-  const [staff, setStaff] = useState(filterOptions.staffs[0] ?? '')
-  const [channel, setChannel] = useState('채널톡')
-  const [category, setCategory] = useState(filterOptions.categories[0] ?? '기타문의')
-  const [status, setStatus] = useState('처리완료')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSave() {
-    if (!chatText.trim()) { setError('채팅 내용을 입력해주세요.'); return }
-    setSaving(true)
-    setError('')
-    const { error: err } = await extractAndSaveInbound({ chatText, nickname, staff, channel, category, status })
-    setSaving(false)
-    if (err) { setError(err); return }
-    onSaved()
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="font-bold text-slate-900 flex items-center gap-2">
-            <Sparkles size={16} className="text-indigo-600" /> AI 인입내역 저장
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="p-5 flex flex-col gap-3">
-          <div>
-            <label className="text-xs font-semibold text-slate-500">카카오 닉네임 (선택)</label>
-            <input
-              value={nickname}
-              onChange={e => setNickname(e.target.value)}
-              placeholder="예: 행복포차 김철수"
-              className="w-full mt-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500">채팅 대화 붙여넣기</label>
-            <textarea
-              value={chatText}
-              onChange={e => setChatText(e.target.value)}
-              rows={10}
-              placeholder="카카오톡 채팅 내용을 그대로 복사해서 붙여넣으세요"
-              className="w-full mt-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-500">담당자</label>
-              <input
-                value={staff}
-                onChange={e => setStaff(e.target.value)}
-                className="w-full mt-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500">인입채널</label>
-              <select value={channel} onChange={e => setChannel(e.target.value)}
-                className="w-full mt-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {Object.keys(CHANNEL_COLORS).map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500">분류</label>
-              <select value={category} onChange={e => setCategory(e.target.value)}
-                className="w-full mt-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {Object.keys(CATEGORY_COLORS).map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500">진행상황</label>
-              <select value={status} onChange={e => setStatus(e.target.value)}
-                className="w-full mt-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {Object.keys(STATUS_COLORS).map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
-          <button onClick={onClose} className="text-sm text-slate-500 hover:text-slate-700 px-3 py-2">
-            취소
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
-          >
-            <Sparkles size={14} />
-            {saving ? 'AI 분석 중...' : 'AI 분석 후 저장'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

@@ -6,8 +6,10 @@ import { STATUS_LABEL, type TicketStatus, type Profile } from '@/types'
 import TicketsClient from './TicketsClient'
 
 interface Props {
-  searchParams: Promise<{ status?: string; tab?: string }>
+  searchParams: Promise<{ status?: string; tab?: string; page?: string }>
 }
+
+const PAGE_SIZE = 50
 
 const TRANSFERRED_STATUSES: TicketStatus[] = ['cs_pending', 'cs_progress', 'scheduled', 'tech_pending', 'in_progress', 'done', 'canceled']
 
@@ -21,6 +23,7 @@ const TAB_STATUSES: Record<string, TicketStatus[]> = {
 export default async function TicketsPage({ searchParams }: Props) {
   const params = await searchParams
   const tab = params.tab ?? 'all'
+  const page = Math.max(1, Number(params.page) || 1)
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -32,7 +35,7 @@ export default async function TicketsPage({ searchParams }: Props) {
 
   let query = supabase
     .from('tickets')
-    .select('*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)')
+    .select('*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   // 역할별 필터
@@ -47,7 +50,11 @@ export default async function TicketsPage({ searchParams }: Props) {
     query = query.in('status', TAB_STATUSES[tab] ?? [])
   }
 
-  const { data: tickets } = await query
+  query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+
+  const { data: tickets, count } = await query
+  const totalCount = count ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   // 탭 구성 (영업팀은 이관완료 탭 추가)
   const TABS = p.role === 'sales' || p.role === 'admin'
@@ -78,7 +85,7 @@ export default async function TicketsPage({ searchParams }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">작업 목록</h1>
-          <p className="text-slate-500 text-sm mt-1">총 {tickets?.length ?? 0}건</p>
+          <p className="text-slate-500 text-sm mt-1">총 {totalCount}건</p>
         </div>
         {(p.role === 'sales' || p.role === 'cs' || p.role === 'admin') && (
           <Link href="/tickets/new"
@@ -118,6 +125,23 @@ export default async function TicketsPage({ searchParams }: Props) {
 
       {/* 목록 */}
       <TicketsClient tickets={(tickets ?? []) as any} />
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <Link
+            href={`/tickets?tab=${tab}${params.status ? `&status=${params.status}` : ''}&page=${Math.max(1, page - 1)}`}
+            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page <= 1 ? 'text-slate-300 pointer-events-none' : 'text-slate-600 hover:bg-slate-50'}`}>
+            이전
+          </Link>
+          <span className="text-sm text-slate-500 font-medium">{page} / {totalPages}</span>
+          <Link
+            href={`/tickets?tab=${tab}${params.status ? `&status=${params.status}` : ''}&page=${Math.min(totalPages, page + 1)}`}
+            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page >= totalPages ? 'text-slate-300 pointer-events-none' : 'text-slate-600 hover:bg-slate-50'}`}>
+            다음
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

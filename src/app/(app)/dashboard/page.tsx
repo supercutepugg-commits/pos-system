@@ -11,8 +11,9 @@ export default async function DashboardPage() {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const userId = user.id
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single()
   if (!profile) redirect('/login')
 
   const p = profile as Profile
@@ -23,25 +24,27 @@ export default async function DashboardPage() {
     .neq('status', 'canceled')
     .order('created_at', { ascending: false })
 
-  if (p.role === 'sales') query = query.eq('sales_id', user.id)
+  if (p.role === 'sales') query = query.eq('sales_id', userId)
   if (p.role === 'cs') query = query.in('status', ['cs_pending', 'cs_progress', 'scheduled'])
-  if (p.role === 'tech') query = query.eq('tech_id', user.id)
+  if (p.role === 'tech') query = query.eq('tech_id', userId)
 
-  const { data: tickets } = await query.limit(10)
+  const countStatuses: TicketStatus[] = ['sales', 'cs_pending', 'scheduled', 'done']
 
-  let countQuery = supabase
-    .from('tickets')
-    .select('status')
-    .neq('status', 'canceled')
+  function buildCountQuery(status: TicketStatus) {
+    let q = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', status)
+    if (p.role === 'sales') q = q.eq('sales_id', userId)
+    if (p.role === 'cs') q = q.in('status', ['cs_pending', 'cs_progress', 'scheduled'])
+    if (p.role === 'tech') q = q.eq('tech_id', userId)
+    return q
+  }
 
-  if (p.role === 'sales') countQuery = countQuery.eq('sales_id', user.id)
-  if (p.role === 'cs') countQuery = countQuery.in('status', ['cs_pending', 'cs_progress', 'scheduled'])
-  if (p.role === 'tech') countQuery = countQuery.eq('tech_id', user.id)
-
-  const { data: allTickets } = await countQuery
+  const [{ data: tickets }, ...countResults] = await Promise.all([
+    query.limit(10),
+    ...countStatuses.map(buildCountQuery),
+  ])
 
   const counts: Record<string, number> = {}
-  allTickets?.forEach(t => { counts[t.status] = (counts[t.status] ?? 0) + 1 })
+  countStatuses.forEach((status, i) => { counts[status] = countResults[i].count ?? 0 })
 
   const summaryCards = [
     { label: '영업 접수', status: 'sales', icon: TrendingUp, color: 'bg-blue-50 text-blue-600', border: 'border-blue-100' },

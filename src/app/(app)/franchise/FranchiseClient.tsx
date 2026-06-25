@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteFranchiseRows } from './actions'
-import type { ApplicantType, FranchiseApplication, FranchiseStatus, Profile } from '@/types'
+import type { ApplicantType, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 
 const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온라인', '기타']
@@ -13,6 +13,8 @@ const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온�
 interface Props {
   rows: FranchiseApplication[]
   salesProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
+  csProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
+  currentUserId: string
 }
 
 const EMPTY_FORM = {
@@ -25,6 +27,7 @@ const EMPTY_FORM = {
   address_detail: '',
   title: '',
   sales_id: '',
+  cs_id: '',
   applicant_type: 'individual' as ApplicantType,
   reception_channel: '',
   open_date: '',
@@ -50,7 +53,7 @@ async function notify(payload: Record<string, unknown>) {
   }
 }
 
-export default function FranchiseClient({ rows, salesProfiles }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
@@ -61,6 +64,12 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
+
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
+  const [salesFilter, setSalesFilter] = useState('')
 
   useEffect(() => {
     setLocalRows(rows)
@@ -84,8 +93,31 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
     }
   }, [router])
 
-  const allChecked = localRows.length > 0 && selected.size === localRows.length
-  function toggleAll() { setSelected(allChecked ? new Set() : new Set(localRows.map(r => r.id))) }
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return localRows.filter(row => {
+      if (statusFilter && row.status !== statusFilter) return false
+      if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
+      if (salesFilter && row.sales_id !== salesFilter) return false
+      if (term) {
+        const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''}`.toLowerCase()
+        if (!haystack.includes(term)) return false
+      }
+      return true
+    })
+  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter])
+
+  const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
+  function toggleAll() {
+    setSelected(prev => {
+      if (allChecked) {
+        const next = new Set(prev)
+        filteredRows.forEach(r => next.delete(r.id))
+        return next
+      }
+      return new Set([...prev, ...filteredRows.map(r => r.id)])
+    })
+  }
   function toggleOne(id: string) {
     setSelected(prev => {
       const next = new Set(prev)
@@ -120,6 +152,7 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
       address_detail: form.address_detail || null,
       title: form.title || null,
       sales_id: form.sales_id || null,
+      cs_id: form.cs_id || null,
       applicant_type: form.applicant_type,
       reception_channel: form.reception_channel || null,
       open_date: form.open_date || null,
@@ -133,6 +166,48 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
     startTransition(() => router.refresh())
   }
 
+  async function createLinkedInstallTicket(row: FranchiseApplication) {
+    if (!row.business_name || !row.owner_name || !row.phone || !row.address) {
+      alert('가맹완료로 처리되었지만, 상호명·대표자명·연락처·주소가 모두 입력되지 않아 설치 작업을 자동으로 만들지 못했습니다. 가맹점/작업을 직접 등록해주세요.')
+      return
+    }
+    const supabase = createClient()
+    const { data: merchant, error: merchantError } = await supabase.from('merchants').insert({
+      business_name: row.business_name,
+      owner_name: row.owner_name,
+      business_number: row.business_number || null,
+      phone: row.phone,
+      address: row.address,
+      address_detail: row.address_detail || null,
+      pos_model: row.equipment || null,
+      sales_id: row.sales_id || null,
+      memo: row.memo || null,
+    }).select('id').single()
+
+    if (merchantError || !merchant) {
+      alert('가맹완료로 처리되었지만, 가맹점 자동 등록에 실패했습니다: ' + merchantError?.message)
+      return
+    }
+
+    const { error: ticketError } = await supabase.from('tickets').insert({
+      merchant_id: merchant.id,
+      title: row.title || `${row.business_name} 가맹 설치`,
+      type: 'install',
+      status: 'tech_pending',
+      sales_id: row.sales_id || null,
+      cs_id: row.cs_id || null,
+      memo: row.memo || null,
+      reception_channel: row.reception_channel || null,
+      open_date: row.open_date || null,
+      install_date: row.install_date || null,
+    })
+
+    if (ticketError) {
+      alert('가맹점은 등록됐지만 설치 작업 생성에 실패했습니다: ' + ticketError.message)
+      return
+    }
+  }
+
   async function updateStatus(row: FranchiseApplication, status: FranchiseStatus) {
     setBusyId(row.id)
     const supabase = createClient()
@@ -141,10 +216,20 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
     const { error } = await supabase.from('franchise_applications').update(patch).eq('id', row.id)
     if (error) { setBusyId(null); alert('상태 변경 실패: ' + error.message); return }
 
+    await supabase.from('franchise_application_logs').insert({
+      franchise_application_id: row.id,
+      user_id: currentUserId,
+      from_status: row.status,
+      to_status: status,
+    })
+
     if (status === 'doc_waiting') {
       await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type })
-    } else if (status === 'doc_incomplete' || status === 'doc_complete' || status === 'franchise_done') {
+    } else if (status === 'doc_incomplete' || status === 'doc_complete') {
       await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
+    } else if (status === 'franchise_done') {
+      await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
+      await createLinkedInstallTicket(row)
     }
     setBusyId(null)
     startTransition(() => router.refresh())
@@ -155,6 +240,14 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ applicant_type: applicantType }).eq('id', row.id)
     if (error) { alert('사업자 유형 변경 실패: ' + error.message); return }
+    startTransition(() => router.refresh())
+  }
+
+  async function updateCs(row: FranchiseApplication, csId: string) {
+    if (csId === (row.cs_id ?? '')) return
+    const supabase = createClient()
+    const { error } = await supabase.from('franchise_applications').update({ cs_id: csId || null }).eq('id', row.id)
+    if (error) { alert('담당 CS 변경 실패: ' + error.message); return }
     startTransition(() => router.refresh())
   }
 
@@ -176,9 +269,25 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
 
     const confirmMsg = newStatus === 'doc_waiting'
       ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 사업자 유형이 맞는지 확인 후 진행하세요. 변경하시겠습니까?`
-      : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`
+      : newStatus === 'franchise_done'
+        ? `가맹완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다. 변경하시겠습니까?`
+        : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`
     if (!confirm(confirmMsg)) return
     updateStatus(row, newStatus)
+  }
+
+  async function toggleExpand(row: FranchiseApplication) {
+    const next = expandedId === row.id ? null : row.id
+    setExpandedId(next)
+    if (next && !logsByRow[row.id]) {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('franchise_application_logs')
+        .select('*, user:profiles(name)')
+        .eq('franchise_application_id', row.id)
+        .order('created_at', { ascending: false })
+      setLogsByRow(prev => ({ ...prev, [row.id]: data ?? [] }))
+    }
   }
 
   function EditableText({ row, field, placeholder, type = 'text' }: { row: FranchiseApplication; field: keyof FranchiseApplication; placeholder: string; type?: string }) {
@@ -198,8 +307,43 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="상호명, 대표자, 연락처..."
+            className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">상태 전체</option>
+          {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+            <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
+          ))}
+        </select>
+        <select value={applicantTypeFilter} onChange={e => setApplicantTypeFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">사업자유형 전체</option>
+          {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
+            <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
+          ))}
+        </select>
+        <select value={salesFilter} onChange={e => setSalesFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">담당영업 전체</option>
+          {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        {(search || statusFilter || applicantTypeFilter || salesFilter) && (
+          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter('') }}
+            className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
+            초기화
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-3">
           {selected.size > 0 && (
             <>
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
@@ -210,9 +354,7 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
               </button>
             </>
           )}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-slate-500">전체 {localRows.length.toLocaleString()}건</div>
+          <div className="text-sm text-slate-500">전체 {filteredRows.length.toLocaleString()}건</div>
           <button onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
             <Plus size={14} />
@@ -272,6 +414,14 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
             </select>
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">담당 CS</label>
+            <select value={form.cs_id} onChange={e => setForm({ ...form, cs_id: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">사업자 유형</label>
             <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ApplicantType })}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -311,14 +461,14 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
       )}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse min-w-[1100px]">
+        <table className="w-full text-sm border-collapse min-w-[1250px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
-              {['상호명', '대표자', '연락처', '담당영업', '사업자유형', '상태', '메모'].map(label => (
+              {['상호명', '대표자', '연락처', '담당영업', '담당CS', '사업자유형', '상태', '메모'].map(label => (
                 <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
@@ -326,10 +476,10 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
             </tr>
           </thead>
           <tbody>
-            {localRows.map(row => (
+            {filteredRows.map(row => (
               <>
                 <tr key={row.id} className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''}`}
-                  onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                  onClick={() => toggleExpand(row)}>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
@@ -340,6 +490,16 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.phone || '-'}</td>
                   <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{row.sales?.name ?? '-'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <select
+                      value={row.cs_id ?? ''}
+                      onChange={e => updateCs(row, e.target.value)}
+                      className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
+                    >
+                      <option value="">미지정</option>
+                      {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.applicant_type}
@@ -367,8 +527,8 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={9} className="px-6 py-4">
-                      <div className="grid grid-cols-4 gap-4">
+                    <td colSpan={10} className="px-6 py-4">
+                      <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">사업자번호</label>
                           <EditableText row={row} field="business_number" placeholder="000-00-00000" />
@@ -409,13 +569,31 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
                           <EditableText row={row} field="install_date" placeholder="-" type="date" />
                         </div>
                       </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-400 mb-1.5">상태 변경 이력</p>
+                        {!logsByRow[row.id] ? (
+                          <p className="text-xs text-slate-400">불러오는 중...</p>
+                        ) : logsByRow[row.id].length === 0 ? (
+                          <p className="text-xs text-slate-400">변경 이력이 없습니다.</p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {logsByRow[row.id].map(log => (
+                              <li key={log.id} className="text-xs text-slate-500">
+                                {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
+                                {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
+                                {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}
               </>
             ))}
-            {localRows.length === 0 && (
-              <tr><td colSpan={9} className="text-center text-slate-400 py-10">등록된 가맹 접수가 없습니다.</td></tr>
+            {filteredRows.length === 0 && (
+              <tr><td colSpan={10} className="text-center text-slate-400 py-10">조건에 맞는 가맹 접수가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

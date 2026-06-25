@@ -7,12 +7,13 @@ export default async function FranchisePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: rows, error }, { data: salesProfiles }] = await Promise.all([
+  const [{ data: rows, error }, { data: salesProfiles }, { data: csProfiles }] = await Promise.all([
     supabase
       .from('franchise_applications')
       .select('*, sales:profiles!franchise_applications_sales_id_fkey(id,name,role), cs:profiles!franchise_applications_cs_id_fkey(id,name,role)')
       .order('created_at', { ascending: false }),
     supabase.from('profiles').select('id,name,role').in('role', ['sales', 'admin']).order('name'),
+    supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin']).order('name'),
   ])
 
   return (
@@ -24,7 +25,7 @@ export default async function FranchisePage() {
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} />
+        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} />
       )}
     </div>
   )

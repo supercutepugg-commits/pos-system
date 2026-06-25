@@ -78,17 +78,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: upcomingFranchise } = await supabase
     .from('franchise_applications')
-    .select('id, business_name, open_date, install_date, sales_id, cs_id')
+    .select('id, business_name, open_date, install_date')
     .neq('status', 'franchise_done')
     .or('open_date.not.is.null,install_date.not.is.null')
+
+  // 담당자 지정 여부와 무관하게 전체 직원에게 알림
+  const { data: allProfiles } = await supabase.from('profiles').select('id')
+  const allUserIds = (allProfiles ?? []).map(p => p.id)
 
   // 캘린더 일정(티켓/가맹) → notifications 테이블에 실제 알림 행 생성 (중복 방지)
   type ScheduleItem = { refType: 'ticket' | 'franchise'; refId: string; type: string; title: string; body: string; targetUserIds: string[] }
   const scheduleItems: ScheduleItem[] = []
 
   for (const t of (upcomingTickets ?? []) as any[]) {
-    const targets = [t.sales_id, t.cs_id, t.tech_id].filter(Boolean) as string[]
-    if (targets.length === 0) continue
     for (const f of SCHEDULE_FIELDS) {
       const raw = t[f.key] as string | null
       if (!raw) continue
@@ -97,14 +99,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       const name = t.merchant?.business_name ?? t.title
       scheduleItems.push({
         refType: 'ticket', refId: t.id, type: `schedule_${f.key}`,
-        title: `${f.label}: ${name}`, body: `${date} 예정`, targetUserIds: targets,
+        title: `${f.label}: ${name}`, body: `${date} 예정`, targetUserIds: allUserIds,
       })
     }
   }
 
   for (const f of (upcomingFranchise ?? []) as any[]) {
-    const targets = [f.sales_id, f.cs_id].filter(Boolean) as string[]
-    if (targets.length === 0) continue
     for (const ff of FRANCHISE_DATE_FIELDS) {
       const raw = f[ff.key] as string | null
       if (!raw) continue
@@ -113,7 +113,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       const name = f.business_name || '상호명 미입력'
       scheduleItems.push({
         refType: 'franchise', refId: f.id, type: `schedule_${ff.key}`,
-        title: `${ff.label}: ${name}`, body: `${date} 예정`, targetUserIds: targets,
+        title: `${ff.label}: ${name}`, body: `${date} 예정`, targetUserIds: allUserIds,
       })
     }
   }
@@ -151,7 +151,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     )
 
     if (rowsToInsert.length > 0) {
-      await supabase.from('notifications').insert(rowsToInsert)
+      const { error: notifyInsertError } = await supabase.from('notifications').insert(rowsToInsert)
+      if (notifyInsertError) console.error('일정 알림 생성 실패:', notifyInsertError.message)
     }
   }
 

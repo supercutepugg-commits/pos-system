@@ -24,13 +24,13 @@ interface NavItem {
   icon: any
 }
 
-// 모든 역할이 공통으로 쓰는 항목 (역할 폴더 위에 따로 표시)
+// 모든 역할이 공통으로 쓰는 항목 (역할 폴더 위에 따로 표시) — 중요도/사용빈도 높은 순
 const COMMON_NAV: NavItem[] = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
-  { href: '/merchants', label: '가맹점', icon: Store },
-  { href: '/chat', label: '채팅', icon: MessageCircle },
-  { href: '/notifications', label: '알림', icon: Bell },
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
+  { href: '/notifications', label: '알림', icon: Bell },
+  { href: '/chat', label: '채팅', icon: MessageCircle },
+  { href: '/merchants', label: '가맹점', icon: Store },
 ]
 
 // 역할별 폴더 — admin은 전부 보임

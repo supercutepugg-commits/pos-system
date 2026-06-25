@@ -10,6 +10,8 @@ import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } 
 
 const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온라인', '기타']
 const EQUIPMENT_CATALOG = ['토스프론트', '포스기', '인터넷', '키오스크', '영수증프린터', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더']
+const VAN_COMPANIES = ['코세스1', '코세스2', '코벤', '기가맹']
+const INTERNET_PROVIDERS = ['3S', '백메가']
 
 interface Props {
   rows: FranchiseApplication[]
@@ -34,6 +36,8 @@ const EMPTY_FORM = {
   reception_channel: '',
   open_date: '',
   install_date: '',
+  van_company: '',
+  internet: '',
   memo: '',
 }
 
@@ -197,6 +201,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       reception_channel: form.reception_channel || null,
       open_date: form.open_date || null,
       install_date: form.install_date || null,
+      van_company: form.van_company || null,
+      internet: form.internet || null,
       memo: form.memo || null,
       created_by: currentUserId,
     })
@@ -495,6 +501,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <input type="date" value={form.install_date} onChange={e => setForm({ ...form, install_date: e.target.value })}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">VAN사</label>
+            <select value={form.van_company} onChange={e => setForm({ ...form, van_company: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">인터넷</label>
+            <select value={form.internet} onChange={e => setForm({ ...form, internet: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
             <label className="text-xs font-medium text-slate-500">비고</label>
             <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
@@ -615,6 +637,28 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         <div>
                           <label className="text-xs font-semibold text-slate-400">설치 및 발송일</label>
                           <EditableText row={row} field="install_date" placeholder="-" type="date" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">VAN사</label>
+                          <select
+                            value={row.van_company ?? ''}
+                            onChange={e => saveField(row, 'van_company', e.target.value)}
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+                          >
+                            <option value="">-</option>
+                            {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">인터넷</label>
+                          <select
+                            value={row.internet ?? ''}
+                            onChange={e => saveField(row, 'internet', e.target.value)}
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+                          >
+                            <option value="">-</option>
+                            {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
+                          </select>
                         </div>
                       </div>
                       <div>

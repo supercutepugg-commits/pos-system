@@ -115,6 +115,8 @@ export interface FranchiseApplication {
   reception_channel?: string
   open_date?: string
   install_date?: string
+  van_company?: string
+  internet?: string
   sales_id?: string
   cs_id?: string
   created_by?: string

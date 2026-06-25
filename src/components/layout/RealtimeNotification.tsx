@@ -65,8 +65,12 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           setCount(c => c + 1)
-          setModal({ title: payload.new.title, body: payload.new.body })
-          playSound()
+          // 일정 알림(schedule_*)은 여러 건이 한꺼번에 들어올 수 있어 배지만 올리고 팝업/소리는 생략
+          const isScheduleNotice = (payload.new.type as string)?.startsWith('schedule_')
+          if (!isScheduleNotice) {
+            setModal({ title: payload.new.title, body: payload.new.body })
+            playSound()
+          }
           router.refresh()
         }
       ).subscribe()

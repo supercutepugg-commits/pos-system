@@ -2,7 +2,6 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { DndContext, useDraggable, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { createClient } from '@/lib/supabase/client'
 
 interface SignatureItem {
   id: string
@@ -165,7 +164,6 @@ export default function SignClient({ contract }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(contract.status === 'signed')
   const stampRef = useRef<HTMLInputElement>(null)
-  const supabase = createClient()
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -222,20 +220,26 @@ export default function SignClient({ contract }: Props) {
     if (!confirm('서명을 완료하시겠습니까? 이후 수정이 불가합니다.')) return
     setSubmitting(true)
 
-    // 서명 이미지를 Supabase Storage에 업로드
-    const signedItems = await Promise.all(items.map(async (item) => {
-      const blob = await (await fetch(item.dataUrl)).blob()
-      const fileName = `signatures/${contract.id}/${item.id}.png`
-      await supabase.storage.from('contracts').upload(fileName, blob, { contentType: 'image/png', upsert: true })
-      const { data: { publicUrl } } = supabase.storage.from('contracts').getPublicUrl(fileName)
-      return { ...item, dataUrl: publicUrl }
-    }))
+    // 고객은 비로그인 상태라 RLS를 우회해야 하므로, 업로드와 DB 갱신을 서버 라우트에서 처리
+    const submitItems: SignatureItem[] = hasZones
+      ? zones.map(z => ({
+          id: z.id, type: 'signature', dataUrl: signedZones[z.id],
+          x: z.x, y: z.y, width: z.width, height: z.height, pageNumber: 1,
+        }))
+      : items
 
-    await supabase.from('contracts').update({
-      status: 'signed',
-      signed_at: new Date().toISOString(),
-      signature_zones: signedItems,
-    }).eq('id', contract.id)
+    const signRes = await fetch('/api/contracts/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: contract.sign_token, items: submitItems }),
+    })
+
+    if (!signRes.ok) {
+      const json = await signRes.json().catch(() => ({}))
+      alert('서명 저장 실패: ' + (json.error ?? '알 수 없는 오류'))
+      setSubmitting(false)
+      return
+    }
 
     // 서명 완료 알림톡 발송 (고객 화면이므로 실패해도 진행을 막지 않음 - 로그만 남김)
     fetch('/api/contracts/notify', {

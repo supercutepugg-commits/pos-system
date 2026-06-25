@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import SignClient from './SignClient'
 
@@ -8,7 +8,9 @@ interface Props {
 
 export default async function SignPage({ params }: Props) {
   const { token } = await params
-  const supabase = await createClient()
+  // 고객은 로그인하지 않은 상태로 접근하므로 RLS를 우회하는 admin 클라이언트 사용
+  // (sign_token 자체가 보안 경계이며, 아래 만료/서명완료 체크가 실질적인 접근 제어)
+  const supabase = createAdminClient()
 
   const { data: contract } = await supabase
     .from('contracts')

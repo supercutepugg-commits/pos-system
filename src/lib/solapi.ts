@@ -81,10 +81,11 @@ export async function sendFranchiseDocRequest({
     ? '\n\n접수 방법: 이메일 주소와 연락처를 함께 기재하여 담당자에게 회신해주세요.'
     : ''
   const text = `[가맹 서류 안내]\n${ownerName}님, "${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.\n\n제출 서류\n${docList}${photoNote}${receiptNote}`
+  // 서류 목록은 사업자 유형별로 고정값(FRANCHISE_DOCS)이라 템플릿 본문에 직접 박아 넣고,
+  // 변수는 고객명/상호명만 사용한다 (변수 비중이 크면 카카오 알림톡 심사에서 반려될 수 있음)
   const ko = kakaoOptions(FRANCHISE_TEMPLATE_ENV_KEY[applicantType], {
     '#{고객명}': ownerName,
     '#{상호명}': businessName,
-    '#{서류목록}': docList,
   })
   await (service as any).send({
     to: phone,

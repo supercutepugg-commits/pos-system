@@ -102,14 +102,31 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
 
   const externalItems = EXTERNAL_LINKS.filter(n => n.roles.includes(profile.role))
 
+  // 같은 href가 여러 폴더에 들어있을 때, 마지막으로 클릭한 폴더 쪽만 강조하기 위한 힌트
+  const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null)
+
   function isActive(href: string) {
     return pathname === href || (pathname.startsWith(href + '/') && !href.includes('?'))
   }
 
-  function NavLink({ item, indent }: { item: NavItem; indent?: boolean }) {
-    const active = isActive(item.href)
+  function foldersContaining(href: string) {
+    return visibleFolders.filter(f => f.items.some(i => i.href === href)).map(f => f.key)
+  }
+
+  function isHighlighted(href: string, folderKey?: Role) {
+    if (!isActive(href)) return false
+    if (!folderKey) return true
+    const owners = foldersContaining(href)
+    if (owners.length <= 1) return true
+    const winner = activeFolderHint && owners.includes(activeFolderHint) ? activeFolderHint : (owners.includes(profile.role) ? profile.role : owners[0])
+    return winner === folderKey
+  }
+
+  function NavLink({ item, indent, folderKey }: { item: NavItem; indent?: boolean; folderKey?: Role }) {
+    const active = isHighlighted(item.href, folderKey)
     return (
       <Link key={item.href} href={item.href}
+        onClick={() => { if (folderKey) setActiveFolderHint(folderKey) }}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${indent ? 'ml-3' : ''} ${
           active
             ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
@@ -177,7 +194,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
               </button>
               {open && (
                 <div className="mt-0.5">
-                  {folder.items.map(item => <NavLink key={item.href} item={item} indent />)}
+                  {folder.items.map(item => <NavLink key={item.href} item={item} indent folderKey={folder.key} />)}
                 </div>
               )}
             </div>

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Send } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteFranchiseRows } from './actions'
 import type { FranchiseApplication, FranchiseStatus, Profile } from '@/types'
@@ -125,10 +125,18 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
     startTransition(() => router.refresh())
   }
 
-  function handleSendDoc(row: FranchiseApplication) {
-    const docTemplate = prompt('발송할 가맹 서류 템플릿명을 입력하세요 (예: 표준 가맹 서류 템플릿)', row.doc_template ?? '')
-    if (docTemplate === null) return
-    updateStatus(row, 'doc_waiting', docTemplate)
+  function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
+    if (newStatus === row.status) return
+
+    let docTemplate: string | undefined
+    if (newStatus === 'doc_waiting') {
+      const input = prompt('발송할 가맹 서류 템플릿명을 입력하세요 (예: 표준 가맹 서류 템플릿)', row.doc_template ?? '')
+      if (input === null) return
+      docTemplate = input
+    }
+
+    if (!confirm(`'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`)) return
+    updateStatus(row, newStatus, docTemplate)
   }
 
   return (
@@ -200,7 +208,7 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              {['상호명', '대표자', '연락처', '담당영업', '상태', '서류템플릿', '메모', '작업'].map(label => (
+              {['상호명', '대표자', '연락처', '담당영업', '상태', '서류템플릿', '메모'].map(label => (
                 <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
@@ -218,53 +226,23 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.phone}</td>
                 <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{row.sales?.name ?? '-'}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${FRANCHISE_STATUS_COLOR[row.status]}`}>
-                    {FRANCHISE_STATUS_LABEL[row.status]}
-                  </span>
+                  <select
+                    value={row.status}
+                    disabled={busyId === row.id}
+                    onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
+                    className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
+                  >
+                    {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+                      <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate">{row.doc_template ?? '-'}</td>
                 <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">{row.memo ?? '-'}</td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="flex gap-1.5">
-                    {row.status === 'info_input' && (
-                      <button onClick={() => handleSendDoc(row)} disabled={busyId === row.id}
-                        className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                        <Send size={12} /> 서류 발송
-                      </button>
-                    )}
-                    {row.status === 'doc_waiting' && (
-                      <>
-                        <button onClick={() => updateStatus(row, 'doc_incomplete')} disabled={busyId === row.id}
-                          className="text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                          서류 미비
-                        </button>
-                        <button onClick={() => updateStatus(row, 'doc_complete')} disabled={busyId === row.id}
-                          className="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                          접수 완료
-                        </button>
-                      </>
-                    )}
-                    {row.status === 'doc_incomplete' && (
-                      <button onClick={() => handleSendDoc(row)} disabled={busyId === row.id}
-                        className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                        <Send size={12} /> 서류 재발송
-                      </button>
-                    )}
-                    {row.status === 'doc_complete' && (
-                      <button onClick={() => updateStatus(row, 'franchise_done')} disabled={busyId === row.id}
-                        className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                        가맹 완료 처리
-                      </button>
-                    )}
-                    {row.status === 'franchise_done' && (
-                      <span className="text-xs text-slate-400">완료됨</span>
-                    )}
-                  </div>
-                </td>
               </tr>
             ))}
             {localRows.length === 0 && (
-              <tr><td colSpan={9} className="text-center text-slate-400 py-10">등록된 가맹 접수가 없습니다.</td></tr>
+              <tr><td colSpan={8} className="text-center text-slate-400 py-10">등록된 가맹 접수가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

@@ -4,10 +4,10 @@ import { sendFranchiseDocRequest, sendFranchiseStatusUpdate } from '@/lib/solapi
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { type, phone, ownerName, businessName, docTemplate, status } = body
+    const { type, phone, ownerName, businessName, applicantType, status } = body
 
     if (type === 'doc_request') {
-      await sendFranchiseDocRequest({ phone, ownerName, businessName, docTemplate })
+      await sendFranchiseDocRequest({ phone, ownerName, businessName, applicantType })
     } else if (type === 'status_update') {
       await sendFranchiseStatusUpdate({ phone, ownerName, businessName, status })
     } else {

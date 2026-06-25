@@ -14,6 +14,7 @@ export type TicketType = 'install' | 'as' | 'consult' | 'other'
 export type Priority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type FranchiseStatus = 'info_input' | 'doc_waiting' | 'doc_incomplete' | 'doc_complete' | 'franchise_done'
+export type ApplicantType = 'corporate' | 'individual' | 'existing'
 
 export interface Profile {
   id: string
@@ -103,6 +104,7 @@ export interface FranchiseApplication {
   sales_id?: string
   cs_id?: string
   status: FranchiseStatus
+  applicant_type: ApplicantType
   doc_template?: string
   memo?: string
   created_at: string
@@ -180,4 +182,10 @@ export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
   doc_incomplete: 'bg-red-100 text-red-700',
   doc_complete: 'bg-blue-100 text-blue-700',
   franchise_done: 'bg-green-100 text-green-700',
+}
+
+export const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {
+  corporate: '신규 법인사업자',
+  individual: '신규 개인사업자',
+  existing: '기가맹',
 }

@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteFranchiseRows } from './actions'
-import type { FranchiseApplication, FranchiseStatus, Profile } from '@/types'
-import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
+import type { ApplicantType, FranchiseApplication, FranchiseStatus, Profile } from '@/types'
+import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 
 interface Props {
   rows: FranchiseApplication[]
@@ -39,7 +39,7 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState({ business_name: '', owner_name: '', phone: '', sales_id: '', memo: '' })
+  const [form, setForm] = useState({ business_name: '', owner_name: '', phone: '', sales_id: '', applicant_type: 'individual' as ApplicantType, memo: '' })
   const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -99,25 +99,26 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
       owner_name: form.owner_name,
       phone: form.phone,
       sales_id: form.sales_id || null,
+      applicant_type: form.applicant_type,
       memo: form.memo || null,
     })
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
-    setForm({ business_name: '', owner_name: '', phone: '', sales_id: '', memo: '' })
+    setForm({ business_name: '', owner_name: '', phone: '', sales_id: '', applicant_type: 'individual', memo: '' })
     setShowForm(false)
     startTransition(() => router.refresh())
   }
 
-  async function updateStatus(row: FranchiseApplication, status: FranchiseStatus, docTemplate?: string) {
+  async function updateStatus(row: FranchiseApplication, status: FranchiseStatus) {
     setBusyId(row.id)
     const supabase = createClient()
     const patch: Record<string, unknown> = { status }
-    if (docTemplate !== undefined) patch.doc_template = docTemplate
+    if (status === 'doc_waiting') patch.doc_template = APPLICANT_TYPE_LABEL[row.applicant_type]
     const { error } = await supabase.from('franchise_applications').update(patch).eq('id', row.id)
     if (error) { setBusyId(null); alert('상태 변경 실패: ' + error.message); return }
 
     if (status === 'doc_waiting') {
-      await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, docTemplate })
+      await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type })
     } else if (status === 'doc_incomplete' || status === 'doc_complete' || status === 'franchise_done') {
       await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
     }
@@ -125,18 +126,22 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
     startTransition(() => router.refresh())
   }
 
+  async function updateApplicantType(row: FranchiseApplication, applicantType: ApplicantType) {
+    if (applicantType === row.applicant_type) return
+    const supabase = createClient()
+    const { error } = await supabase.from('franchise_applications').update({ applicant_type: applicantType }).eq('id', row.id)
+    if (error) { alert('사업자 유형 변경 실패: ' + error.message); return }
+    startTransition(() => router.refresh())
+  }
+
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
     if (newStatus === row.status) return
 
-    let docTemplate: string | undefined
-    if (newStatus === 'doc_waiting') {
-      const input = prompt('발송할 가맹 서류 템플릿명을 입력하세요 (예: 표준 가맹 서류 템플릿)', row.doc_template ?? '')
-      if (input === null) return
-      docTemplate = input
-    }
-
-    if (!confirm(`'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`)) return
-    updateStatus(row, newStatus, docTemplate)
+    const confirmMsg = newStatus === 'doc_waiting'
+      ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 사업자 유형이 맞는지 확인 후 진행하세요. 변경하시겠습니까?`
+      : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`
+    if (!confirm(confirmMsg)) return
+    updateStatus(row, newStatus)
   }
 
   return (
@@ -189,6 +194,15 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
               {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">사업자 유형 *</label>
+            <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ApplicantType })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
+                <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
             <label className="text-xs font-medium text-slate-500">메모</label>
             <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
@@ -208,7 +222,7 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              {['상호명', '대표자', '연락처', '담당영업', '상태', '서류템플릿', '메모'].map(label => (
+              {['상호명', '대표자', '연락처', '담당영업', '사업자유형', '상태', '서류템플릿', '메모'].map(label => (
                 <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
@@ -227,6 +241,17 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
                 <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{row.sales?.name ?? '-'}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   <select
+                    value={row.applicant_type}
+                    onChange={e => updateApplicantType(row, e.target.value as ApplicantType)}
+                    className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                  >
+                    {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
+                      <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <select
                     value={row.status}
                     disabled={busyId === row.id}
                     onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
@@ -242,7 +267,7 @@ export default function FranchiseClient({ rows, salesProfiles }: Props) {
               </tr>
             ))}
             {localRows.length === 0 && (
-              <tr><td colSpan={8} className="text-center text-slate-400 py-10">등록된 가맹 접수가 없습니다.</td></tr>
+              <tr><td colSpan={9} className="text-center text-slate-400 py-10">등록된 가맹 접수가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

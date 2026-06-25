@@ -1,4 +1,5 @@
 import { SolapiMessageService } from 'solapi'
+import type { ApplicantType } from '@/types'
 
 const service = new SolapiMessageService(
   process.env.SOLAPI_API_KEY!,
@@ -33,15 +34,57 @@ export async function sendSignRequest({
   })
 }
 
+// 사업자 유형별 제출 서류 목록 — 유형마다 본문이 크게 달라서 알림톡 템플릿도 유형별로 따로 등록한다
+const FRANCHISE_DOCS: Record<ApplicantType, string[]> = {
+  corporate: [
+    '대표자 신분증',
+    '사업자 통장 사본',
+    '사업자등록증',
+    '영업신고증 (음식점에 한함)',
+    '법인 등기부등본 (3개월 이내 발급)',
+    '법인 인감증명서 (3개월 이내 발급)',
+    '주주명부 (3개월 이내 발급)',
+    '사업장 외부 사진 2장',
+    '사업장 내부 사진 2장',
+  ],
+  individual: [
+    '대표자 신분증',
+    '사업자 통장 사본',
+    '사업자등록증',
+    '영업신고증 (음식점에 한함)',
+    '사업장 외부 사진 2장',
+    '사업장 내부 사진 2장',
+  ],
+  existing: [
+    '대표자 신분증',
+    '사업자 통장 사본',
+    '사업자등록증',
+    '영업신고증 (음식점에 한함)',
+  ],
+}
+
+const FRANCHISE_TEMPLATE_ENV_KEY: Record<ApplicantType, string> = {
+  corporate: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE',
+  individual: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL',
+  existing: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_EXISTING',
+}
+
 export async function sendFranchiseDocRequest({
-  phone, ownerName, businessName, docTemplate,
-}: { phone: string; ownerName: string; businessName: string; docTemplate?: string }) {
+  phone, ownerName, businessName, applicantType,
+}: { phone: string; ownerName: string; businessName: string; applicantType: ApplicantType }) {
   if (!phone) return
-  const text = `[가맹 서류 안내]\n${ownerName}님, "${businessName}" 가맹 접수를 위해 서류 제출이 필요합니다.\n${docTemplate ? `필요 서류: ${docTemplate}\n` : ''}서류를 준비하여 담당자에게 전달해주세요.`
-  const ko = kakaoOptions('SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_REQUEST', {
+  const docList = FRANCHISE_DOCS[applicantType].map(d => `- ${d}`).join('\n')
+  const photoNote = applicantType !== 'existing'
+    ? '\n* 간판이 없는 경우, 건물에 부착된 도로명주소 표지판 사진으로 대체 가능합니다.'
+    : ''
+  const receiptNote = applicantType === 'existing'
+    ? '\n\n접수 방법: 이메일 주소와 연락처를 함께 기재하여 담당자에게 회신해주세요.'
+    : ''
+  const text = `[가맹 서류 안내]\n${ownerName}님, "${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.\n\n제출 서류\n${docList}${photoNote}${receiptNote}`
+  const ko = kakaoOptions(FRANCHISE_TEMPLATE_ENV_KEY[applicantType], {
     '#{고객명}': ownerName,
     '#{상호명}': businessName,
-    '#{필요서류}': docTemplate ?? '',
+    '#{서류목록}': docList,
   })
   await (service as any).send({
     to: phone,

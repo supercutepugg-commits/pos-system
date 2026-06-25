@@ -86,6 +86,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: allProfiles } = await supabase.from('profiles').select('id')
   const allUserIds = (allProfiles ?? []).map(p => p.id)
 
+  // 계정당 일정 알림은 1시간에 한 번만 — 최근 1시간 내 이미 받은 사람은 이번 회차에서 제외
+  const oneHourAgoStr = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data: recentScheduleNotifs } = await supabase
+    .from('notifications')
+    .select('user_id')
+    .like('type', 'schedule_%')
+    .gte('created_at', oneHourAgoStr)
+  const onCooldown = new Set((recentScheduleNotifs ?? []).map((n: any) => n.user_id))
+  const notifiableUserIds = allUserIds.filter(id => !onCooldown.has(id))
+
   // 캘린더 일정(티켓/가맹) → notifications 테이블에 실제 알림 행 생성 (중복 방지)
   type ScheduleItem = { refType: 'ticket' | 'franchise'; refId: string; type: string; title: string; body: string; targetUserIds: string[] }
   const scheduleItems: ScheduleItem[] = []
@@ -99,7 +109,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       const name = t.merchant?.business_name ?? t.title
       scheduleItems.push({
         refType: 'ticket', refId: t.id, type: `schedule_${f.key}`,
-        title: `${f.label}: ${name}`, body: `${date} 예정`, targetUserIds: allUserIds,
+        title: `${f.label}: ${name}`, body: `${date} 예정`, targetUserIds: notifiableUserIds,
       })
     }
   }
@@ -113,7 +123,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       const name = f.business_name || '상호명 미입력'
       scheduleItems.push({
         refType: 'franchise', refId: f.id, type: `schedule_${ff.key}`,
-        title: `${ff.label}: ${name}`, body: `${date} 예정`, targetUserIds: allUserIds,
+        title: `${ff.label}: ${name}`, body: `${date} 예정`, targetUserIds: notifiableUserIds,
       })
     }
   }

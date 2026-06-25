@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   if (p.role === 'sales') query = query.eq('sales_id', userId)
   if (p.role === 'cs') query = query.eq('cs_id', userId)
 
-  const countStatuses: FranchiseStatus[] = ['info_input', 'doc_waiting', 'doc_complete', 'franchise_done']
+  const countStatuses: FranchiseStatus[] = ['doc_waiting', 'doc_incomplete', 'card_apply_done', 'toss_review_done']
 
   function buildCountQuery(status: FranchiseStatus) {
     let q = supabase.from('franchise_applications').select('id', { count: 'exact', head: true }).eq('status', status)
@@ -44,10 +44,10 @@ export default async function DashboardPage() {
   countStatuses.forEach((status, i) => { counts[status] = countResults[i].count ?? 0 })
 
   const summaryCards = [
-    { label: FRANCHISE_STATUS_LABEL.info_input, status: 'info_input', icon: FileEdit, color: 'bg-blue-50 text-blue-600', border: 'border-blue-100' },
     { label: FRANCHISE_STATUS_LABEL.doc_waiting, status: 'doc_waiting', icon: Clock4, color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
-    { label: FRANCHISE_STATUS_LABEL.doc_complete, status: 'doc_complete', icon: CheckCircle2, color: 'bg-indigo-50 text-indigo-600', border: 'border-indigo-100' },
-    { label: FRANCHISE_STATUS_LABEL.franchise_done, status: 'franchise_done', icon: Flag, color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
+    { label: FRANCHISE_STATUS_LABEL.doc_incomplete, status: 'doc_incomplete', icon: FileEdit, color: 'bg-red-50 text-red-600', border: 'border-red-100' },
+    { label: FRANCHISE_STATUS_LABEL.card_apply_done, status: 'card_apply_done', icon: CheckCircle2, color: 'bg-indigo-50 text-indigo-600', border: 'border-indigo-100' },
+    { label: FRANCHISE_STATUS_LABEL.toss_review_done, status: 'toss_review_done', icon: Flag, color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
   ]
 
   return (

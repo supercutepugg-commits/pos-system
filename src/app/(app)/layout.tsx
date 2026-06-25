@@ -88,7 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const { data: upcomingFranchise } = await supabase
       .from('franchise_applications')
       .select('id, business_name, open_date, install_date')
-      .neq('status', 'franchise_done')
+      .neq('status', 'toss_review_done')
       .or('open_date.not.is.null,install_date.not.is.null')
 
     // 담당자 지정 여부와 무관하게 전체 직원에게 알림

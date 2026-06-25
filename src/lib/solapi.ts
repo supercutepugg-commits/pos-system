@@ -95,18 +95,30 @@ export async function sendFranchiseDocRequest({
   })
 }
 
-type FranchiseStatusUpdateKind = 'doc_incomplete' | 'doc_complete' | 'franchise_done'
+type FranchiseStatusUpdateKind =
+  | 'doc_incomplete'
+  | 'card_apply_done'
+  | 'internet_apply_done'
+  | 'card_done'
+  | 'internet_done'
+  | 'toss_review_done'
 
 const FRANCHISE_STATUS_TEXT: Record<FranchiseStatusUpdateKind, string> = {
   doc_incomplete: '제출하신 서류에 보완이 필요합니다. 담당자에게 문의해주세요.',
-  doc_complete: '서류 접수가 완료되었습니다. 가맹 심사가 진행됩니다.',
-  franchise_done: '가맹이 완료되었습니다. 곧 기술지원팀에서 설치 일정을 안내드립니다.',
+  card_apply_done: '카드가맹 접수가 완료되었습니다. 심사가 진행됩니다.',
+  internet_apply_done: '인터넷 가입 접수가 완료되었습니다.',
+  card_done: '카드가맹이 완료되었습니다.',
+  internet_done: '인터넷 가입이 완료되었습니다.',
+  toss_review_done: '토스 심사가 완료되었습니다. 곧 기술지원팀에서 설치 일정을 안내드립니다.',
 }
 
 const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, string> = {
   doc_incomplete: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INCOMPLETE',
-  doc_complete: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_COMPLETE',
-  franchise_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DONE',
+  card_apply_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_CARD_APPLY_DONE',
+  internet_apply_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_INTERNET_APPLY_DONE',
+  card_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_CARD_DONE',
+  internet_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_INTERNET_DONE',
+  toss_review_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DONE',
 }
 
 export async function sendFranchiseStatusUpdate({

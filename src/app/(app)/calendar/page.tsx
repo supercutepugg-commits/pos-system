@@ -16,7 +16,7 @@ export default async function CalendarPage() {
     supabase
       .from('franchise_applications')
       .select('id, business_name, status, open_date, install_date, sales:profiles!franchise_applications_sales_id_fkey(name)')
-      .neq('status', 'franchise_done')
+      .neq('status', 'toss_review_done')
       .or('open_date.not.is.null,install_date.not.is.null'),
   ])
 

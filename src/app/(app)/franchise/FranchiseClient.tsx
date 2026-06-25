@@ -272,11 +272,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
     if (status === 'doc_waiting') {
       await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type })
-    } else if (status === 'doc_incomplete' || status === 'doc_complete') {
+    } else {
       await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
-    } else if (status === 'franchise_done') {
-      await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
-      await createLinkedInstallTicket(row)
+      if (status === 'toss_review_done') await createLinkedInstallTicket(row)
     }
     setBusyId(null)
     startTransition(() => router.refresh())
@@ -315,16 +313,15 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
     if (newStatus === row.status) return
 
-    const sendsMessage = newStatus === 'doc_waiting' || newStatus === 'doc_incomplete' || newStatus === 'doc_complete' || newStatus === 'franchise_done'
-    if (sendsMessage && (!row.phone || !row.owner_name || !row.business_name)) {
+    if (!row.phone || !row.owner_name || !row.business_name) {
       alert('연락처·대표자명·상호명이 모두 입력되어야 메시지를 보낼 수 있습니다. 먼저 입력해주세요.')
       return
     }
 
     const confirmMsg = newStatus === 'doc_waiting'
       ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 사업자 유형이 맞는지 확인 후 진행하세요. 변경하시겠습니까?`
-      : newStatus === 'franchise_done'
-        ? `가맹완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다. 변경하시겠습니까?`
+      : newStatus === 'toss_review_done'
+        ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다. 변경하시겠습니까?`
         : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`
     if (!confirm(confirmMsg)) return
     updateStatus(row, newStatus)

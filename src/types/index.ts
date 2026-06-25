@@ -13,7 +13,14 @@ export type TicketStatus =
 export type TicketType = 'install' | 'as' | 'consult' | 'other'
 export type Priority = 'low' | 'normal' | 'high' | 'urgent'
 
-export type FranchiseStatus = 'info_input' | 'doc_waiting' | 'doc_incomplete' | 'doc_complete' | 'franchise_done'
+export type FranchiseStatus =
+  | 'doc_waiting'
+  | 'doc_incomplete'
+  | 'card_apply_done'
+  | 'internet_apply_done'
+  | 'card_done'
+  | 'internet_done'
+  | 'toss_review_done'
 export type ApplicantType = 'corporate' | 'individual' | 'existing'
 
 export interface Profile {
@@ -242,19 +249,23 @@ export const PRIORITY_COLOR: Record<Priority, string> = {
 }
 
 export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
-  info_input: '정보 입력',
-  doc_waiting: '서류 대기',
-  doc_incomplete: '서류 미비',
-  doc_complete: '접수 완료',
-  franchise_done: '가맹 완료',
+  doc_waiting: '서류대기',
+  doc_incomplete: '서류미비',
+  card_apply_done: '카드가맹접수완료',
+  internet_apply_done: '인터넷접수완료',
+  card_done: '카드가맹완료',
+  internet_done: '인터넷 가입완료',
+  toss_review_done: '토스심사완료',
 }
 
 export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
-  info_input: 'bg-gray-100 text-gray-700',
   doc_waiting: 'bg-yellow-100 text-yellow-700',
   doc_incomplete: 'bg-red-100 text-red-700',
-  doc_complete: 'bg-blue-100 text-blue-700',
-  franchise_done: 'bg-green-100 text-green-700',
+  card_apply_done: 'bg-sky-100 text-sky-700',
+  internet_apply_done: 'bg-cyan-100 text-cyan-700',
+  card_done: 'bg-indigo-100 text-indigo-700',
+  internet_done: 'bg-blue-100 text-blue-700',
+  toss_review_done: 'bg-green-100 text-green-700',
 }
 
 export const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {

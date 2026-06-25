@@ -4,7 +4,7 @@
 -- 기존 crm_inbound(고객 문의)와는 별개의 신규 시트
 -- ============================================
 
-CREATE TABLE franchise_applications (
+CREATE TABLE IF NOT EXISTS franchise_applications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   business_name TEXT NOT NULL,         -- 상호명
   owner_name TEXT NOT NULL,            -- 대표자명
@@ -24,14 +24,22 @@ CREATE TABLE franchise_applications (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS franchise_applications_updated_at ON franchise_applications;
 CREATE TRIGGER franchise_applications_updated_at BEFORE UPDATE ON franchise_applications
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE franchise_applications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "authenticated read" ON franchise_applications;
 CREATE POLICY "authenticated read" ON franchise_applications FOR SELECT TO authenticated USING (TRUE);
+DROP POLICY IF EXISTS "authenticated insert" ON franchise_applications;
 CREATE POLICY "authenticated insert" ON franchise_applications FOR INSERT TO authenticated WITH CHECK (TRUE);
+DROP POLICY IF EXISTS "authenticated update" ON franchise_applications;
 CREATE POLICY "authenticated update" ON franchise_applications FOR UPDATE TO authenticated USING (TRUE);
+DROP POLICY IF EXISTS "authenticated delete" ON franchise_applications;
 CREATE POLICY "authenticated delete" ON franchise_applications FOR DELETE TO authenticated USING (TRUE);
 
-ALTER PUBLICATION supabase_realtime ADD TABLE franchise_applications;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE franchise_applications;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

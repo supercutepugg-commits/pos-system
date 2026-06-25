@@ -15,7 +15,7 @@ export default async function FranchisePage({ searchParams }: Props) {
   const [{ data: rows, error }, { data: salesProfiles }, { data: csProfiles }] = await Promise.all([
     supabase
       .from('franchise_applications')
-      .select('*, sales:profiles!franchise_applications_sales_id_fkey(id,name,role), cs:profiles!franchise_applications_cs_id_fkey(id,name,role)')
+      .select('*, sales:profiles!franchise_applications_sales_id_fkey(id,name,role), cs:profiles!franchise_applications_cs_id_fkey(id,name,role), creator:profiles!franchise_applications_created_by_fkey(id,name,role)')
       .order('created_at', { ascending: false }),
     supabase.from('profiles').select('id,name,role').in('role', ['sales', 'admin']).order('name'),
     supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin']).order('name'),

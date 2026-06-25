@@ -198,6 +198,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       open_date: form.open_date || null,
       install_date: form.install_date || null,
       memo: form.memo || null,
+      created_by: currentUserId,
     })
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
@@ -514,7 +515,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
-              {['상호명', '대표자', '연락처', '담당영업', '담당CS', '사업자유형', '상태', '메모'].map(label => (
+              {['상호명', '대표자', '연락처', '등록자', '담당영업', '담당CS', '사업자유형', '상태', '메모'].map(label => (
                 <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
@@ -535,6 +536,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{row.business_name || '-'}</td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.phone || '-'}</td>
+                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
                   <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{row.sales?.name ?? '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
@@ -573,7 +575,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={10} className="px-6 py-4">
+                    <td colSpan={11} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">사업자번호</label>
@@ -639,7 +641,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={10} className="text-center text-slate-400 py-10">조건에 맞는 가맹 접수가 없습니다.</td></tr>
+              <tr><td colSpan={11} className="text-center text-slate-400 py-10">조건에 맞는 가맹 접수가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

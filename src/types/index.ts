@@ -117,6 +117,7 @@ export interface FranchiseApplication {
   install_date?: string
   sales_id?: string
   cs_id?: string
+  created_by?: string
   status: FranchiseStatus
   applicant_type: ApplicantType
   doc_template?: string
@@ -125,6 +126,7 @@ export interface FranchiseApplication {
   updated_at: string
   sales?: Profile
   cs?: Profile
+  creator?: Profile
 }
 
 export interface FranchiseApplicationLog {

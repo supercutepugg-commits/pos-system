@@ -96,7 +96,16 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
           contractTitle: form.title,
           signToken: inserted.sign_token,
         }),
-      }).catch(() => {})
+      }).then(async res => {
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          console.error('서명 요청 알림톡 발송 실패:', json.error)
+          alert('계약서는 등록되었지만 서명 요청 알림톡 발송에 실패했습니다. 고객에게 직접 링크를 전달해주세요.')
+        }
+      }).catch(err => {
+        console.error('서명 요청 알림톡 발송 실패:', err)
+        alert('계약서는 등록되었지만 서명 요청 알림톡 발송에 실패했습니다. 고객에게 직접 링크를 전달해주세요.')
+      })
     }
 
     setForm({ title: '', signerName: '', signerEmail: '', signerPhone: '' })

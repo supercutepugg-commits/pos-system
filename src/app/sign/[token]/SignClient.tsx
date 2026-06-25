@@ -237,7 +237,7 @@ export default function SignClient({ contract }: Props) {
       signature_zones: signedItems,
     }).eq('id', contract.id)
 
-    // 서명 완료 알림톡 발송
+    // 서명 완료 알림톡 발송 (고객 화면이므로 실패해도 진행을 막지 않음 - 로그만 남김)
     fetch('/api/contracts/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -247,7 +247,12 @@ export default function SignClient({ contract }: Props) {
         signerName: contract.signer_name,
         contractTitle: contract.title,
       }),
-    }).catch(() => {})
+    }).then(async res => {
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        console.error('서명 완료 알림톡 발송 실패:', json.error)
+      }
+    }).catch(err => console.error('서명 완료 알림톡 발송 실패:', err))
 
     setSubmitting(false)
     setDone(true)

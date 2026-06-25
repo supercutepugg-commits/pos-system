@@ -94,20 +94,28 @@ export async function sendFranchiseDocRequest({
   })
 }
 
+type FranchiseStatusUpdateKind = 'doc_incomplete' | 'doc_complete' | 'franchise_done'
+
+const FRANCHISE_STATUS_TEXT: Record<FranchiseStatusUpdateKind, string> = {
+  doc_incomplete: '제출하신 서류에 보완이 필요합니다. 담당자에게 문의해주세요.',
+  doc_complete: '서류 접수가 완료되었습니다. 가맹 심사가 진행됩니다.',
+  franchise_done: '가맹이 완료되었습니다. 곧 기술지원팀에서 설치 일정을 안내드립니다.',
+}
+
+const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, string> = {
+  doc_incomplete: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INCOMPLETE',
+  doc_complete: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_COMPLETE',
+  franchise_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DONE',
+}
+
 export async function sendFranchiseStatusUpdate({
   phone, ownerName, businessName, status,
-}: { phone: string; ownerName: string; businessName: string; status: 'doc_incomplete' | 'doc_complete' | 'franchise_done' }) {
+}: { phone: string; ownerName: string; businessName: string; status: FranchiseStatusUpdateKind }) {
   if (!phone) return
-  const STATUS_TEXT: Record<typeof status, string> = {
-    doc_incomplete: '제출하신 서류에 보완이 필요합니다. 담당자에게 문의해주세요.',
-    doc_complete: '서류 접수가 완료되었습니다. 가맹 심사가 진행됩니다.',
-    franchise_done: '가맹이 완료되었습니다. 곧 기술지원팀에서 설치 일정을 안내드립니다.',
-  }
-  const text = `[가맹 진행 안내]\n${ownerName}님, "${businessName}" 가맹 진행상황을 안내드립니다.\n${STATUS_TEXT[status]}`
-  const ko = kakaoOptions('SOLAPI_KAKAO_TEMPLATE_FRANCHISE_STATUS', {
+  const text = `[가맹 진행 안내]\n${ownerName}님, "${businessName}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
+  const ko = kakaoOptions(FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status], {
     '#{고객명}': ownerName,
     '#{상호명}': businessName,
-    '#{진행상태}': STATUS_TEXT[status],
   })
   await (service as any).send({
     to: phone,

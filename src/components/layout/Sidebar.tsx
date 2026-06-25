@@ -1,12 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine, PhoneIncoming, CalendarDays, ClipboardList
+  LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
+  PhoneIncoming, CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { Profile } from '@/types'
+import type { Profile, Role } from '@/types'
 
 const ROLE_LABEL = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR = {
@@ -16,17 +18,53 @@ const ROLE_COLOR = {
   tech: 'bg-orange-100 text-orange-700'
 }
 
-const NAV = [
-  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/merchants', label: '가맹점', icon: Store, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'] },
-  { href: '/notifications', label: '알림', icon: Bell, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/contracts', label: '계약서 / 서명', icon: PenLine, roles: ['admin', 'cs'] },
-  { href: '/installs', label: '설치 관리', icon: Package, roles: ['admin', 'tech'] },
-  { href: '/calendar', label: '캘린더', icon: CalendarDays, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/inbound', label: '인입 내역', icon: PhoneIncoming, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/franchise', label: '가맹 접수', icon: ClipboardList, roles: ['admin', 'sales', 'cs'] },
+interface NavItem {
+  href: string
+  label: string
+  icon: any
+}
+
+// 모든 역할이 공통으로 쓰는 항목 (역할 폴더 위에 따로 표시)
+const COMMON_NAV: NavItem[] = [
+  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+  { href: '/merchants', label: '가맹점', icon: Store },
+  { href: '/chat', label: '채팅', icon: MessageCircle },
+  { href: '/notifications', label: '알림', icon: Bell },
+  { href: '/calendar', label: '캘린더', icon: CalendarDays },
+]
+
+// 역할별 폴더 — admin은 전부 보임
+const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] = [
+  {
+    key: 'sales',
+    label: '영업',
+    icon: Briefcase,
+    items: [
+      { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
+    ],
+  },
+  {
+    key: 'cs',
+    label: 'CS',
+    icon: Headset,
+    items: [
+      { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
+      { href: '/inbound', label: '인입 내역', icon: PhoneIncoming },
+      { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
+    ],
+  },
+  {
+    key: 'tech',
+    label: '기술지원',
+    icon: HardHat,
+    items: [
+      { href: '/installs', label: '설치 관리', icon: Package },
+    ],
+  },
+]
+
+const ADMIN_NAV: NavItem[] = [
+  { href: '/admin/users', label: '직원 관리', icon: Users },
 ]
 
 const EXTERNAL_LINKS: { href: string; label: string; icon: any; roles: string[] }[] = []
@@ -41,6 +79,19 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
   const pathname = usePathname()
   const router = useRouter()
 
+  const visibleFolders = ROLE_FOLDERS.filter(f => profile.role === 'admin' || profile.role === f.key)
+  const [openFolders, setOpenFolders] = useState<Set<string>>(
+    () => new Set(visibleFolders.filter(f => f.key === profile.role || profile.role === 'admin').map(f => f.key))
+  )
+
+  function toggleFolder(key: string) {
+    setOpenFolders(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -48,8 +99,37 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
     router.refresh()
   }
 
-  const navItems = NAV.filter(n => n.roles.includes(profile.role))
   const externalItems = EXTERNAL_LINKS.filter(n => n.roles.includes(profile.role))
+
+  function isActive(href: string) {
+    return pathname === href || (pathname.startsWith(href + '/') && !href.includes('?'))
+  }
+
+  function NavLink({ item, indent }: { item: NavItem; indent?: boolean }) {
+    const active = isActive(item.href)
+    return (
+      <Link key={item.href} href={item.href}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${indent ? 'ml-3' : ''} ${
+          active
+            ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+        }`}
+      >
+        <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />
+        {item.label}
+        {item.href === '/notifications' && unreadCount > 0 && (
+          <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+        {item.href === '/chat' && unreadDmCount > 0 && (
+          <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
+            {unreadDmCount > 9 ? '9+' : unreadDmCount}
+          </span>
+        )}
+      </Link>
+    )
+  }
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm">
@@ -78,32 +158,37 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
 
       {/* 네비게이션 */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {navItems.map(item => {
-          const active = pathname === item.href ||
-            (pathname.startsWith(item.href + '/') && !item.href.includes('?'))
+        {COMMON_NAV.map(item => <NavLink key={item.href} item={item} />)}
+
+        {visibleFolders.length > 0 && <div className="my-2 border-t border-slate-100" />}
+
+        {visibleFolders.map(folder => {
+          const open = openFolders.has(folder.key)
           return (
-            <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${
-                active
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />
-              {item.label}
-              {item.href === '/notifications' && unreadCount > 0 && (
-                <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+            <div key={folder.key} className="mb-0.5">
+              <button
+                onClick={() => toggleFolder(folder.key)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-all w-full"
+              >
+                <folder.icon size={17} className="text-slate-400" />
+                {folder.label}
+                <ChevronDown size={15} className={`ml-auto text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+              </button>
+              {open && (
+                <div className="mt-0.5">
+                  {folder.items.map(item => <NavLink key={item.href} item={item} indent />)}
+                </div>
               )}
-              {item.href === '/chat' && unreadDmCount > 0 && (
-                <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
-                  {unreadDmCount > 9 ? '9+' : unreadDmCount}
-                </span>
-              )}
-            </Link>
+            </div>
           )
         })}
+
+        {profile.role === 'admin' && (
+          <>
+            <div className="my-2 border-t border-slate-100" />
+            {ADMIN_NAV.map(item => <NavLink key={item.href} item={item} />)}
+          </>
+        )}
       </nav>
 
       {/* 외부 링크 */}

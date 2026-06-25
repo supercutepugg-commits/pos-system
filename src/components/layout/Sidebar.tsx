@@ -79,7 +79,8 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
   const pathname = usePathname()
   const router = useRouter()
 
-  const visibleFolders = ROLE_FOLDERS.filter(f => profile.role === 'admin' || profile.role === f.key)
+  // 폴더는 역할 상관없이 전부 보이고, 실제 접근 권한은 각 페이지에서 따로 체크함
+  const visibleFolders = ROLE_FOLDERS
   const [openFolders, setOpenFolders] = useState<Set<string>>(
     () => new Set(visibleFolders.filter(f => f.key === profile.role || profile.role === 'admin').map(f => f.key))
   )

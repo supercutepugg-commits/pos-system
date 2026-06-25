@@ -154,6 +154,27 @@ export interface WooCustomer {
   updated_at: string
 }
 
+export interface InternetManagement {
+  id: string
+  business_name?: string
+  apply_date?: string
+  open_date?: string
+  status?: string
+  category?: string
+  carrier?: string
+  speed?: string
+  addon?: string
+  gift?: string
+  owner_name?: string
+  phone?: string
+  region?: string
+  monthly_fee?: string
+  install_fee?: string
+  memo?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface FranchiseApplicationLog {
   id: string
   franchise_application_id: string

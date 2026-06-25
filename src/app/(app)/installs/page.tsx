@@ -22,7 +22,7 @@ export default async function InstallsPage() {
     supabase.from('profiles').select('id, name').eq('role', 'tech'),
   ])
 
-  if (!profile || !['tech', 'cs', 'admin'].includes(profile.role)) redirect('/dashboard')
+  if (!profile) redirect('/dashboard')
 
   return (
     <InstallsClient

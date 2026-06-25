@@ -46,6 +46,7 @@ interface Props {
 const PAGE_SIZE = 10
 
 export default function InstallsClient({ profile, techUsers, initialInstalls }: Props) {
+  const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -174,15 +175,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <button onClick={fetchInstalls} className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
             <RefreshCw size={15} />
           </button>
-          <button onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-700 font-semibold">
-            <Plus size={16} />새 설치건
-          </button>
+          {canEdit && (
+            <button onClick={() => setShowForm(v => !v)}
+              className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-700 font-semibold">
+              <Plus size={16} />새 설치건
+            </button>
+          )}
         </div>
       </div>
 
       {/* 등록 폼 */}
-      {showForm && (
+      {canEdit && showForm && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h2 className="text-sm font-bold text-slate-800 mb-4">새 설치건 등록</h2>
           <form onSubmit={handleCreate} className="space-y-4">
@@ -279,17 +282,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
-                        className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
-                        {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                      </select>
+                      {canEdit ? (
+                        <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
+                          className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
+                          {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                        </select>
+                      ) : (
+                        <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${STATUS_COLORS[inst.status]}`}>
+                          {STATUS_LABELS[inst.status] ?? inst.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}
-                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none">
-                        <option value="">미배정</option>
-                        {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
+                      {canEdit ? (
+                        <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}
+                          className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none">
+                          <option value="">미배정</option>
+                          {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-slate-500">{inst.assignee?.name ?? '미배정'}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-500 max-w-[160px]">
                       <span className="text-xs line-clamp-1">{inst.notes || '-'}</span>

@@ -39,6 +39,7 @@ interface Props {
 }
 
 export default function ContractsClient({ profile, initialContracts }: Props) {
+  const canEdit = profile.role === 'cs' || profile.role === 'admin'
   const [contracts, setContracts] = useState<Contract[]>(initialContracts)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -143,14 +144,16 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
           <h1 className="text-2xl font-bold text-slate-900">계약서 / 서명</h1>
           <p className="text-slate-500 text-sm mt-1">총 {contracts.length}건</p>
         </div>
-        <button onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-700 font-semibold">
-          <Plus size={16} />새 계약서
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-700 font-semibold">
+            <Plus size={16} />새 계약서
+          </button>
+        )}
       </div>
 
       {/* 등록 폼 */}
-      {showForm && (
+      {canEdit && showForm && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h2 className="text-sm font-bold text-slate-800 mb-4">계약서 등록</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -218,10 +221,12 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
                   {STATUS_LABELS[c.status] ?? c.status}
                 </span>
                 <div className="flex gap-2 flex-shrink-0">
-                  <a href={`/contracts/${c.id}`}
-                    className="flex items-center gap-1 text-xs text-purple-600 border border-purple-200 px-2.5 py-1.5 rounded-lg hover:bg-purple-50">
-                    <PenLine size={12} />위치 지정
-                  </a>
+                  {canEdit && (
+                    <a href={`/contracts/${c.id}`}
+                      className="flex items-center gap-1 text-xs text-purple-600 border border-purple-200 px-2.5 py-1.5 rounded-lg hover:bg-purple-50">
+                      <PenLine size={12} />위치 지정
+                    </a>
+                  )}
                   <button onClick={() => copySignLink(c.sign_token)}
                     className="flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-2.5 py-1.5 rounded-lg hover:bg-slate-50">
                     <Copy size={12} />서명 링크

@@ -20,7 +20,7 @@ export default async function ContractsPage() {
       .limit(300),
   ])
 
-  if (!profile || !['cs', 'admin'].includes(profile.role)) redirect('/dashboard')
+  if (!profile) redirect('/dashboard')
 
   return (
     <ContractsClient

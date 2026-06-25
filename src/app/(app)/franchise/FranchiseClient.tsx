@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteFranchiseRows } from './actions'
-import type { ApplicantType, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
+import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 
 const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온라인', '기타']
+const EQUIPMENT_CATALOG = ['토스프론트', '포스기', '인터넷', '키오스크', '영수증프린터', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더']
 
 interface Props {
   rows: FranchiseApplication[]
@@ -23,7 +24,7 @@ const EMPTY_FORM = {
   owner_name: '',
   phone: '',
   business_number: '',
-  equipment: '',
+  equipmentItems: [] as EquipmentItem[],
   address: '',
   address_detail: '',
   title: '',
@@ -52,6 +53,44 @@ async function notify(payload: Record<string, unknown>) {
     console.error('가맹 알림톡 발송 실패:', err)
     alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
   }
+}
+
+function EquipmentCart({ items, onChange }: { items: EquipmentItem[]; onChange: (items: EquipmentItem[]) => void }) {
+  const [product, setProduct] = useState(EQUIPMENT_CATALOG[0])
+  const [qty, setQty] = useState(1)
+
+  function add() {
+    const existing = items.find(i => i.name === product)
+    if (existing) onChange(items.map(i => i.name === product ? { ...i, quantity: i.quantity + qty } : i))
+    else onChange([...items, { name: product, quantity: qty }])
+    setQty(1)
+  }
+
+  return (
+    <div onClick={e => e.stopPropagation()}>
+      <div className="flex gap-1.5">
+        <select value={product} onChange={e => setProduct(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {EQUIPMENT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <input type="number" min={1} value={qty} onChange={e => setQty(Math.max(1, Number(e.target.value)))}
+          className="w-14 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center" />
+        <button type="button" onClick={add}
+          className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-200">추가</button>
+      </div>
+      {items.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {items.map(it => (
+            <li key={it.name} className="flex justify-between items-center bg-slate-50 rounded-lg px-2.5 py-1.5 text-xs">
+              <span>{it.name} × {it.quantity}</span>
+              <button type="button" onClick={() => onChange(items.filter(i => i.name !== it.name))}
+                className="text-red-400 hover:text-red-600">삭제</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, initialStatusFilter = '' }: Props) {
@@ -148,7 +187,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       owner_name: form.owner_name || null,
       phone: form.phone || null,
       business_number: form.business_number || null,
-      equipment: form.equipment || null,
+      equipment_items: form.equipmentItems,
       address: form.address || null,
       address_detail: form.address_detail || null,
       title: form.title || null,
@@ -180,7 +219,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       phone: row.phone,
       address: row.address,
       address_detail: row.address_detail || null,
-      pos_model: row.equipment || null,
+      pos_model: row.equipment_items?.length ? row.equipment_items.map(i => `${i.name} x${i.quantity}`).join(', ') : null,
       sales_id: row.sales_id || null,
       memo: row.memo || null,
     }).select('id').single()
@@ -255,6 +294,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   async function saveField(row: FranchiseApplication, field: keyof FranchiseApplication, value: string) {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ [field]: value || null }).eq('id', row.id)
+    if (error) alert('수정 실패: ' + error.message)
+    startTransition(() => router.refresh())
+  }
+
+  async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
+    const supabase = createClient()
+    const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
   }
@@ -386,10 +432,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <input value={form.business_number} onChange={e => setForm({ ...form, business_number: e.target.value })} placeholder="000-00-00000"
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-medium text-slate-500">출고 장비</label>
-            <input value={form.equipment} onChange={e => setForm({ ...form, equipment: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <EquipmentCart items={form.equipmentItems} onChange={items => setForm({ ...form, equipmentItems: items })} />
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
             <label className="text-xs font-medium text-slate-500">주소</label>
@@ -534,9 +579,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <label className="text-xs font-semibold text-slate-400">사업자번호</label>
                           <EditableText row={row} field="business_number" placeholder="000-00-00000" />
                         </div>
-                        <div>
+                        <div className="col-span-2">
                           <label className="text-xs font-semibold text-slate-400">출고 장비</label>
-                          <EditableText row={row} field="equipment" placeholder="-" />
+                          <EquipmentCart items={row.equipment_items ?? []} onChange={items => saveEquipmentItems(row, items)} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">작업제목</label>

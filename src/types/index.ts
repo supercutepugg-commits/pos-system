@@ -96,6 +96,11 @@ export interface ContactLog {
   user?: Profile
 }
 
+export interface EquipmentItem {
+  name: string
+  quantity: number
+}
+
 export interface FranchiseApplication {
   id: string
   business_name?: string
@@ -103,6 +108,7 @@ export interface FranchiseApplication {
   phone?: string
   business_number?: string
   equipment?: string
+  equipment_items?: EquipmentItem[]
   address?: string
   address_detail?: string
   title?: string

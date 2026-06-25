@@ -98,9 +98,17 @@ export interface ContactLog {
 
 export interface FranchiseApplication {
   id: string
-  business_name: string
-  owner_name: string
-  phone: string
+  business_name?: string
+  owner_name?: string
+  phone?: string
+  business_number?: string
+  equipment?: string
+  address?: string
+  address_detail?: string
+  title?: string
+  reception_channel?: string
+  open_date?: string
+  install_date?: string
   sales_id?: string
   cs_id?: string
   status: FranchiseStatus

@@ -15,6 +15,7 @@ interface Props {
   salesProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   csProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   currentUserId: string
+  initialStatusFilter?: string
 }
 
 const EMPTY_FORM = {
@@ -53,7 +54,7 @@ async function notify(payload: Record<string, unknown>) {
   }
 }
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, initialStatusFilter = '' }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
@@ -67,7 +68,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
 
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
   const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
   const [salesFilter, setSalesFilter] = useState('')
 

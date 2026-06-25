@@ -131,6 +131,29 @@ export interface FranchiseApplication {
   creator?: Profile
 }
 
+export interface WooCustomer {
+  id: string
+  received_date?: string
+  manager?: string
+  category?: string
+  business_name?: string
+  owner_name?: string
+  business_number?: string
+  phone?: string
+  internet_open_date?: string
+  card_apply_date?: string
+  pos_install_date?: string
+  install_schedule_note?: string
+  open_date?: string
+  van_company?: string
+  pos_program?: string
+  product?: string
+  address?: string
+  memo?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface FranchiseApplicationLog {
   id: string
   franchise_application_id: string

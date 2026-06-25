@@ -19,11 +19,27 @@ interface CalendarTicket {
   sales?: { name: string } | null
 }
 
+interface CalendarFranchiseRow {
+  id: string
+  business_name?: string | null
+  status: string
+  open_date?: string | null
+  install_date?: string | null
+  sales?: { name: string } | null
+}
+
 interface CalendarEvent {
-  ticket: CalendarTicket
-  date: string   // YYYY-MM-DD
-  label: string  // 어떤 날짜인지
+  date: string    // YYYY-MM-DD
+  label: string   // 어떤 날짜인지
   color: string
+  href: string
+  businessName: string
+  subtitle: string
+  statusLabel?: string
+  statusColor?: string
+  type?: TicketType
+  techName?: string
+  salesName?: string
 }
 
 const EVENT_TYPES = [
@@ -33,6 +49,11 @@ const EVENT_TYPES = [
   { key: 'card_apply_date', label: '카드신청', color: 'bg-orange-500' },
 ] as const
 
+const FRANCHISE_EVENT_TYPES = [
+  { key: 'open_date',    label: '가맹오픈', color: 'bg-sky-500' },
+  { key: 'install_date', label: '가맹설치', color: 'bg-teal-500' },
+] as const
+
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function toYMD(s: string | null | undefined): string | null {
@@ -40,7 +61,7 @@ function toYMD(s: string | null | undefined): string | null {
   return s.slice(0, 10)
 }
 
-export default function CalendarClient({ tickets }: { tickets: CalendarTicket[] }) {
+export default function CalendarClient({ tickets, franchiseRows = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[] }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth()) // 0-indexed
@@ -54,11 +75,39 @@ export default function CalendarClient({ tickets }: { tickets: CalendarTicket[] 
         const date = toYMD(ticket[et.key as keyof CalendarTicket] as string)
         if (!date) continue
         if (!map[date]) map[date] = []
-        map[date].push({ ticket, date, label: et.label, color: et.color })
+        map[date].push({
+          date,
+          label: et.label,
+          color: et.color,
+          href: `/tickets/${ticket.id}`,
+          businessName: ticket.merchant?.business_name ?? ticket.title,
+          subtitle: ticket.title,
+          statusLabel: STATUS_LABEL[ticket.status as TicketStatus],
+          statusColor: STATUS_COLOR[ticket.status as TicketStatus],
+          type: ticket.type as TicketType,
+          techName: ticket.tech?.name,
+          salesName: ticket.sales?.name,
+        })
+      }
+    }
+    for (const row of franchiseRows) {
+      for (const et of FRANCHISE_EVENT_TYPES) {
+        const date = toYMD(row[et.key as keyof CalendarFranchiseRow] as string)
+        if (!date) continue
+        if (!map[date]) map[date] = []
+        map[date].push({
+          date,
+          label: et.label,
+          color: et.color,
+          href: '/franchise',
+          businessName: row.business_name || '상호명 미입력',
+          subtitle: '가맹 접수',
+          salesName: row.sales?.name,
+        })
       }
     }
     return map
-  }, [tickets])
+  }, [tickets, franchiseRows])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -159,7 +208,7 @@ export default function CalendarClient({ tickets }: { tickets: CalendarTicket[] 
                 <div className="flex flex-col gap-0.5">
                   {events.slice(0, 3).map((ev, i) => (
                     <div key={i} className={`text-white text-[10px] font-medium px-1.5 py-0.5 rounded truncate ${ev.color}`}>
-                      {ev.label} {ev.ticket.merchant?.business_name ?? ev.ticket.title}
+                      {ev.label} {ev.businessName}
                     </div>
                   ))}
                   {events.length > 3 && (
@@ -172,9 +221,9 @@ export default function CalendarClient({ tickets }: { tickets: CalendarTicket[] 
         </div>
 
         {/* 범례 */}
-        <div className="flex gap-3 mt-3">
-          {EVENT_TYPES.map(et => (
-            <div key={et.key} className="flex items-center gap-1.5 text-xs text-slate-500">
+        <div className="flex flex-wrap gap-3 mt-3">
+          {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES].map(et => (
+            <div key={et.key + et.label} className="flex items-center gap-1.5 text-xs text-slate-500">
               <span className={`w-2.5 h-2.5 rounded-sm ${et.color}`} />
               {et.label}
             </div>
@@ -199,24 +248,26 @@ export default function CalendarClient({ tickets }: { tickets: CalendarTicket[] 
             ) : (
               <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
                 {selectedEvents.map((ev, i) => (
-                  <Link key={i} href={`/tickets/${ev.ticket.id}`}
+                  <Link key={i} href={ev.href}
                     className="block px-4 py-3 hover:bg-slate-50 transition-colors">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded ${ev.color}`}>
                         {ev.label}
                       </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[ev.ticket.status as TicketStatus]}`}>
-                        {STATUS_LABEL[ev.ticket.status as TicketStatus]}
-                      </span>
+                      {ev.statusLabel && ev.statusColor && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ev.statusColor}`}>
+                          {ev.statusLabel}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-semibold text-slate-900 truncate">
-                      {ev.ticket.merchant?.business_name ?? ev.ticket.title}
+                      {ev.businessName}
                     </p>
-                    <p className="text-xs text-slate-500 truncate mt-0.5">{ev.ticket.title}</p>
+                    <p className="text-xs text-slate-500 truncate mt-0.5">{ev.subtitle}</p>
                     <div className="flex gap-2 mt-1 text-xs text-slate-400">
-                      <span>{TYPE_LABEL[ev.ticket.type as TicketType]}</span>
-                      {ev.ticket.tech?.name && <span>· {ev.ticket.tech.name}</span>}
-                      {ev.ticket.sales?.name && <span>· {ev.ticket.sales.name}</span>}
+                      {ev.type && <span>{TYPE_LABEL[ev.type]}</span>}
+                      {ev.techName && <span>· {ev.techName}</span>}
+                      {ev.salesName && <span>· {ev.salesName}</span>}
                     </div>
                   </Link>
                 ))}

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine, PhoneIncoming, CalendarDays, ClipboardList
+  LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine, PhoneIncoming, CalendarDays, ClipboardList
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
@@ -18,7 +18,6 @@ const ROLE_COLOR = {
 
 const NAV = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard, roles: ['admin', 'sales', 'cs', 'tech'] },
-  { href: '/tickets', label: '작업 목록', icon: FileText, roles: ['admin', 'sales', 'cs', 'tech'] },
   { href: '/merchants', label: '가맹점', icon: Store, roles: ['admin', 'sales', 'cs', 'tech'] },
   { href: '/chat', label: '채팅', icon: MessageCircle, roles: ['admin', 'sales', 'cs', 'tech'] },
   { href: '/admin/users', label: '직원 관리', icon: Users, roles: ['admin'] },

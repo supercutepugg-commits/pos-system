@@ -1,0 +1,22 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { sendFranchiseDocRequest, sendFranchiseStatusUpdate } from '@/lib/solapi'
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { type, phone, ownerName, businessName, docTemplate, status } = body
+
+    if (type === 'doc_request') {
+      await sendFranchiseDocRequest({ phone, ownerName, businessName, docTemplate })
+    } else if (type === 'status_update') {
+      await sendFranchiseStatusUpdate({ phone, ownerName, businessName, status })
+    } else {
+      return NextResponse.json({ ok: false, error: 'unknown type' }, { status: 400 })
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    console.error('franchise notify error:', e)
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+  }
+}

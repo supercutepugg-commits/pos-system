@@ -13,6 +13,8 @@ export type TicketStatus =
 export type TicketType = 'install' | 'as' | 'consult' | 'other'
 export type Priority = 'low' | 'normal' | 'high' | 'urgent'
 
+export type FranchiseStatus = 'info_input' | 'doc_waiting' | 'doc_incomplete' | 'doc_complete' | 'franchise_done'
+
 export interface Profile {
   id: string
   name: string
@@ -93,6 +95,22 @@ export interface ContactLog {
   user?: Profile
 }
 
+export interface FranchiseApplication {
+  id: string
+  business_name: string
+  owner_name: string
+  phone: string
+  sales_id?: string
+  cs_id?: string
+  status: FranchiseStatus
+  doc_template?: string
+  memo?: string
+  created_at: string
+  updated_at: string
+  sales?: Profile
+  cs?: Profile
+}
+
 export interface Notification {
   id: string
   user_id: string
@@ -146,4 +164,20 @@ export const PRIORITY_COLOR: Record<Priority, string> = {
   normal: 'bg-blue-100 text-blue-600',
   high: 'bg-orange-100 text-orange-600',
   urgent: 'bg-red-100 text-red-600',
+}
+
+export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
+  info_input: '정보 입력',
+  doc_waiting: '서류 대기',
+  doc_incomplete: '서류 미비',
+  doc_complete: '접수 완료',
+  franchise_done: '가맹 완료',
+}
+
+export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
+  info_input: 'bg-gray-100 text-gray-700',
+  doc_waiting: 'bg-yellow-100 text-yellow-700',
+  doc_incomplete: 'bg-red-100 text-red-700',
+  doc_complete: 'bg-blue-100 text-blue-700',
+  franchise_done: 'bg-green-100 text-green-700',
 }

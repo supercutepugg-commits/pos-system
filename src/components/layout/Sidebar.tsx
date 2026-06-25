@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine, PhoneIncoming, CalendarDays
+  LayoutDashboard, FileText, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine, PhoneIncoming, CalendarDays, ClipboardList
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
@@ -27,6 +27,7 @@ const NAV = [
   { href: '/installs', label: '설치 관리', icon: Package, roles: ['admin', 'tech'] },
   { href: '/calendar', label: '캘린더', icon: CalendarDays, roles: ['admin', 'sales', 'cs', 'tech'] },
   { href: '/inbound', label: '인입 내역', icon: PhoneIncoming, roles: ['admin', 'sales', 'cs', 'tech'] },
+  { href: '/franchise', label: '가맹 접수', icon: ClipboardList, roles: ['admin', 'sales', 'cs'] },
 ]
 
 const EXTERNAL_LINKS: { href: string; label: string; icon: any; roles: string[] }[] = []

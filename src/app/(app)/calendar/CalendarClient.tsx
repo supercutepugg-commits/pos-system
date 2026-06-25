@@ -50,8 +50,8 @@ const EVENT_TYPES = [
 ] as const
 
 const FRANCHISE_EVENT_TYPES = [
-  { key: 'open_date',    label: '가맹오픈', color: 'bg-sky-500' },
-  { key: 'install_date', label: '가맹설치', color: 'bg-teal-500' },
+  { key: 'open_date',    label: '오픈예정일', color: 'bg-sky-500' },
+  { key: 'install_date', label: '설치예정일', color: 'bg-teal-500' },
 ] as const
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']

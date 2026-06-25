@@ -13,6 +13,12 @@ const SCHEDULE_FIELDS = [
   { key: 'card_apply_date', label: '카드신청' },
 ] as const
 
+// 알림 생성용: 가맹 접수 일정 라벨
+const FRANCHISE_DATE_FIELDS = [
+  { key: 'open_date', label: '오픈예정일' },
+  { key: 'install_date', label: '설치예정일' },
+] as const
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
 
@@ -26,12 +32,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .single()
 
   if (!profile) redirect('/login')
-
-  const { count: unreadCount } = await supabase
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('is_read', false)
 
   // 읽지 않은 DM 수 (내가 속한 채팅방의 내가 보내지 않은 메시지)
   const { data: myRooms } = await supabase
@@ -57,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: upcomingTickets } = await supabase
     .from('tickets')
-    .select('id, title, scheduled_at, install_date, open_date, card_apply_date, merchant:merchants(business_name)')
+    .select('id, title, scheduled_at, install_date, open_date, card_apply_date, sales_id, cs_id, tech_id, merchant:merchants(business_name)')
     .not('status', 'eq', 'canceled')
     .or('scheduled_at.not.is.null,install_date.not.is.null,open_date.not.is.null,card_apply_date.not.is.null')
 
@@ -75,6 +75,91 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }]
     })
   )
+
+  const { data: upcomingFranchise } = await supabase
+    .from('franchise_applications')
+    .select('id, business_name, open_date, install_date, sales_id, cs_id')
+    .neq('status', 'franchise_done')
+    .or('open_date.not.is.null,install_date.not.is.null')
+
+  // 캘린더 일정(티켓/가맹) → notifications 테이블에 실제 알림 행 생성 (중복 방지)
+  type ScheduleItem = { refType: 'ticket' | 'franchise'; refId: string; type: string; title: string; body: string; targetUserIds: string[] }
+  const scheduleItems: ScheduleItem[] = []
+
+  for (const t of (upcomingTickets ?? []) as any[]) {
+    const targets = [t.sales_id, t.cs_id, t.tech_id].filter(Boolean) as string[]
+    if (targets.length === 0) continue
+    for (const f of SCHEDULE_FIELDS) {
+      const raw = t[f.key] as string | null
+      if (!raw) continue
+      const date = raw.slice(0, 10)
+      if (date < todayStr || date > limitStr) continue
+      const name = t.merchant?.business_name ?? t.title
+      scheduleItems.push({
+        refType: 'ticket', refId: t.id, type: `schedule_${f.key}`,
+        title: `${f.label}: ${name}`, body: `${date} 예정`, targetUserIds: targets,
+      })
+    }
+  }
+
+  for (const f of (upcomingFranchise ?? []) as any[]) {
+    const targets = [f.sales_id, f.cs_id].filter(Boolean) as string[]
+    if (targets.length === 0) continue
+    for (const ff of FRANCHISE_DATE_FIELDS) {
+      const raw = f[ff.key] as string | null
+      if (!raw) continue
+      const date = raw.slice(0, 10)
+      if (date < todayStr || date > limitStr) continue
+      const name = f.business_name || '상호명 미입력'
+      scheduleItems.push({
+        refType: 'franchise', refId: f.id, type: `schedule_${ff.key}`,
+        title: `${ff.label}: ${name}`, body: `${date} 예정`, targetUserIds: targets,
+      })
+    }
+  }
+
+  if (scheduleItems.length > 0) {
+    const ticketIds = [...new Set(scheduleItems.filter(i => i.refType === 'ticket').map(i => i.refId))]
+    const franchiseIds = [...new Set(scheduleItems.filter(i => i.refType === 'franchise').map(i => i.refId))]
+
+    const [{ data: existingTicketNotifs }, { data: existingFranchiseNotifs }] = await Promise.all([
+      ticketIds.length > 0
+        ? supabase.from('notifications').select('user_id, ticket_id, type').in('ticket_id', ticketIds)
+        : Promise.resolve({ data: [] as any[] }),
+      franchiseIds.length > 0
+        ? supabase.from('notifications').select('user_id, franchise_application_id, type').in('franchise_application_id', franchiseIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ])
+
+    const existingKeys = new Set([
+      ...(existingTicketNotifs ?? []).map((n: any) => `${n.user_id}:ticket:${n.ticket_id}:${n.type}`),
+      ...(existingFranchiseNotifs ?? []).map((n: any) => `${n.user_id}:franchise:${n.franchise_application_id}:${n.type}`),
+    ])
+
+    const rowsToInsert = scheduleItems.flatMap(item =>
+      item.targetUserIds
+        .filter(uid => !existingKeys.has(`${uid}:${item.refType}:${item.refId}:${item.type}`))
+        .map(uid => ({
+          user_id: uid,
+          ticket_id: item.refType === 'ticket' ? item.refId : null,
+          franchise_application_id: item.refType === 'franchise' ? item.refId : null,
+          type: item.type,
+          title: item.title,
+          body: item.body,
+          is_read: false,
+        }))
+    )
+
+    if (rowsToInsert.length > 0) {
+      await supabase.from('notifications').insert(rowsToInsert)
+    }
+  }
+
+  const { count: unreadCount } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('is_read', false)
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">

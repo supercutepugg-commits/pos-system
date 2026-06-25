@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Save, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, Save, ArrowLeft, Send } from 'lucide-react'
 import Link from 'next/link'
 
 interface Zone {
@@ -20,6 +20,7 @@ interface Contract {
   title: string
   pdf_url: string
   signer_name: string
+  signer_phone?: string
   status: string
   sign_token: string
   signature_zones: Zone[]
@@ -39,6 +40,7 @@ export default function ZoneEditor({ contract }: Props) {
   const [pendingZone, setPendingZone] = useState<Omit<Zone, 'id' | 'label'> | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [sending, setSending] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -109,6 +111,42 @@ export default function ZoneEditor({ contract }: Props) {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  async function handleSend() {
+    if (zones.length === 0) {
+      alert('서명 위치를 1개 이상 지정해야 발송할 수 있습니다.')
+      return
+    }
+    if (!contract.signer_phone) {
+      alert('서명자 연락처가 없어 발송할 수 없습니다.')
+      return
+    }
+    setSending(true)
+    await supabase.from('contracts').update({ signature_zones: zones }).eq('id', contract.id)
+    try {
+      const res = await fetch('/api/contracts/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'sign_request',
+          signerPhone: contract.signer_phone,
+          signerName: contract.signer_name,
+          contractTitle: contract.title,
+          signToken: contract.sign_token,
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        alert('서명 요청 알림톡 발송에 실패했습니다: ' + (json.error ?? '알 수 없는 오류'))
+      } else {
+        alert('서명 요청 알림톡을 발송했습니다.')
+      }
+    } catch (err) {
+      alert('서명 요청 알림톡 발송에 실패했습니다.')
+      console.error(err)
+    }
+    setSending(false)
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-50">
       {/* 상단 바 */}
@@ -129,6 +167,11 @@ export default function ZoneEditor({ contract }: Props) {
           <button onClick={handleSave} disabled={saving}
             className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">
             <Save size={14} />{saved ? '저장됨 ✓' : saving ? '저장 중...' : '저장'}
+          </button>
+          <button onClick={handleSend} disabled={sending || zones.length === 0}
+            title={zones.length === 0 ? '서명 위치를 먼저 지정해야 발송할 수 있습니다' : undefined}
+            className="flex items-center gap-1.5 text-sm font-semibold bg-emerald-600 text-white px-4 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed">
+            <Send size={14} />{sending ? '발송 중...' : '서명 요청 발송'}
           </button>
         </div>
       </div>

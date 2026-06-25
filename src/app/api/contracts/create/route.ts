@@ -39,13 +39,13 @@ export async function POST(req: NextRequest) {
       signer_phone: signerPhone || null,
       created_by: createdBy,
       status: 'pending',
-    }).select('sign_token').single()
+    }).select('id, sign_token').single()
 
     if (error) {
       return NextResponse.json({ error: '등록 실패: ' + error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, sign_token: data.sign_token })
+    return NextResponse.json({ ok: true, id: data.id, sign_token: data.sign_token })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

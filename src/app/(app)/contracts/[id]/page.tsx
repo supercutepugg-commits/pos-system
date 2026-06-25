@@ -18,7 +18,7 @@ export default async function ContractZonePage({ params }: Props) {
 
   const { data: contract } = await supabase
     .from('contracts')
-    .select('id, title, pdf_url, signer_name, status, sign_token, signature_zones')
+    .select('id, title, pdf_url, signer_name, signer_phone, status, sign_token, signature_zones')
     .eq('id', id)
     .single()
 

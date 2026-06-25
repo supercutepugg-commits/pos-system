@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export default function ContractsClient({ profile, initialContracts }: Props) {
+  const router = useRouter()
   const canEdit = profile.role === 'cs' || profile.role === 'admin'
   const [contracts, setContracts] = useState<Contract[]>(initialContracts)
   const [showForm, setShowForm] = useState(false)
@@ -52,15 +54,6 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     signerPhone: '',
   })
   const supabase = createClient()
-
-  async function fetchContracts() {
-    const { data } = await supabase
-      .from('contracts')
-      .select('*, creator:profiles!contracts_created_by_fkey(name)')
-      .order('created_at', { ascending: false })
-      .limit(300)
-    setContracts((data as any) ?? [])
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -83,36 +76,11 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     setSubmitting(false)
     if (!res.ok || json.error) { alert(json.error ?? '등록 실패'); return }
 
-    const inserted = { sign_token: json.sign_token }
-
-    // 서명 요청 알림톡 발송
-    if (form.signerPhone && inserted?.sign_token) {
-      fetch('/api/contracts/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'sign_request',
-          signerPhone: form.signerPhone,
-          signerName: form.signerName,
-          contractTitle: form.title,
-          signToken: inserted.sign_token,
-        }),
-      }).then(async res => {
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}))
-          console.error('서명 요청 알림톡 발송 실패:', json.error)
-          alert('계약서는 등록되었지만 서명 요청 알림톡 발송에 실패했습니다. 고객에게 직접 링크를 전달해주세요.')
-        }
-      }).catch(err => {
-        console.error('서명 요청 알림톡 발송 실패:', err)
-        alert('계약서는 등록되었지만 서명 요청 알림톡 발송에 실패했습니다. 고객에게 직접 링크를 전달해주세요.')
-      })
-    }
-
     setForm({ title: '', signerName: '', signerEmail: '', signerPhone: '' })
     setPdfFile(null)
     setShowForm(false)
-    fetchContracts()
+    // 서명 위치를 지정해야 발송할 수 있으므로, 발송 없이 위치 지정 화면으로 이동
+    router.push(`/contracts/${json.id}`)
   }
 
   async function handleDelete(id: string) {

@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import Link from 'next/link'
 import MarkAllRead from './MarkAllRead'
+import NotificationRow from './NotificationRow'
 
 export default async function NotificationsPage() {
   const supabase = await createClient()
@@ -30,20 +30,15 @@ export default async function NotificationsPage() {
           <p className="text-center text-sm text-gray-400 py-12">알림이 없습니다</p>
         )}
         {notifications?.map(n => (
-          <Link
+          <NotificationRow
             key={n.id}
+            id={n.id}
             href={n.ticket_id ? `/tickets/${n.ticket_id}` : n.franchise_application_id ? '/franchise' : '/notifications'}
-            className={`flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-blue-50/50' : ''}`}
-          >
-            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!n.is_read ? 'bg-blue-500' : 'bg-transparent'}`} />
-            <div className="flex-1">
-              <p className={`text-sm ${!n.is_read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{n.title}</p>
-              {n.body && <p className="text-xs text-gray-500 mt-0.5">{n.body}</p>}
-              <p className="text-xs text-gray-400 mt-1">
-                {format(new Date(n.created_at), 'M월 d일 HH:mm', { locale: ko })}
-              </p>
-            </div>
-          </Link>
+            title={n.title}
+            body={n.body}
+            createdAtLabel={format(new Date(n.created_at), 'M월 d일 HH:mm', { locale: ko })}
+            isRead={n.is_read}
+          />
         ))}
       </div>
     </div>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
-  PhoneIncoming, CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, Calculator, RefreshCw
+  PhoneIncoming, CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, Calculator, RefreshCw, FileText
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Role } from '@/types'
@@ -54,6 +54,7 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
       { href: '/woo', label: '우국상 관리', icon: BookUser },
       { href: '/internet', label: '인터넷 관리', icon: Wifi },
       { href: '/rates', label: '요금 계산기', icon: Calculator },
+      { href: '/paper-orders', label: '용지 요청', icon: FileText },
     ],
   },
   {

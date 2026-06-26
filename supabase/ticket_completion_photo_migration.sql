@@ -6,12 +6,14 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('ticket-photos', 'ticket-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY IF NOT EXISTS "ticket-photos authenticated upload"
+DROP POLICY IF EXISTS "ticket-photos authenticated upload" ON storage.objects;
+CREATE POLICY "ticket-photos authenticated upload"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'ticket-photos');
 
-CREATE POLICY IF NOT EXISTS "ticket-photos public read"
+DROP POLICY IF EXISTS "ticket-photos public read" ON storage.objects;
+CREATE POLICY "ticket-photos public read"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'ticket-photos');

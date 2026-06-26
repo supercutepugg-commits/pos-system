@@ -622,6 +622,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     <td colSpan={10} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
+                          <label className="text-xs font-semibold text-slate-400">상호명</label>
+                          <EditableText row={row} field="business_name" placeholder="-" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">대표자명</label>
+                          <EditableText row={row} field="owner_name" placeholder="-" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">연락처</label>
+                          <EditableText row={row} field="phone" placeholder="010-0000-0000" />
+                        </div>
+                        <div>
                           <label className="text-xs font-semibold text-slate-400">사업자번호</label>
                           <EditableText row={row} field="business_number" placeholder="000-00-00000" />
                         </div>
@@ -685,6 +697,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         <div className="col-span-2">
                           <label className="text-xs font-semibold text-slate-400">VAN사 (중복선택 가능)</label>
                           <VanMultiSelect value={row.van_company ?? ''} onChange={v => saveField(row, 'van_company', v)} />
+                        </div>
+                        <div className="col-span-4">
+                          <label className="text-xs font-semibold text-slate-400">비고</label>
+                          <EditableText row={row} field="memo" placeholder="-" />
                         </div>
                       </div>
                       <div>

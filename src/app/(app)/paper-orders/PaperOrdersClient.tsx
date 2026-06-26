@@ -5,6 +5,21 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
+function calcUnitStandard(count: string | null, revenue: string | null): string {
+  const c = parseFloat((count ?? '').replace(/,/g, ''))
+  const r = parseFloat((revenue ?? '').replace(/,/g, ''))
+  if (isNaN(c) || isNaN(r)) return ''
+  if (c >= 1500 || r >= 3000) return '1박스'
+  if (c < 150) return '4롤'
+  if (c < 300) return '6롤'
+  if (c < 500) return '8롤'
+  if (c < 700) return '10롤'
+  if (c < 900) return '12롤'
+  if (c < 1100) return '15롤'
+  if (c < 1200) return '16롤'
+  return '18롤'
+}
+
 export interface PaperOrder {
   id: string
   shipped: boolean
@@ -112,7 +127,7 @@ export default function PaperOrdersClient({ rows }: Props) {
       shipped_at: form.shipped_at || null,
       count: form.count || null,
       revenue: form.revenue || null,
-      unit_standard: form.unit_standard || null,
+      unit_standard: form.unit_standard || calcUnitStandard(form.count, form.revenue) || null,
       memo: form.memo || null,
     }).select().single()
     setSubmitting(false)
@@ -210,7 +225,6 @@ export default function PaperOrdersClient({ rows }: Props) {
             ['발송일', 'shipped_at'],
             ['건수', 'count'],
             ['매출', 'revenue'],
-            ['낱개기준(빨강)', 'unit_standard'],
             ['메모', 'memo'],
           ] as [string, string][]).map(([label, key]) => (
             <div key={key} className="flex flex-col gap-1">
@@ -222,6 +236,12 @@ export default function PaperOrdersClient({ rows }: Props) {
               />
             </div>
           ))}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">낱개기준(빨강)</label>
+            <div className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 bg-slate-50 text-slate-700 h-9 flex items-center">
+              {calcUnitStandard(form.count, form.revenue) || '-'}
+            </div>
+          </div>
           <button type="submit" disabled={submitting}
             className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
             {submitting ? '등록 중...' : '등록'}
@@ -268,7 +288,9 @@ export default function PaperOrdersClient({ rows }: Props) {
                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="shipped_at" /></td>
                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[60px]"><EditableCell row={row} field="count" /></td>
                 <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[70px]"><EditableCell row={row} field="revenue" /></td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[100px]"><EditableCell row={row} field="unit_standard" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[100px]">
+                  <span className="text-sm px-1">{row.unit_standard || calcUnitStandard(row.count, row.revenue)}</span>
+                </td>
                 <td className="px-3 py-2 text-slate-500 max-w-[150px]"><EditableCell row={row} field="memo" /></td>
               </tr>
             ))}

@@ -26,11 +26,12 @@ export async function sendSignRequest({
     '#{계약서명}': contractTitle,
     '#{서명토큰}': signToken,
   })
+  if (!ko) return
   await (service as any).send({
     to: signerPhone,
     from: process.env.SOLAPI_SENDER!,
     text,
-    ...(ko ? { kakaoOptions: ko } : {}),
+    kakaoOptions: ko,
   })
 }
 
@@ -75,11 +76,12 @@ export async function sendFranchiseDocRequest({
     '#{고객명}': ownerName,
     '#{상호명}': businessName,
   })
+  if (!ko) return
   await (service as any).send({
     to: phone,
     from: process.env.SOLAPI_SENDER!,
     text,
-    ...(ko ? { kakaoOptions: ko } : {}),
+    kakaoOptions: ko,
   })
 }
 
@@ -118,11 +120,12 @@ export async function sendFranchiseStatusUpdate({
     '#{고객명}': ownerName,
     '#{상호명}': businessName,
   })
+  if (!ko) return
   await (service as any).send({
     to: phone,
     from: process.env.SOLAPI_SENDER!,
     text,
-    ...(ko ? { kakaoOptions: ko } : {}),
+    kakaoOptions: ko,
   })
 }
 
@@ -135,10 +138,11 @@ export async function sendSignComplete({
     '#{고객명}': signerName,
     '#{계약서명}': contractTitle,
   })
+  if (!ko) return
   await (service as any).send({
     to: signerPhone,
     from: process.env.SOLAPI_SENDER!,
     text,
-    ...(ko ? { kakaoOptions: ko } : {}),
+    kakaoOptions: ko,
   })
 }

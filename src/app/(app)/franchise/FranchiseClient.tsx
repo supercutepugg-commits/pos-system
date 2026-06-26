@@ -152,6 +152,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
 
@@ -302,7 +303,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }
 
-  async function updateStatus(row: FranchiseApplication, status: FranchiseStatus) {
+  async function updateStatus(row: FranchiseApplication, status: FranchiseStatus, sendNotify: boolean) {
     setBusyId(row.id)
     const supabase = createClient()
     const patch: Record<string, unknown> = { status }
@@ -317,12 +318,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       to_status: status,
     })
 
-    if (status === 'doc_waiting') {
-      await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type })
-    } else {
-      await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
-      if (status === 'toss_review_done') await createLinkedInstallTicket(row)
+    if (sendNotify) {
+      if (status === 'doc_waiting') {
+        await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type })
+      } else {
+        await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
+      }
     }
+    if (status === 'toss_review_done') await createLinkedInstallTicket(row)
     setBusyId(null)
     startTransition(() => router.refresh())
   }
@@ -367,19 +370,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
     if (newStatus === row.status) return
-
-    if (!row.phone || !row.owner_name || !row.business_name) {
-      alert('연락처·대표자명·상호명이 모두 입력되어야 메시지를 보낼 수 있습니다. 먼저 입력해주세요.')
-      return
-    }
-
+    const canNotify = !!(row.phone && row.owner_name && row.business_name)
     const confirmMsg = newStatus === 'doc_waiting'
-      ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 사업자 유형이 맞는지 확인 후 진행하세요. 변경하시겠습니까?`
+      ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 사업자 유형이 맞는지 확인 후 진행하세요.`
       : newStatus === 'toss_review_done'
-        ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다. 변경하시겠습니까?`
-        : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 변경하시겠습니까?`
-    if (!confirm(confirmMsg)) return
-    updateStatus(row, newStatus)
+        ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다.`
+        : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다.`
+    setStatusConfirm({ row, newStatus, msg: canNotify ? confirmMsg : '연락처·대표자명·상호명이 없어 메시지 발송 없이 상태만 변경됩니다.' })
   }
 
   async function toggleExpand(row: FranchiseApplication) {
@@ -396,8 +393,33 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }
 
+  const canNotifyConfirm = statusConfirm ? !!(statusConfirm.row.phone && statusConfirm.row.owner_name && statusConfirm.row.business_name) : false
+
   return (
     <div className="flex flex-col h-full">
+      {statusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <p className="text-sm text-slate-700 leading-relaxed">{statusConfirm.msg}</p>
+            <div className="flex flex-col gap-2">
+              {canNotifyConfirm && (
+                <button
+                  className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                  onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, true) }}
+                >카톡 발송 후 변경</button>
+              )}
+              <button
+                className="w-full py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
+                onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, false) }}
+              >발송 없이 변경</button>
+              <button
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
+                onClick={() => setStatusConfirm(null)}
+              >취소</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />

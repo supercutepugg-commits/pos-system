@@ -5,17 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-const STATUS_OPTIONS = ['발송완료', '완료', '보류', '재발송']
-const STATUS_COLOR: Record<string, string> = {
-  발송완료: 'bg-green-100 text-green-700',
-  완료: 'bg-blue-100 text-blue-700',
-  보류: 'bg-yellow-100 text-yellow-700',
-  재발송: 'bg-orange-100 text-orange-700',
-}
-
 export interface PaperOrder {
   id: string
-  status: string | null
+  shipped: boolean
   business_name: string | null
   owner_name: string | null
   phone: string | null
@@ -31,7 +23,7 @@ export interface PaperOrder {
 }
 
 const EMPTY_FORM = {
-  status: '',
+  shipped: false,
   business_name: '',
   owner_name: '',
   phone: '',
@@ -51,7 +43,7 @@ interface Props {
 
 export default function PaperOrdersClient({ rows }: Props) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -59,19 +51,20 @@ export default function PaperOrdersClient({ rows }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [shippedFilter, setShippedFilter] = useState<'all' | 'shipped' | 'pending'>('all')
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     return localRows.filter(row => {
-      if (statusFilter && row.status !== statusFilter) return false
+      if (shippedFilter === 'shipped' && !row.shipped) return false
+      if (shippedFilter === 'pending' && row.shipped) return false
       if (term) {
         const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''}`.toLowerCase()
         if (!haystack.includes(term)) return false
       }
       return true
     })
-  }, [localRows, search, statusFilter])
+  }, [localRows, search, shippedFilter])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
   function toggleAll() {
@@ -108,8 +101,8 @@ export default function PaperOrdersClient({ rows }: Props) {
     e.preventDefault()
     setSubmitting(true)
     const supabase = createClient()
-    const { error } = await supabase.from('paper_orders').insert({
-      status: form.status || null,
+    const { data, error } = await supabase.from('paper_orders').insert({
+      shipped: form.shipped,
       business_name: form.business_name || null,
       owner_name: form.owner_name || null,
       phone: form.phone || null,
@@ -121,12 +114,19 @@ export default function PaperOrdersClient({ rows }: Props) {
       revenue: form.revenue || null,
       unit_standard: form.unit_standard || null,
       memo: form.memo || null,
-    })
+    }).select().single()
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
+    setLocalRows(prev => [...prev, data])
     setForm(EMPTY_FORM)
     setShowForm(false)
-    startTransition(() => router.refresh())
+  }
+
+  async function toggleShipped(row: PaperOrder) {
+    const supabase = createClient()
+    const { error } = await supabase.from('paper_orders').update({ shipped: !row.shipped }).eq('id', row.id)
+    if (error) { alert('수정 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, shipped: !r.shipped } : r))
   }
 
   async function saveField(row: PaperOrder, field: keyof PaperOrder, value: string) {
@@ -136,14 +136,14 @@ export default function PaperOrdersClient({ rows }: Props) {
     else setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || null } : r))
   }
 
-  function EditableCell({ row, field, className = '' }: { row: PaperOrder; field: keyof PaperOrder; className?: string }) {
+  function EditableCell({ row, field }: { row: PaperOrder; field: keyof PaperOrder }) {
     const [value, setValue] = useState((row[field] as string) ?? '')
     return (
       <input
         value={value}
         onChange={e => setValue(e.target.value)}
         onBlur={() => { if (value !== ((row[field] as string) ?? '')) saveField(row, field, value) }}
-        className={`w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 text-sm ${className}`}
+        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 text-sm"
       />
     )
   }
@@ -160,13 +160,14 @@ export default function PaperOrdersClient({ rows }: Props) {
             className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+        <select value={shippedFilter} onChange={e => setShippedFilter(e.target.value as any)}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">상태 전체</option>
-          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+          <option value="all">전체</option>
+          <option value="shipped">발송완료</option>
+          <option value="pending">미발송</option>
         </select>
-        {(search || statusFilter) && (
-          <button onClick={() => { setSearch(''); setStatusFilter('') }}
+        {(search || shippedFilter !== 'all') && (
+          <button onClick={() => { setSearch(''); setShippedFilter('all') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
             초기화
           </button>
@@ -193,20 +194,25 @@ export default function PaperOrdersClient({ rows }: Props) {
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-          {[
-            { label: '상태', key: 'status' },
-            { label: '상호명', key: 'business_name' },
-            { label: '성함', key: 'owner_name' },
-            { label: '연락처', key: 'phone' },
-            { label: '주소', key: 'address' },
-            { label: '택배', key: 'delivery_note' },
-            { label: '요청일', key: 'requested_at' },
-            { label: '발송일', key: 'shipped_at' },
-            { label: '건수', key: 'count' },
-            { label: '매출', key: 'revenue' },
-            { label: '낱개기준(빨강)', key: 'unit_standard' },
-            { label: '메모', key: 'memo' },
-          ].map(({ label, key }) => (
+          <div className="flex flex-col gap-1 justify-end">
+            <label className="text-xs font-medium text-slate-500">발송완료</label>
+            <div className="flex items-center h-9">
+              <input type="checkbox" checked={form.shipped} onChange={e => setForm({ ...form, shipped: e.target.checked })} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+            </div>
+          </div>
+          {([
+            ['상호명', 'business_name'],
+            ['성함', 'owner_name'],
+            ['연락처', 'phone'],
+            ['주소', 'address'],
+            ['택배', 'delivery_note'],
+            ['요청일', 'requested_at'],
+            ['발송일', 'shipped_at'],
+            ['건수', 'count'],
+            ['매출', 'revenue'],
+            ['낱개기준(빨강)', 'unit_standard'],
+            ['메모', 'memo'],
+          ] as [string, string][]).map(([label, key]) => (
             <div key={key} className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">{label}</label>
               <input
@@ -230,7 +236,8 @@ export default function PaperOrdersClient({ rows }: Props) {
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              {['상태', '상호명', '성함', '연락처', '주소', '택배', '요청일', '발송일', '건수', '매출', '낱개기준(빨강)', '메모'].map(label => (
+              <th className="px-3 py-2.5 border-b border-slate-200 text-left font-semibold text-slate-600 whitespace-nowrap">상태</th>
+              {['상호명', '성함', '연락처', '주소', '택배', '요청일', '발송일', '건수', '매출', '낱개기준(빨강)', '메모'].map(label => (
                 <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
@@ -239,53 +246,30 @@ export default function PaperOrdersClient({ rows }: Props) {
           </thead>
           <tbody>
             {filteredRows.map(row => (
-              <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
+              <tr key={row.id} className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${row.shipped ? '' : 'bg-yellow-50/40'}`}>
                 <td className="px-3 py-2">
                   <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <select
-                    value={row.status ?? ''}
-                    onChange={e => saveField(row, 'status', e.target.value)}
-                    className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${STATUS_COLOR[row.status ?? ''] ?? 'bg-slate-100 text-slate-700'}`}
-                  >
-                    <option value="">-</option>
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                <td className="px-3 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={row.shipped}
+                    onChange={() => toggleShipped(row)}
+                    className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    title={row.shipped ? '발송완료' : '미발송'}
+                  />
                 </td>
-                <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap min-w-[120px]">
-                  <EditableCell row={row} field="business_name" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]">
-                  <EditableCell row={row} field="owner_name" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[120px]">
-                  <EditableCell row={row} field="phone" />
-                </td>
-                <td className="px-3 py-2 text-slate-500 max-w-[200px]">
-                  <EditableCell row={row} field="address" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]">
-                  <EditableCell row={row} field="delivery_note" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]">
-                  <EditableCell row={row} field="requested_at" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]">
-                  <EditableCell row={row} field="shipped_at" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[60px]">
-                  <EditableCell row={row} field="count" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[70px]">
-                  <EditableCell row={row} field="revenue" />
-                </td>
-                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[100px]">
-                  <EditableCell row={row} field="unit_standard" />
-                </td>
-                <td className="px-3 py-2 text-slate-500 max-w-[150px] truncate">
-                  <EditableCell row={row} field="memo" />
-                </td>
+                <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="business_name" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="owner_name" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="phone" /></td>
+                <td className="px-3 py-2 text-slate-500 max-w-[200px]"><EditableCell row={row} field="address" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="delivery_note" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="requested_at" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="shipped_at" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[60px]"><EditableCell row={row} field="count" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[70px]"><EditableCell row={row} field="revenue" /></td>
+                <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[100px]"><EditableCell row={row} field="unit_standard" /></td>
+                <td className="px-3 py-2 text-slate-500 max-w-[150px]"><EditableCell row={row} field="memo" /></td>
               </tr>
             ))}
             {filteredRows.length === 0 && (

@@ -36,8 +36,10 @@ function clean(v) {
   return s === '' ? null : s
 }
 
+const SHIPPED_VALUES = new Set(['발송완료', '완료'])
+
 const rows = records.map(r => ({
-  status: clean(r.status),
+  shipped: SHIPPED_VALUES.has((r.status ?? '').trim()),
   business_name: clean(r.business_name),
   owner_name: clean(r.owner_name),
   phone: clean(r.phone),

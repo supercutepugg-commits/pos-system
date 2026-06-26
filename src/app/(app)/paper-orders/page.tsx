@@ -10,7 +10,7 @@ export default async function PaperOrdersPage() {
   const { data: rows, error } = await supabase
     .from('paper_orders')
     .select('*')
-    .order('id', { ascending: true })
+    .order('created_at', { ascending: false })
 
   return (
     <div className="flex flex-col h-screen p-6 gap-4">

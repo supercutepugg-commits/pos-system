@@ -30,6 +30,7 @@ interface Installation {
   status: string
   assigned_to?: string
   notes?: string
+  completion_photo_urls?: string[]
   status_token: string
   created_by?: string
   created_at: string
@@ -58,6 +59,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
   const [cartQty, setCartQty] = useState(1)
   const [cartItems, setCartItems] = useState<{ name: string; quantity: number }[]>([])
+  const [completeModal, setCompleteModal] = useState<{ id: string; notes: string } | null>(null)
+  const [completePhotos, setCompletePhotos] = useState<File[]>([])
+  const [completing, setCompleting] = useState(false)
 
   const supabase = createClient()
 
@@ -94,8 +98,44 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   }
 
   async function handleStatusChange(id: string, status: string) {
+    if (status === 'completed') {
+      const inst = installs.find(i => i.id === id)
+      setCompleteModal({ id, notes: inst?.notes ?? '' })
+      setCompletePhotos([])
+      return
+    }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
+  }
+
+  async function submitCompletion() {
+    if (!completeModal) return
+    if (completePhotos.length === 0) { alert('설치완료사진을 최소 1장 첨부해주세요.'); return }
+    setCompleting(true)
+    const { id, notes } = completeModal
+
+    const photoUrls: string[] = []
+    for (const [i, file] of completePhotos.entries()) {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${id}/${Date.now()}-${i}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('install-photos').upload(path, file)
+      if (uploadError) { alert('사진 업로드 실패: ' + uploadError.message); setCompleting(false); return }
+      const { data: { publicUrl } } = supabase.storage.from('install-photos').getPublicUrl(path)
+      photoUrls.push(publicUrl)
+    }
+
+    const { error } = await supabase.from('installations').update({
+      status: 'completed',
+      notes: notes || null,
+      completion_photo_urls: photoUrls,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
+    if (error) { alert('완료 처리 실패: ' + error.message); setCompleting(false); return }
+
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'completed', notes, completion_photo_urls: photoUrls } : i))
+    setCompleteModal(null)
+    setCompletePhotos([])
+    setCompleting(false)
   }
 
   async function handleAssign(id: string, assignedTo: string) {
@@ -306,6 +346,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                     </td>
                     <td className="px-4 py-3 text-slate-500 max-w-[160px]">
                       <span className="text-xs line-clamp-1">{inst.notes || '-'}</span>
+                      {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {inst.completion_photo_urls.map(url => (
+                            <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                              <img src={url} alt="설치완료사진" className="w-8 h-8 object-cover rounded border border-slate-200" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
                       {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}
@@ -336,6 +385,50 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           </div>
         )}
       </div>
+
+      {completeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <h3 className="text-sm font-semibold text-slate-800">설치 완료 처리</h3>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">설치완료사진 (필수, 여러 장 가능)</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                capture="environment"
+                onChange={e => setCompletePhotos(Array.from(e.target.files ?? []))}
+                className="text-sm"
+              />
+              {completePhotos.length > 0 && (
+                <p className="text-xs text-slate-500">{completePhotos.length}장 선택됨</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">비고</label>
+              <textarea
+                value={completeModal.notes}
+                onChange={e => setCompleteModal(prev => prev ? { ...prev, notes: e.target.value } : prev)}
+                placeholder="현장 비고를 남겨주세요"
+                rows={3}
+                className={INPUT + ' resize-none'}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={submitCompletion}
+                disabled={completing || completePhotos.length === 0}
+                className="w-full py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              >{completing ? '처리 중...' : '완료 처리'}</button>
+              <button
+                onClick={() => { setCompleteModal(null); setCompletePhotos([]) }}
+                disabled={completing}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
+              >취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
-  PhoneIncoming, CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, Calculator
+  PhoneIncoming, CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, Calculator, RefreshCw
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Role } from '@/types'
@@ -226,8 +226,15 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         </div>
       )}
 
-      {/* 로그아웃 */}
-      <div className="px-3 py-4 border-t border-slate-100">
+      {/* 새로고침 / 로그아웃 */}
+      <div className="px-3 py-4 border-t border-slate-100 flex flex-col gap-1">
+        <button
+          onClick={() => window.location.reload()}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all w-full"
+        >
+          <RefreshCw size={17} />
+          하드 새로고침
+        </button>
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all w-full"

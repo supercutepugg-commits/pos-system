@@ -14,6 +14,7 @@ export type TicketType = 'install' | 'as' | 'consult' | 'other'
 export type Priority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type FranchiseStatus =
+  | 'info_input'
   | 'doc_waiting'
   | 'doc_incomplete'
   | 'card_apply_done'
@@ -249,6 +250,7 @@ export const PRIORITY_COLOR: Record<Priority, string> = {
 }
 
 export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
+  info_input: '정보입력',
   doc_waiting: '서류대기',
   doc_incomplete: '서류미비',
   card_apply_done: '카드가맹접수완료',
@@ -259,6 +261,7 @@ export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
 }
 
 export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
+  info_input: 'bg-slate-100 text-slate-700',
   doc_waiting: 'bg-yellow-100 text-yellow-700',
   doc_incomplete: 'bg-red-100 text-red-700',
   card_apply_done: 'bg-sky-100 text-sky-700',

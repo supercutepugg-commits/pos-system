@@ -55,18 +55,11 @@ const FRANCHISE_DOCS: Record<ApplicantType, string[]> = {
     '사업장 외부 사진 2장',
     '사업장 내부 사진 2장',
   ],
-  existing: [
-    '대표자 신분증',
-    '사업자 통장 사본',
-    '사업자등록증',
-    '영업신고증 (음식점에 한함)',
-  ],
 }
 
 const FRANCHISE_TEMPLATE_ENV_KEY: Record<ApplicantType, string> = {
   corporate: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE',
   individual: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL',
-  existing: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_EXISTING',
 }
 
 export async function sendFranchiseDocRequest({
@@ -74,13 +67,8 @@ export async function sendFranchiseDocRequest({
 }: { phone: string; ownerName: string; businessName: string; applicantType: ApplicantType }) {
   if (!phone) return
   const docList = FRANCHISE_DOCS[applicantType].map(d => `- ${d}`).join('\n')
-  const photoNote = applicantType !== 'existing'
-    ? '\n* 간판이 없는 경우, 건물에 부착된 도로명주소 표지판 사진으로 대체 가능합니다.'
-    : ''
-  const receiptNote = applicantType === 'existing'
-    ? '\n\n접수 방법: 이메일 주소와 연락처를 함께 기재하여 담당자에게 회신해주세요.'
-    : ''
-  const text = `[가맹 서류 안내]\n${ownerName}님, "${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.\n\n제출 서류\n${docList}${photoNote}${receiptNote}`
+  const photoNote = '\n* 간판이 없는 경우, 건물에 부착된 도로명주소 표지판 사진으로 대체 가능합니다.'
+  const text = `[가맹 서류 안내]\n${ownerName}님, "${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.\n\n제출 서류\n${docList}${photoNote}`
   // 서류 목록은 사업자 유형별로 고정값(FRANCHISE_DOCS)이라 템플릿 본문에 직접 박아 넣고,
   // 변수는 고객명/상호명만 사용한다 (변수 비중이 크면 카카오 알림톡 심사에서 반려될 수 있음)
   const ko = kakaoOptions(FRANCHISE_TEMPLATE_ENV_KEY[applicantType], {

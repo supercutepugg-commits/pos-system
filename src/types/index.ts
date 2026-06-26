@@ -21,7 +21,7 @@ export type FranchiseStatus =
   | 'card_done'
   | 'internet_done'
   | 'toss_review_done'
-export type ApplicantType = 'corporate' | 'individual' | 'existing'
+export type ApplicantType = 'corporate' | 'individual'
 
 export interface Profile {
   id: string
@@ -269,7 +269,6 @@ export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
 }
 
 export const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {
-  corporate: '신규 법인사업자',
-  individual: '신규 개인사업자',
-  existing: '기가맹',
+  individual: '개인 사업자',
+  corporate: '법인 사업자',
 }

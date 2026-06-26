@@ -8,10 +8,14 @@ import { deleteFranchiseRows } from './actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 
-const RECEPTION_CHANNELS = ['전화', '카카오톡', '문자', '방문', '온라인', '기타']
+const RECEPTION_CHANNELS = ['토스 홈페이지', '직접 영업', '전환']
 const EQUIPMENT_CATALOG = ['토스프론트', '포스기', '인터넷', '키오스크', '영수증프린터', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더']
-const VAN_COMPANIES = ['코세스1', '코세스2', '코벤', '기가맹']
+const VAN_COMPANIES = ['코세스2', '코세스1', '코벤', '기가맹']
 const INTERNET_PROVIDERS = ['3S', '백메가']
+
+function parseVanList(value: string) {
+  return value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
+}
 
 interface Props {
   rows: FranchiseApplication[]
@@ -93,6 +97,24 @@ function EquipmentCart({ items, onChange }: { items: EquipmentItem[]; onChange: 
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+function VanMultiSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const selected = parseVanList(value)
+  function toggle(name: string) {
+    const next = selected.includes(name) ? selected.filter(s => s !== name) : [...selected, name]
+    onChange(next.join(','))
+  }
+  return (
+    <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+      {VAN_COMPANIES.map(v => (
+        <label key={v} className="flex items-center gap-1 text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 cursor-pointer">
+          <input type="checkbox" checked={selected.includes(v)} onChange={() => toggle(v)} className="accent-blue-600" />
+          {v}
+        </label>
+      ))}
     </div>
   )
 }
@@ -296,6 +318,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     startTransition(() => router.refresh())
   }
 
+  async function updateSales(row: FranchiseApplication, salesId: string) {
+    if (salesId === (row.sales_id ?? '')) return
+    const supabase = createClient()
+    const { error } = await supabase.from('franchise_applications').update({ sales_id: salesId || null }).eq('id', row.id)
+    if (error) { alert('담당 영업 변경 실패: ' + error.message); return }
+    startTransition(() => router.refresh())
+  }
+
   async function saveField(row: FranchiseApplication, field: keyof FranchiseApplication, value: string) {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ [field]: value || null }).eq('id', row.id)
@@ -417,6 +447,23 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">접수채널</label>
+            <select value={form.reception_channel} onChange={e => setForm({ ...form, reception_channel: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">사업자 유형</label>
+            <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ApplicantType })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
+                <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">상호명</label>
             <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -427,17 +474,39 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">사업자번호</label>
+            <input value={form.business_number} onChange={e => setForm({ ...form, business_number: e.target.value })} placeholder="000-00-00000"
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">연락처</label>
             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000"
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">사업자번호</label>
-            <input value={form.business_number} onChange={e => setForm({ ...form, business_number: e.target.value })} placeholder="000-00-00000"
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="text-xs font-medium text-slate-500">인터넷</label>
+            <select value={form.internet} onChange={e => setForm({ ...form, internet: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">VAN사 (중복선택 가능)</label>
+            <VanMultiSelect value={form.van_company} onChange={v => setForm({ ...form, van_company: v })} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">오픈예정일</label>
+            <input type="date" value={form.open_date} onChange={e => setForm({ ...form, open_date: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
+            <input type="date" value={form.install_date} onChange={e => setForm({ ...form, install_date: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1 w-full">
-            <label className="text-xs font-medium text-slate-500">출고 장비</label>
+            <label className="text-xs font-medium text-slate-500">상품</label>
             <EquipmentCart items={form.equipmentItems} onChange={items => setForm({ ...form, equipmentItems: items })} />
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
@@ -471,49 +540,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">사업자 유형</label>
-            <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ApplicantType })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
-                <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">접수채널</label>
-            <select value={form.reception_channel} onChange={e => setForm({ ...form, reception_channel: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">오픈예정일</label>
-            <input type="date" value={form.open_date} onChange={e => setForm({ ...form, open_date: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
-            <input type="date" value={form.install_date} onChange={e => setForm({ ...form, install_date: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">VAN사</label>
-            <select value={form.van_company} onChange={e => setForm({ ...form, van_company: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">인터넷</label>
-            <select value={form.internet} onChange={e => setForm({ ...form, internet: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
             <label className="text-xs font-medium text-slate-500">비고</label>
             <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
@@ -534,7 +560,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
-              {['상호명', '대표자', '연락처', '등록자', '담당영업', '담당CS', '사업자유형', '상태', '메모'].map(label => (
+              {['접수채널', '사업자유형', '상호명', '대표자', '연락처', '등록자', '상태', '메모'].map(label => (
                 <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
@@ -552,19 +578,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   <td className="px-3 py-2 text-slate-400">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{row.business_name || '-'}</td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.phone || '-'}</td>
-                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
-                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{row.sales?.name ?? '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
-                      value={row.cs_id ?? ''}
-                      onChange={e => updateCs(row, e.target.value)}
+                      value={row.reception_channel ?? ''}
+                      onChange={e => saveField(row, 'reception_channel', e.target.value)}
                       className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
                     >
                       <option value="">미지정</option>
-                      {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -578,6 +599,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ))}
                     </select>
                   </td>
+                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{row.business_name || '-'}</td>
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.phone || '-'}</td>
+                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.status}
@@ -594,14 +619,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={11} className="px-6 py-4">
+                    <td colSpan={10} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">사업자번호</label>
                           <EditableText row={row} field="business_number" placeholder="000-00-00000" />
                         </div>
                         <div className="col-span-2">
-                          <label className="text-xs font-semibold text-slate-400">출고 장비</label>
+                          <label className="text-xs font-semibold text-slate-400">상품</label>
                           <EquipmentCart items={row.equipment_items ?? []} onChange={items => saveEquipmentItems(row, items)} />
                         </div>
                         <div>
@@ -609,14 +634,25 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <EditableText row={row} field="title" placeholder="-" />
                         </div>
                         <div>
-                          <label className="text-xs font-semibold text-slate-400">접수채널</label>
+                          <label className="text-xs font-semibold text-slate-400">담당 영업</label>
                           <select
-                            value={row.reception_channel ?? ''}
-                            onChange={e => saveField(row, 'reception_channel', e.target.value)}
+                            value={row.sales_id ?? ''}
+                            onChange={e => updateSales(row, e.target.value)}
                             className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
                           >
-                            <option value="">-</option>
-                            {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                            <option value="">미지정</option>
+                            {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">담당 CS</label>
+                          <select
+                            value={row.cs_id ?? ''}
+                            onChange={e => updateCs(row, e.target.value)}
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+                          >
+                            <option value="">미지정</option>
+                            {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
                         </div>
                         <div className="col-span-2">
@@ -636,17 +672,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <EditableText row={row} field="install_date" placeholder="-" type="date" />
                         </div>
                         <div>
-                          <label className="text-xs font-semibold text-slate-400">VAN사</label>
-                          <select
-                            value={row.van_company ?? ''}
-                            onChange={e => saveField(row, 'van_company', e.target.value)}
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
-                          >
-                            <option value="">-</option>
-                            {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
-                          </select>
-                        </div>
-                        <div>
                           <label className="text-xs font-semibold text-slate-400">인터넷</label>
                           <select
                             value={row.internet ?? ''}
@@ -656,6 +681,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                             <option value="">-</option>
                             {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
                           </select>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-xs font-semibold text-slate-400">VAN사 (중복선택 가능)</label>
+                          <VanMultiSelect value={row.van_company ?? ''} onChange={v => saveField(row, 'van_company', v)} />
                         </div>
                       </div>
                       <div>
@@ -682,7 +711,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={11} className="text-center text-slate-400 py-10">조건에 맞는 가맹 접수가 없습니다.</td></tr>
+              <tr><td colSpan={10} className="text-center text-slate-400 py-10">조건에 맞는 가맹 접수가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

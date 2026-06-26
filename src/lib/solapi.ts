@@ -36,45 +36,93 @@ export async function sendSignRequest({
 }
 
 // 사업자 유형별 제출 서류 목록 — 유형마다 본문이 크게 달라서 알림톡 템플릿도 유형별로 따로 등록한다
+const CORPORATE_DOCS = [
+  '대표자 신분증',
+  '사업자 통장 사본',
+  '사업자등록증',
+  '영업신고증 (음식점에 한함)',
+  '법인 등기부등본 (3개월 이내 발급)',
+  '법인 인감증명서 (3개월 이내 발급)',
+  '주주명부 (3개월 이내 발급)',
+  '사업장 외부 사진 2장',
+  '사업장 내부 사진 2장',
+]
+
+const INDIVIDUAL_DOCS = [
+  '대표자 신분증',
+  '사업자 통장 사본',
+  '사업자등록증',
+  '영업신고증 (음식점에 한함)',
+  '사업장 외부 사진 2장',
+  '사업장 내부 사진 2장',
+]
+
 const FRANCHISE_DOCS: Record<ApplicantType, string[]> = {
-  corporate: [
-    '대표자 신분증',
-    '사업자 통장 사본',
-    '사업자등록증',
-    '영업신고증 (음식점에 한함)',
-    '법인 등기부등본 (3개월 이내 발급)',
-    '법인 인감증명서 (3개월 이내 발급)',
-    '주주명부 (3개월 이내 발급)',
-    '사업장 외부 사진 2장',
-    '사업장 내부 사진 2장',
-  ],
-  individual: [
-    '대표자 신분증',
-    '사업자 통장 사본',
-    '사업자등록증',
-    '영업신고증 (음식점에 한함)',
-    '사업장 외부 사진 2장',
-    '사업장 내부 사진 2장',
-  ],
+  corporate: CORPORATE_DOCS,
+  individual: INDIVIDUAL_DOCS,
+  giga_corporate: CORPORATE_DOCS,
+  giga_individual: INDIVIDUAL_DOCS,
 }
 
-const FRANCHISE_TEMPLATE_ENV_KEY: Record<ApplicantType, string> = {
-  corporate: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE',
-  individual: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL',
+// 발송 시점에 상호명/대표자명이 모두 입력돼 있지 않을 수도 있어서, 어떤 필드가 채워져 있는지에 따라
+// 사업자유형별로 별도 템플릿을 쓴다 (4 사업자유형 x 4 케이스 = 16개 템플릿)
+export type DocCase = 'both' | 'business_only' | 'owner_only' | 'phone_only'
+
+export function docCaseOf(ownerName?: string, businessName?: string): DocCase {
+  if (ownerName && businessName) return 'both'
+  if (businessName) return 'business_only'
+  if (ownerName) return 'owner_only'
+  return 'phone_only'
+}
+
+const FRANCHISE_TEMPLATE_ENV_KEY: Record<ApplicantType, Record<DocCase, string>> = {
+  individual: {
+    both: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL_BOTH',
+    business_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL_BUSINESS_ONLY',
+    owner_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL_OWNER_ONLY',
+    phone_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INDIVIDUAL_PHONE_ONLY',
+  },
+  corporate: {
+    both: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE_BOTH',
+    business_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE_BUSINESS_ONLY',
+    owner_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE_OWNER_ONLY',
+    phone_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_CORPORATE_PHONE_ONLY',
+  },
+  giga_individual: {
+    both: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_INDIVIDUAL_BOTH',
+    business_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_INDIVIDUAL_BUSINESS_ONLY',
+    owner_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_INDIVIDUAL_OWNER_ONLY',
+    phone_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_INDIVIDUAL_PHONE_ONLY',
+  },
+  giga_corporate: {
+    both: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_CORPORATE_BOTH',
+    business_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_CORPORATE_BUSINESS_ONLY',
+    owner_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_CORPORATE_OWNER_ONLY',
+    phone_only: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_GIGA_CORPORATE_PHONE_ONLY',
+  },
 }
 
 export async function sendFranchiseDocRequest({
-  phone, ownerName, businessName, applicantType,
-}: { phone: string; ownerName: string; businessName: string; applicantType: ApplicantType }) {
+  phone, ownerName, businessName, applicantType, docCase: docCaseOverride,
+}: { phone: string; ownerName?: string; businessName?: string; applicantType: ApplicantType; docCase?: DocCase }) {
   if (!phone) return
   const docList = FRANCHISE_DOCS[applicantType].map(d => `- ${d}`).join('\n')
   const photoNote = '\n* 간판이 없는 경우, 건물에 부착된 도로명주소 표지판 사진으로 대체 가능합니다.'
-  const text = `[가맹 서류 안내]\n${ownerName}님, "${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.\n\n제출 서류\n${docList}${photoNote}`
+  const greeting = ownerName && businessName
+    ? `${ownerName}님, "${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.`
+    : businessName
+      ? `"${businessName}" 카드 가맹 신청을 위해 아래 서류를 준비해주세요.`
+      : ownerName
+        ? `${ownerName}님, 카드 가맹 신청을 위해 아래 서류를 준비해주세요.`
+        : `카드 가맹 신청을 위해 아래 서류를 준비해주세요.`
+  const text = `[가맹 서류 안내]\n${greeting}\n\n제출 서류\n${docList}${photoNote}`
   // 서류 목록은 사업자 유형별로 고정값(FRANCHISE_DOCS)이라 템플릿 본문에 직접 박아 넣고,
   // 변수는 고객명/상호명만 사용한다 (변수 비중이 크면 카카오 알림톡 심사에서 반려될 수 있음)
-  const ko = kakaoOptions(FRANCHISE_TEMPLATE_ENV_KEY[applicantType], {
-    '#{고객명}': ownerName,
-    '#{상호명}': businessName,
+  // docCase는 발송 전 확인창에서 사용자가 직접 선택/검증할 수 있어 자동 추론값을 덮어쓸 수 있다
+  const docCase = docCaseOverride ?? docCaseOf(ownerName, businessName)
+  const ko = kakaoOptions(FRANCHISE_TEMPLATE_ENV_KEY[applicantType][docCase], {
+    ...(ownerName ? { '#{고객명}': ownerName } : {}),
+    ...(businessName ? { '#{상호명}': businessName } : {}),
   })
   if (!ko) return
   await (service as any).send({

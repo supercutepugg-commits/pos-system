@@ -18,22 +18,12 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [completeOpen, setCompleteOpen] = useState(false)
+  const [completePhotos, setCompletePhotos] = useState<File[]>([])
+  const [completeNote, setCompleteNote] = useState('')
 
-  async function updateStatus(newStatus: string, extra?: Record<string, unknown>) {
-    setLoading(true)
+  async function notifyTargets(newStatus: string, logMessage: string) {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    await supabase.from('tickets').update({ status: newStatus, ...extra }).eq('id', ticket.id)
-    await supabase.from('ticket_logs').insert({
-      ticket_id: ticket.id,
-      user_id: user?.id,
-      from_status: ticket.status,
-      to_status: newStatus,
-      message: message || null,
-    })
-
-    // 알림 생성
     const targets: string[] = []
     if (newStatus === 'cs_pending' && ticket.cs_id) targets.push(ticket.cs_id)
     if (newStatus === 'tech_pending' && ticket.tech_id) targets.push(ticket.tech_id)
@@ -52,7 +42,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           ? `[${ticket.merchant?.business_name}] 반려`
           : `[${ticket.merchant?.business_name}] 상태 변경`,
         body: isRejected
-          ? `${ticket.title} - 반려됨${message ? ': ' + message : ''}`
+          ? `${ticket.title} - 반려됨${logMessage ? ': ' + logMessage : ''}`
           : `${ticket.title} → ${STATUS_LABEL[newStatus as keyof typeof STATUS_LABEL] ?? newStatus}`,
       })
     }
@@ -65,8 +55,60 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         body: JSON.stringify({ ticketId: ticket.id, newStatus, targets }),
       }).catch(() => {})
     }
+  }
+
+  async function updateStatus(newStatus: string, extra?: Record<string, unknown>) {
+    setLoading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    await supabase.from('tickets').update({ status: newStatus, ...extra }).eq('id', ticket.id)
+    await supabase.from('ticket_logs').insert({
+      ticket_id: ticket.id,
+      user_id: user?.id,
+      from_status: ticket.status,
+      to_status: newStatus,
+      message: message || null,
+    })
+
+    await notifyTargets(newStatus, message)
 
     setMessage('')
+    setLoading(false)
+    router.refresh()
+  }
+
+  async function submitCompletion() {
+    if (completePhotos.length === 0) { alert('설치완료사진을 최소 1장 첨부해주세요.'); return }
+    setLoading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const photoUrls: string[] = []
+    for (const [i, file] of completePhotos.entries()) {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${ticket.id}/${Date.now()}-${i}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('ticket-photos').upload(path, file)
+      if (uploadError) { alert('사진 업로드 실패: ' + uploadError.message); setLoading(false); return }
+      const { data: { publicUrl } } = supabase.storage.from('ticket-photos').getPublicUrl(path)
+      photoUrls.push(publicUrl)
+    }
+
+    await supabase.from('tickets').update({ status: 'done' }).eq('id', ticket.id)
+    await supabase.from('ticket_logs').insert({
+      ticket_id: ticket.id,
+      user_id: user?.id,
+      from_status: ticket.status,
+      to_status: 'done',
+      message: completeNote || null,
+      photo_urls: photoUrls,
+    })
+
+    await notifyTargets('done', completeNote)
+
+    setCompleteOpen(false)
+    setCompletePhotos([])
+    setCompleteNote('')
     setLoading(false)
     router.refresh()
   }
@@ -214,7 +256,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         {/* 완료 처리 */}
         {status === 'in_progress' && (role === 'tech' || role === 'admin') && (
           <button
-            onClick={() => updateStatus('done')}
+            onClick={() => setCompleteOpen(true)}
             disabled={loading}
             className="flex items-center gap-1.5 bg-green-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-medium"
           >
@@ -234,6 +276,50 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </button>
         )}
       </div>
+
+      {completeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <h3 className="text-sm font-semibold text-gray-800">설치 완료 처리</h3>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">설치완료사진 (필수, 여러 장 가능)</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                capture="environment"
+                onChange={e => setCompletePhotos(Array.from(e.target.files ?? []))}
+                className="text-sm"
+              />
+              {completePhotos.length > 0 && (
+                <p className="text-xs text-slate-500">{completePhotos.length}장 선택됨</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">비고 (선택)</label>
+              <textarea
+                value={completeNote}
+                onChange={e => setCompleteNote(e.target.value)}
+                placeholder="현장 비고를 남겨주세요"
+                rows={3}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={submitCompletion}
+                disabled={loading || completePhotos.length === 0}
+                className="w-full py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              >{loading ? '처리 중...' : '완료 처리'}</button>
+              <button
+                onClick={() => { setCompleteOpen(false); setCompletePhotos([]); setCompleteNote('') }}
+                disabled={loading}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
+              >취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

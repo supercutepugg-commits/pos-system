@@ -10,6 +10,7 @@ interface Log {
   from_status?: string
   to_status?: string
   message?: string
+  photo_urls?: string[]
   created_at: string
   user?: { name: string }
 }
@@ -34,6 +35,15 @@ export default function TicketLogs({ logs }: { logs: Log[] }) {
               )}
               {log.message && (
                 <p className="text-xs text-gray-700 mt-0.5">{log.message}</p>
+              )}
+              {log.photo_urls && log.photo_urls.length > 0 && (
+                <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                  {log.photo_urls.map(url => (
+                    <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                      <img src={url} alt="설치완료사진" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                    </a>
+                  ))}
+                </div>
               )}
               <p className="text-xs text-gray-400 mt-0.5">
                 {log.user?.name} · {format(new Date(log.created_at), 'M/d HH:mm', { locale: ko })}

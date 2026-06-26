@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -53,6 +53,96 @@ const COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'memo', label: '비고' },
 ]
 
+// --- EditableCell moved outside main component ---
+interface EditableCellProps {
+  row: WooCustomer
+  field: keyof WooCustomer
+  onSave: (row: WooCustomer, field: keyof WooCustomer, value: string) => void
+}
+const EditableCell = memo(function EditableCell({ row, field, onSave }: EditableCellProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  return (
+    <input
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm min-w-[100px]"
+    />
+  )
+})
+
+// --- Memoized table row ---
+interface TableRowProps {
+  row: WooCustomer
+  isSelected: boolean
+  onToggle: (id: string) => void
+  onSave: (row: WooCustomer, field: keyof WooCustomer, value: string) => void
+}
+const TableRow = memo(function TableRow({ row, isSelected, onToggle, onSave }: TableRowProps) {
+  return (
+    <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
+      <td className="px-3 py-2">
+        <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+      </td>
+      {COLUMNS.map(col => (
+        <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+          {col.key === 'category' ? (
+            <select
+              value={row.category ?? ''}
+              onChange={e => onSave(row, 'category', e.target.value)}
+              className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+            >
+              <option value="">-</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <EditableCell row={row} field={col.key} onSave={onSave} />
+          )}
+        </td>
+      ))}
+    </tr>
+  )
+})
+
+// --- Separate form component ---
+interface CreateFormProps {
+  onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
+  submitting: boolean
+}
+const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
+  const [form, setForm] = useState(EMPTY_FORM)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await onSubmit(form)
+    setForm(EMPTY_FORM)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+      {COLUMNS.map(col => (
+        <div key={col.key} className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500">{col.label}</label>
+          {col.key === 'category' ? (
+            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          )}
+        </div>
+      ))}
+      <button type="submit" disabled={submitting}
+        className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
+        {submitting ? '등록 중...' : '등록'}
+      </button>
+    </form>
+  )
+})
+
 export default function WooClient({ rows }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -61,7 +151,6 @@ export default function WooClient({ rows }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
 
@@ -100,7 +189,8 @@ export default function WooClient({ rows }: Props) {
   }, [localRows, search, categoryFilter])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
-  function toggleAll() {
+
+  const toggleAll = useCallback(() => {
     setSelected(prev => {
       if (allChecked) {
         const next = new Set(prev)
@@ -109,16 +199,17 @@ export default function WooClient({ rows }: Props) {
       }
       return new Set([...prev, ...filteredRows.map(r => r.id)])
     })
-  }
-  function toggleOne(id: string) {
+  }, [allChecked, filteredRows])
+
+  const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
+  }, [])
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
@@ -128,10 +219,9 @@ export default function WooClient({ rows }: Props) {
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
-  }
+  }, [selected])
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+  const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
     setSubmitting(true)
     const supabase = createClient()
     const payload = Object.fromEntries(
@@ -140,29 +230,16 @@ export default function WooClient({ rows }: Props) {
     const { error } = await supabase.from('woo_customers').insert(payload)
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
-    setForm(EMPTY_FORM)
     setShowForm(false)
     startTransition(() => router.refresh())
-  }
+  }, [])
 
-  async function saveField(row: WooCustomer, field: keyof WooCustomer, value: string) {
+  const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('woo_customers').update({ [field]: value || null }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
-  }
-
-  function EditableCell({ row, field }: { row: WooCustomer; field: keyof WooCustomer }) {
-    const [value, setValue] = useState((row[field] as string) ?? '')
-    return (
-      <input
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onBlur={() => { if (value !== ((row[field] as string) ?? '')) saveField(row, field, value) }}
-        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm min-w-[100px]"
-      />
-    )
-  }
+  }, [])
 
   return (
     <div className="flex flex-col h-full">
@@ -208,29 +285,7 @@ export default function WooClient({ rows }: Props) {
         </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-          {COLUMNS.map(col => (
-            <div key={col.key} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">{col.label}</label>
-              {col.key === 'category' ? (
-                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">선택 안함</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : (
-                <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              )}
-            </div>
-          ))}
-          <button type="submit" disabled={submitting}
-            className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
-            {submitting ? '등록 중...' : '등록'}
-          </button>
-        </form>
-      )}
+      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse min-w-[2000px]">
@@ -248,27 +303,13 @@ export default function WooClient({ rows }: Props) {
           </thead>
           <tbody>
             {filteredRows.map(row => (
-              <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
-                <td className="px-3 py-2">
-                  <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
-                </td>
-                {COLUMNS.map(col => (
-                  <td key={col.key} className="px-3 py-2 whitespace-nowrap">
-                    {col.key === 'category' ? (
-                      <select
-                        value={row.category ?? ''}
-                        onChange={e => saveField(row, 'category', e.target.value)}
-                        className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-                      >
-                        <option value="">-</option>
-                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    ) : (
-                      <EditableCell row={row} field={col.key} />
-                    )}
-                  </td>
-                ))}
-              </tr>
+              <TableRow
+                key={row.id}
+                row={row}
+                isSelected={selected.has(row.id)}
+                onToggle={toggleOne}
+                onSave={saveField}
+              />
             ))}
             {filteredRows.length === 0 && (
               <tr><td colSpan={COLUMNS.length + 1} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>

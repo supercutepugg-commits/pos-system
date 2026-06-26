@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useRef, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
 import { updateInboundRow, deleteInboundRows } from './actions'
@@ -75,6 +75,50 @@ interface Props {
   sortDir: 'asc' | 'desc'
 }
 
+// --- EditableText moved outside main component ---
+interface EditableTextProps {
+  row: InboundRow
+  field: keyof InboundRow
+  className?: string
+  onSave: (id: string, field: string, value: string) => void
+}
+const EditableText = memo(function EditableText({ row, field, className, onSave }: EditableTextProps) {
+  const [value, setValue] = useState(row[field] ?? '')
+  return (
+    <input
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => { if (value !== (row[field] ?? '')) onSave(row.id, field, value) }}
+      onClick={e => e.stopPropagation()}
+      className={`w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 ${className ?? ''}`}
+    />
+  )
+})
+
+// --- EditableSelect moved outside main component ---
+interface EditableSelectProps {
+  row: InboundRow
+  field: keyof InboundRow
+  options: string[]
+  colorMap: Record<string, string>
+  onSave: (id: string, field: string, value: string) => void
+}
+const EditableSelect = memo(function EditableSelect({ row, field, options, colorMap, onSave }: EditableSelectProps) {
+  const value = row[field] ?? ''
+  const cls = value ? (colorMap[value as string] || 'bg-slate-100 text-slate-600') : ''
+  return (
+    <select
+      value={value as string}
+      onChange={e => onSave(row.id, field, e.target.value)}
+      onClick={e => e.stopPropagation()}
+      className={`text-xs font-medium rounded-full px-2 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${cls}`}
+    >
+      <option value="">-</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
+})
+
 export default function InboundClient({ rows, totalCount, page, totalPages, filterOptions, currentParams, sortKey, sortDir }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -136,19 +180,19 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
 
   const allChecked = localRows.length > 0 && selected.size === localRows.length
 
-  function toggleAll() {
+  const toggleAll = useCallback(() => {
     setSelected(allChecked ? new Set() : new Set(localRows.map(r => r.id)))
-  }
+  }, [allChecked, localRows])
 
-  function toggleOne(id: string) {
+  const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
+  }, [])
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
@@ -158,44 +202,15 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
-  }
+  }, [selected])
 
-  async function saveField(id: string, field: string, value: string) {
+  const saveField = useCallback(async (id: string, field: string, value: string) => {
     setLocalRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
     setSavingId(id)
     const { error } = await updateInboundRow(id, { [field]: value || null })
     setSavingId(null)
     if (error) alert('수정 실패: ' + error)
-  }
-
-  function EditableText({ row, field, className }: { row: InboundRow; field: keyof InboundRow; className?: string }) {
-    const [value, setValue] = useState(row[field] ?? '')
-    return (
-      <input
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onBlur={() => { if (value !== (row[field] ?? '')) saveField(row.id, field, value) }}
-        onClick={e => e.stopPropagation()}
-        className={`w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 ${className ?? ''}`}
-      />
-    )
-  }
-
-  function EditableSelect({ row, field, options, colorMap }: { row: InboundRow; field: keyof InboundRow; options: string[]; colorMap: Record<string, string> }) {
-    const value = row[field] ?? ''
-    const cls = value ? (colorMap[value as string] || 'bg-slate-100 text-slate-600') : ''
-    return (
-      <select
-        value={value as string}
-        onChange={e => saveField(row.id, field, e.target.value)}
-        onClick={e => e.stopPropagation()}
-        className={`text-xs font-medium rounded-full px-2 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${cls}`}
-      >
-        <option value="">-</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    )
-  }
+  }, [])
 
   return (
     <div className="flex flex-col h-full">
@@ -316,25 +331,25 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                     {row.date ? row.date.slice(0, 10) : '-'}
                   </td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
-                    <EditableText row={row} field="staff" />
+                    <EditableText row={row} field="staff" onSave={saveField} />
                   </td>
                   <td className="px-3 py-2">
-                    <EditableSelect row={row} field="channel" options={Object.keys(CHANNEL_COLORS)} colorMap={CHANNEL_COLORS} />
+                    <EditableSelect row={row} field="channel" options={Object.keys(CHANNEL_COLORS)} colorMap={CHANNEL_COLORS} onSave={saveField} />
                   </td>
                   <td className="px-3 py-2">
-                    <EditableSelect row={row} field="category" options={Object.keys(CATEGORY_COLORS)} colorMap={CATEGORY_COLORS} />
+                    <EditableSelect row={row} field="category" options={Object.keys(CATEGORY_COLORS)} colorMap={CATEGORY_COLORS} onSave={saveField} />
                   </td>
                   <td className="px-3 py-2">
-                    <EditableSelect row={row} field="status" options={Object.keys(STATUS_COLORS)} colorMap={STATUS_COLORS} />
+                    <EditableSelect row={row} field="status" options={Object.keys(STATUS_COLORS)} colorMap={STATUS_COLORS} onSave={saveField} />
                   </td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
-                    <EditableText row={row} field="owner_name" />
+                    <EditableText row={row} field="owner_name" onSave={saveField} />
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">
-                    <EditableText row={row} field="business_name" />
+                    <EditableText row={row} field="business_name" onSave={saveField} />
                   </td>
                   <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
-                    <EditableText row={row} field="phone" />
+                    <EditableText row={row} field="phone" onSave={saveField} />
                   </td>
                   <td className="px-3 py-2 text-slate-700 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
                     <div className="truncate cursor-pointer">{row.inquiry || '-'}</div>

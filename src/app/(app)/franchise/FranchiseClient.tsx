@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -119,6 +119,29 @@ function VanMultiSelect({ value, onChange }: { value: string; onChange: (value: 
   )
 }
 
+// --- EditableText moved outside main component ---
+interface EditableTextProps {
+  row: FranchiseApplication
+  field: keyof FranchiseApplication
+  placeholder: string
+  type?: string
+  onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
+}
+const EditableText = memo(function EditableText({ row, field, placeholder, type = 'text', onSave }: EditableTextProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  return (
+    <input
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+    />
+  )
+})
+
 export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, initialStatusFilter = '' }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -174,7 +197,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
-  function toggleAll() {
+
+  const toggleAll = useCallback(() => {
     setSelected(prev => {
       if (allChecked) {
         const next = new Set(prev)
@@ -183,16 +207,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       }
       return new Set([...prev, ...filteredRows.map(r => r.id)])
     })
-  }
-  function toggleOne(id: string) {
+  }, [allChecked, filteredRows])
+
+  const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
+  }, [])
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
@@ -202,7 +227,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
-  }
+  }, [selected])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -326,12 +351,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     startTransition(() => router.refresh())
   }
 
-  async function saveField(row: FranchiseApplication, field: keyof FranchiseApplication, value: string) {
+  const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ [field]: value || null }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
-  }
+  }, [])
 
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()
@@ -369,21 +394,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         .order('created_at', { ascending: false })
       setLogsByRow(prev => ({ ...prev, [row.id]: data ?? [] }))
     }
-  }
-
-  function EditableText({ row, field, placeholder, type = 'text' }: { row: FranchiseApplication; field: keyof FranchiseApplication; placeholder: string; type?: string }) {
-    const [value, setValue] = useState((row[field] as string) ?? '')
-    return (
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={e => setValue(e.target.value)}
-        onBlur={() => { if (value !== ((row[field] as string) ?? '')) saveField(row, field, value) }}
-        onClick={e => e.stopPropagation()}
-        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
-      />
-    )
   }
 
   return (
@@ -623,19 +633,19 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
-                          <EditableText row={row} field="business_name" placeholder="-" />
+                          <EditableText row={row} field="business_name" placeholder="-" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">대표자명</label>
-                          <EditableText row={row} field="owner_name" placeholder="-" />
+                          <EditableText row={row} field="owner_name" placeholder="-" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">연락처</label>
-                          <EditableText row={row} field="phone" placeholder="010-0000-0000" />
+                          <EditableText row={row} field="phone" placeholder="010-0000-0000" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">사업자번호</label>
-                          <EditableText row={row} field="business_number" placeholder="000-00-00000" />
+                          <EditableText row={row} field="business_number" placeholder="000-00-00000" onSave={saveField} />
                         </div>
                         <div className="col-span-2">
                           <label className="text-xs font-semibold text-slate-400">상품</label>
@@ -643,7 +653,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">작업제목</label>
-                          <EditableText row={row} field="title" placeholder="-" />
+                          <EditableText row={row} field="title" placeholder="-" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">담당 영업</label>
@@ -669,19 +679,19 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                         <div className="col-span-2">
                           <label className="text-xs font-semibold text-slate-400">주소</label>
-                          <EditableText row={row} field="address" placeholder="-" />
+                          <EditableText row={row} field="address" placeholder="-" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상세주소</label>
-                          <EditableText row={row} field="address_detail" placeholder="-" />
+                          <EditableText row={row} field="address_detail" placeholder="-" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">오픈예정일</label>
-                          <EditableText row={row} field="open_date" placeholder="-" type="date" />
+                          <EditableText row={row} field="open_date" placeholder="-" type="date" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">설치 및 발송일</label>
-                          <EditableText row={row} field="install_date" placeholder="-" type="date" />
+                          <EditableText row={row} field="install_date" placeholder="-" type="date" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">인터넷</label>
@@ -700,7 +710,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                         <div className="col-span-4">
                           <label className="text-xs font-semibold text-slate-400">비고</label>
-                          <EditableText row={row} field="memo" placeholder="-" />
+                          <EditableText row={row} field="memo" placeholder="-" onSave={saveField} />
                         </div>
                       </div>
                       <div>

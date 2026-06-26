@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -50,6 +50,113 @@ const COLUMNS: { key: keyof InternetManagement; label: string }[] = [
   { key: 'memo', label: '비고' },
 ]
 
+// --- EditableCell moved outside main component ---
+interface EditableCellProps {
+  row: InternetManagement
+  field: keyof InternetManagement
+  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
+}
+const EditableCell = memo(function EditableCell({ row, field, onSave }: EditableCellProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  return (
+    <input
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm min-w-[100px]"
+    />
+  )
+})
+
+// --- Memoized table row ---
+interface TableRowProps {
+  row: InternetManagement
+  isSelected: boolean
+  onToggle: (id: string) => void
+  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
+}
+const TableRow = memo(function TableRow({ row, isSelected, onToggle, onSave }: TableRowProps) {
+  return (
+    <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
+      <td className="px-3 py-2">
+        <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+      </td>
+      {COLUMNS.map(col => (
+        <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+          {col.key === 'status' ? (
+            <select
+              value={row.status ?? ''}
+              onChange={e => onSave(row, 'status', e.target.value)}
+              className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${
+                row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              <option value="">-</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : col.key === 'category' ? (
+            <select
+              value={row.category ?? ''}
+              onChange={e => onSave(row, 'category', e.target.value)}
+              className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+            >
+              <option value="">-</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <EditableCell row={row} field={col.key} onSave={onSave} />
+          )}
+        </td>
+      ))}
+    </tr>
+  )
+})
+
+// --- Separate form component ---
+interface CreateFormProps {
+  onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
+  submitting: boolean
+}
+const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
+  const [form, setForm] = useState(EMPTY_FORM)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await onSubmit(form)
+    setForm(EMPTY_FORM)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+      {COLUMNS.map(col => (
+        <div key={col.key} className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500">{col.label}</label>
+          {col.key === 'status' ? (
+            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : col.key === 'category' ? (
+            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-24 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">선택 안함</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          )}
+        </div>
+      ))}
+      <button type="submit" disabled={submitting}
+        className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
+        {submitting ? '등록 중...' : '등록'}
+      </button>
+    </form>
+  )
+})
+
 export default function InternetClient({ rows }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -58,7 +165,6 @@ export default function InternetClient({ rows }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -99,7 +205,8 @@ export default function InternetClient({ rows }: Props) {
   }, [localRows, search, statusFilter, categoryFilter])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
-  function toggleAll() {
+
+  const toggleAll = useCallback(() => {
     setSelected(prev => {
       if (allChecked) {
         const next = new Set(prev)
@@ -108,16 +215,17 @@ export default function InternetClient({ rows }: Props) {
       }
       return new Set([...prev, ...filteredRows.map(r => r.id)])
     })
-  }
-  function toggleOne(id: string) {
+  }, [allChecked, filteredRows])
+
+  const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
+  }, [])
 
-  async function handleDelete() {
+  const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
@@ -127,10 +235,9 @@ export default function InternetClient({ rows }: Props) {
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
-  }
+  }, [selected])
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+  const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
     setSubmitting(true)
     const supabase = createClient()
     const payload = Object.fromEntries(
@@ -139,29 +246,16 @@ export default function InternetClient({ rows }: Props) {
     const { error } = await supabase.from('internet_management').insert(payload)
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
-    setForm(EMPTY_FORM)
     setShowForm(false)
     startTransition(() => router.refresh())
-  }
+  }, [])
 
-  async function saveField(row: InternetManagement, field: keyof InternetManagement, value: string) {
+  const saveField = useCallback(async (row: InternetManagement, field: keyof InternetManagement, value: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('internet_management').update({ [field]: value || null }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
-  }
-
-  function EditableCell({ row, field }: { row: InternetManagement; field: keyof InternetManagement }) {
-    const [value, setValue] = useState((row[field] as string) ?? '')
-    return (
-      <input
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onBlur={() => { if (value !== ((row[field] as string) ?? '')) saveField(row, field, value) }}
-        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm min-w-[100px]"
-      />
-    )
-  }
+  }, [])
 
   return (
     <div className="flex flex-col h-full">
@@ -212,35 +306,7 @@ export default function InternetClient({ rows }: Props) {
         </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-          {COLUMNS.map(col => (
-            <div key={col.key} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">{col.label}</label>
-              {col.key === 'status' ? (
-                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">선택 안함</option>
-                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              ) : col.key === 'category' ? (
-                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-24 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">선택 안함</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : (
-                <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              )}
-            </div>
-          ))}
-          <button type="submit" disabled={submitting}
-            className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
-            {submitting ? '등록 중...' : '등록'}
-          </button>
-        </form>
-      )}
+      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse min-w-[1800px]">
@@ -258,38 +324,13 @@ export default function InternetClient({ rows }: Props) {
           </thead>
           <tbody>
             {filteredRows.map(row => (
-              <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
-                <td className="px-3 py-2">
-                  <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
-                </td>
-                {COLUMNS.map(col => (
-                  <td key={col.key} className="px-3 py-2 whitespace-nowrap">
-                    {col.key === 'status' ? (
-                      <select
-                        value={row.status ?? ''}
-                        onChange={e => saveField(row, 'status', e.target.value)}
-                        className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${
-                          row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        <option value="">-</option>
-                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    ) : col.key === 'category' ? (
-                      <select
-                        value={row.category ?? ''}
-                        onChange={e => saveField(row, 'category', e.target.value)}
-                        className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-                      >
-                        <option value="">-</option>
-                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    ) : (
-                      <EditableCell row={row} field={col.key} />
-                    )}
-                  </td>
-                ))}
-              </tr>
+              <TableRow
+                key={row.id}
+                row={row}
+                isSelected={selected.has(row.id)}
+                onToggle={toggleOne}
+                onSave={saveField}
+              />
             ))}
             {filteredRows.length === 0 && (
               <tr><td colSpan={COLUMNS.length + 1} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>

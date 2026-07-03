@@ -3,7 +3,9 @@ import { sendInstallStatusUpdate } from '@/lib/solapi'
 
 export async function POST(req: NextRequest) {
   try {
-    const { phone, customerName, status } = await req.json()
+    const body = await req.json()
+    const phone = (body.phone ?? '').replace(/\D/g, '')
+    const { customerName, status } = body
     if (!phone || !customerName || !status) {
       return NextResponse.json({ ok: false, error: 'missing params' }, { status: 400 })
     }

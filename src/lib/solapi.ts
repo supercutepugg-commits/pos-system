@@ -185,12 +185,9 @@ export async function sendFranchiseStatusUpdate({
 }: { phone: string; ownerName?: string | null; businessName?: string | null; status: FranchiseStatusUpdateKind }) {
   if (!phone) return
   const name = ownerName || businessName || '고객'
-  const biz = businessName || ownerName || ''
-  const text = biz
-    ? `[가맹 진행 안내]\n${name}님, "${biz}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
-    : `[가맹 진행 안내]\n${name}님, 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
-  const variables: Record<string, string> = { '#{고객명}': name }
-  if (biz) variables['#{상호명}'] = biz
+  const biz = businessName || ownerName || name
+  const text = `[가맹 진행 안내]\n${name}님, "${biz}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
+  const variables: Record<string, string> = { '#{고객명}': name, '#{상호명}': biz }
   const ko = kakaoOptions(FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status], variables)
   if (!ko) return
   await solapiSend({

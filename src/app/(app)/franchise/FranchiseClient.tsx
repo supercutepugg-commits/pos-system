@@ -184,6 +184,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [salesFilter, setSalesFilter] = useState('')
   const [csFilter, setCsFilter] = useState('')
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status'>('updated_at')
+  const [vanFilter, setVanFilter] = useState('')
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
@@ -200,31 +201,46 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
   })
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   useEffect(() => {
     setLocalRows(rows)
     setSelected(new Set())
   }, [rows])
 
-  // 오픈예정일 D-3 자동 알림 (하루 1회)
+  // 키보드 단축키
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+      if (e.key === 'n' || e.key === 'N') setShowForm(v => !v)
+      if (e.key === '?') setShowShortcuts(v => !v)
+      if (e.key === 'Escape') { setShowShortcuts(false); setShowForm(false) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // 오픈예정일 D-7 / D-3 / D-1 자동 알림 (하루 1회)
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
-    const key = `d3_notify_${currentUserId}_${today}`
-    if (localStorage.getItem(key)) return
-    const d3 = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]
-    const d3Rows = rows.filter(r =>
-      r.open_date === d3 &&
-      (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
-    )
-    if (d3Rows.length === 0) return
     const supabase = createClient()
-    const names = d3Rows.map(r => r.business_name || r.owner_name || '미입력').join(', ')
-    supabase.from('notifications').insert({
-      user_id: currentUserId,
-      type: 'open_date_soon',
-      title: `오픈 D-3 알림 ${d3Rows.length}건`,
-      body: `${names} — 3일 후 오픈 예정입니다. 설치/준비 상태를 확인해주세요.`,
-    }).then(() => localStorage.setItem(key, '1'))
+    for (const days of [7, 3, 1]) {
+      const key = `d${days}_notify_${currentUserId}_${today}`
+      if (localStorage.getItem(key)) continue
+      const target = new Date(Date.now() + days * 86400000).toISOString().split('T')[0]
+      const matched = rows.filter(r =>
+        r.open_date === target &&
+        (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+      )
+      if (matched.length === 0) { localStorage.setItem(key, '1'); continue }
+      const names = matched.map(r => r.business_name || r.owner_name || '미입력').join(', ')
+      supabase.from('notifications').insert({
+        user_id: currentUserId,
+        type: 'open_date_soon',
+        title: `오픈 D-${days} 알림 ${matched.length}건`,
+        body: `${names} — ${days}일 후 오픈 예정입니다. 준비 상태를 확인해주세요.`,
+      }).then(() => localStorage.setItem(key, '1'))
+    }
   }, [])
 
   // 반려 후 3일 이상 재이관 없는 건 재알림
@@ -286,8 +302,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
-      if (salesFilter && row.sales_id !== salesFilter) return false
-      if (csFilter && row.cs_id !== csFilter) return false
+      if (vanFilter && !row.van_company?.split(',').map(s => s.trim()).includes(vanFilter)) return false
       if (dateFrom && row.created_at < dateFrom) return false
       if (dateTo && row.created_at > dateTo + 'T23:59:59') return false
       if (term) {
@@ -307,7 +322,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'created_at') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
+  }, [localRows, search, statusFilter, applicantTypeFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
 
   function togglePin(id: string) {
     setPinnedIds(prev => {
@@ -781,6 +796,26 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   return (
     <div className="flex flex-col h-full">
+      {/* 키보드 단축키 도움말 */}
+      {showShortcuts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-slate-800">⌨️ 단축키 안내</p>
+            {[
+              ['N', '신규 접수 폼 열기/닫기'],
+              ['?', '단축키 도움말'],
+              ['Esc', '모달/폼 닫기'],
+            ].map(([key, desc]) => (
+              <div key={key} className="flex items-center gap-3">
+                <kbd className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded font-mono font-bold min-w-[32px] text-center">{key}</kbd>
+                <span className="text-sm text-slate-600">{desc}</span>
+              </div>
+            ))}
+            <button onClick={() => setShowShortcuts(false)} className="mt-2 text-xs text-slate-400 hover:text-slate-600 text-center">닫기</button>
+          </div>
+        </div>
+      )}
+
       {/* 일괄 배정 모달 */}
       {bulkAssignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -899,6 +934,29 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         ))}
       </div>
 
+      {/* 접수채널 통계 */}
+      {(() => {
+        const channelCounts: Record<string, number> = {}
+        for (const row of localRows) {
+          const ch = row.reception_channel || '미지정'
+          channelCounts[ch] = (channelCounts[ch] ?? 0) + 1
+        }
+        const total = localRows.length
+        return total > 0 ? (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {Object.entries(channelCounts).sort((a, b) => b[1] - a[1]).map(([ch, cnt]) => (
+              <div key={ch} className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="font-medium text-slate-700">{ch}</span>
+                <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(cnt / total) * 100}%` }} />
+                </div>
+                <span>{cnt}건</span>
+              </div>
+            ))}
+          </div>
+        ) : null
+      })()}
+
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
@@ -923,15 +981,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
           ))}
         </select>
-        <select value={salesFilter} onChange={e => setSalesFilter(e.target.value)}
+        <select value={vanFilter} onChange={e => setVanFilter(e.target.value)}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">담당영업 전체</option>
-          {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={csFilter} onChange={e => setCsFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">담당CS 전체</option>
-          {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <option value="">VAN사 전체</option>
+          {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="등록일 시작"
           className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -946,8 +999,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="open_date">오픈예정일순</option>
           <option value="install_date">설치발송일순</option>
         </select>
-        {(search || statusFilter || applicantTypeFilter || salesFilter || csFilter || dateFrom || dateTo) && (
-          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter(''); setCsFilter(''); setDateFrom(''); setDateTo('') }}
+        {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo) && (
+          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
             초기화
           </button>
@@ -987,6 +1040,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <button onClick={handleExcel}
             className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors">
             <Download size={14} />엑셀
+          </button>
+          <button onClick={() => setShowShortcuts(true)} title="단축키 도움말 (?)"
+            className="text-sm text-slate-400 hover:text-slate-600 border border-slate-200 hover:bg-slate-50 w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+            ?
           </button>
           <button onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -1075,22 +1132,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <label className="text-xs font-medium text-slate-500">작업제목</label>
             <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">담당 영업</label>
-            <select value={form.sales_id} onChange={e => setForm({ ...form, sales_id: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">담당 CS</label>
-            <select value={form.cs_id} onChange={e => setForm({ ...form, cs_id: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
           </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
             <label className="text-xs font-medium text-slate-500">비고</label>
@@ -1230,28 +1271,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         <div>
                           <label className="text-xs font-semibold text-slate-400">작업제목</label>
                           <EditableText row={row} field="title" placeholder="-" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">담당 영업</label>
-                          <select
-                            value={row.sales_id ?? ''}
-                            onChange={e => updateSales(row, e.target.value)}
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
-                          >
-                            <option value="">미지정</option>
-                            {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">담당 CS</label>
-                          <select
-                            value={row.cs_id ?? ''}
-                            onChange={e => updateCs(row, e.target.value)}
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
-                          >
-                            <option value="">미지정</option>
-                            {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
                         </div>
                         <div className="col-span-2">
                           <label className="text-xs font-semibold text-slate-400">주소</label>

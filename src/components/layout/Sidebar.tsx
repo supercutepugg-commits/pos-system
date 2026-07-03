@@ -30,17 +30,18 @@ const COMMON_NAV: NavItem[] = [
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
   { href: '/notifications', label: '알림', icon: Bell },
   { href: '/chat', label: '채팅', icon: MessageCircle },
-  { href: '/merchants', label: '가맹점', icon: Store },
 ]
 
 // 역할별 폴더 — admin은 전부 보임
 const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] = [
   {
     key: 'sales',
-    label: '영업',
-    icon: Briefcase,
+    label: '가맹점',
+    icon: Store,
     items: [
+      { href: '/merchants', label: '가맹점 목록', icon: Store },
       { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
+      { href: '/inbound', label: '인입 내역', icon: PhoneIncoming },
     ],
   },
   {
@@ -48,8 +49,6 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
     label: 'CS',
     icon: Headset,
     items: [
-      { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
-      { href: '/inbound', label: '인입 내역', icon: PhoneIncoming },
       { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
       { href: '/woo', label: '우국상 관리', icon: BookUser },
       { href: '/internet', label: '인터넷 관리', icon: Wifi },
@@ -63,6 +62,8 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
     icon: HardHat,
     items: [
       { href: '/installs', label: '설치 관리', icon: Package },
+      { href: '/external-techs', label: '외부 기사 관리', icon: Users },
+      { href: '/inventory', label: '재고 실사', icon: ClipboardList },
     ],
   },
 ]

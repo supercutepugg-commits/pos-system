@@ -418,6 +418,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     return Object.entries(stats).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6)
   }, [installs])
 
+  const techStats = useMemo(() => {
+    const stats: Record<string, { name: string; total: number; completed: number }> = {}
+    for (const i of installs) {
+      if (!i.assigned_to) continue
+      if (!stats[i.assigned_to]) {
+        const name = (i as any).assignee?.name ?? i.assigned_to
+        stats[i.assigned_to] = { name, total: 0, completed: 0 }
+      }
+      stats[i.assigned_to].total++
+      if (i.status === 'completed') stats[i.assigned_to].completed++
+    }
+    return Object.values(stats).sort((a, b) => b.completed - a.completed)
+  }, [installs])
+
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
     return installs.filter(i => {
@@ -657,11 +671,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         </button>
       </div>
 
-      {/* 기사별 월간 실적 */}
+      {/* 기사별 실적 + 월간 통계 */}
       {showMonthlyStats && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-slate-500 mb-3">최근 6개월 실적</p>
-          <div className="overflow-x-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-slate-500 mb-3">🏆 기사별 완료 실적 (누적)</p>
+            <div className="space-y-2">
+              {techStats.slice(0, 8).map((t, idx) => (
+                <div key={t.name} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 w-4">{idx + 1}</span>
+                  <span className="text-sm text-slate-700 flex-1">{t.name}</span>
+                  <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-400 rounded-full" style={{ width: `${t.total > 0 ? (t.completed / t.total) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs text-slate-500 w-16 text-right">{t.completed}/{t.total}건</span>
+                </div>
+              ))}
+              {techStats.length === 0 && <p className="text-xs text-slate-400">데이터 없음</p>}
+            </div>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-slate-500 mb-3">📊 월별 실적 (최근 6개월)</p>
             <table className="text-xs w-full">
               <thead>
                 <tr className="border-b border-slate-100">

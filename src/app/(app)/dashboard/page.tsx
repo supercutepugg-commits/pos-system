@@ -80,19 +80,55 @@ export default async function DashboardPage() {
     ...countStatuses.map(buildCountQuery),
   ])
 
+  // 월별 가맹접수 통계 (최근 6개월)
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5); sixMonthsAgo.setDate(1)
+  const monthlyFranchiseQuery = supabase
+    .from('franchise_applications')
+    .select('created_at, status')
+    .gte('created_at', sixMonthsAgo.toISOString())
+
+  // 설치완료 소요일 (최근 30건)
+  const avgDaysQuery = supabase
+    .from('installations')
+    .select('created_at, updated_at')
+    .eq('status', 'completed')
+    .order('updated_at', { ascending: false })
+    .limit(30)
+
   const [
     { count: unassignedFranchise },
     { count: unassignedInstall },
     { count: staleCount },
     todayInstallsResult,
     todayFranchiseResult,
+    { data: monthlyFranchise },
+    { data: completedInstalls },
   ] = await Promise.all([
     p.role === 'admin' ? unassignedFranchiseQuery : Promise.resolve({ count: 0 }),
     p.role === 'admin' ? unassignedInstallQuery : Promise.resolve({ count: 0 }),
     staleQuery,
     todayInstallsQuery ?? Promise.resolve({ data: [] }),
     todayFranchiseQuery ?? Promise.resolve({ data: [] }),
+    p.role !== 'tech' ? monthlyFranchiseQuery : Promise.resolve({ data: [] as any[] }),
+    avgDaysQuery,
   ])
+
+  // 월별 집계
+  const monthlyStats: { label: string; total: number; done: number }[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i); d.setDate(1)
+    const ym = d.toISOString().slice(0, 7)
+    const monthRows = (monthlyFranchise ?? []).filter((r: any) => r.created_at.startsWith(ym))
+    monthlyStats.push({
+      label: `${d.getMonth() + 1}월`,
+      total: monthRows.length,
+      done: monthRows.filter((r: any) => r.status === 'card_done' || r.status === 'internet_done').length,
+    })
+  }
+
+  const avgDays = completedInstalls && completedInstalls.length > 0
+    ? Math.round(completedInstalls.reduce((sum: number, i: any) => sum + (new Date(i.updated_at).getTime() - new Date(i.created_at).getTime()) / 86400000, 0) / completedInstalls.length)
+    : null
 
   const counts: Record<string, number> = {}
   countStatuses.forEach((status, i) => { counts[status] = countResults[i].count ?? 0 })
@@ -205,6 +241,45 @@ export default async function DashboardPage() {
               <p className="text-sm text-slate-500 mt-1">{label}</p>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* 월별 접수 추이 + 평균 소요일 */}
+      {p.role !== 'tech' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="text-sm font-bold text-slate-700 mb-4">월별 가맹접수 추이 (최근 6개월)</p>
+            <div className="flex items-end gap-2 h-24">
+              {monthlyStats.map(m => {
+                const maxTotal = Math.max(...monthlyStats.map(s => s.total), 1)
+                return (
+                  <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-xs text-slate-400">{m.total}</span>
+                    <div className="w-full relative rounded-t-sm overflow-hidden" style={{ height: `${Math.round((m.total / maxTotal) * 64)}px`, minHeight: '4px' }}>
+                      <div className="absolute bottom-0 w-full bg-blue-100 rounded-t-sm" style={{ height: '100%' }} />
+                      <div className="absolute bottom-0 w-full bg-blue-500 rounded-t-sm" style={{ height: `${m.total > 0 ? Math.round((m.done / m.total) * 100) : 0}%` }} />
+                    </div>
+                    <span className="text-xs text-slate-500">{m.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-blue-500" /><span className="text-xs text-slate-500">완료</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-blue-100" /><span className="text-xs text-slate-500">전체 접수</span></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-center items-center text-center">
+            <p className="text-xs text-slate-400 mb-2">설치 평균 소요일</p>
+            {avgDays !== null ? (
+              <>
+                <p className="text-4xl font-bold text-slate-900">{avgDays}</p>
+                <p className="text-sm text-slate-500 mt-1">일 (최근 30건)</p>
+              </>
+            ) : (
+              <p className="text-slate-400 text-sm">데이터 없음</p>
+            )}
+          </div>
         </div>
       )}
 

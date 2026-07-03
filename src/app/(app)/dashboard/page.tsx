@@ -4,7 +4,8 @@ import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR, type FranchiseStatus, t
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { FileEdit, Clock4, CheckCircle2, Flag, ArrowRight } from 'lucide-react'
+import { FileEdit, Clock4, CheckCircle2, Flag, AlertTriangle, UserX, CalendarClock, ArrowRight } from 'lucide-react'
+import ExcelDownloadButton from './ExcelDownloadButton'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -18,16 +19,19 @@ export default async function DashboardPage() {
 
   const p = profile as Profile
 
-  let query = supabase
+  // ── 역할별 데이터 쿼리 ──────────────────────────────────────
+  const today = new Date().toISOString().split('T')[0]
+
+  // 공통: 최근 가맹 접수
+  let franchiseQuery = supabase
     .from('franchise_applications')
     .select('*, sales:profiles!franchise_applications_sales_id_fkey(name), cs:profiles!franchise_applications_cs_id_fkey(name)')
-    .order('created_at', { ascending: false })
+    .order('updated_at', { ascending: false })
+  if (p.role === 'sales') franchiseQuery = franchiseQuery.eq('sales_id', userId)
+  if (p.role === 'cs') franchiseQuery = franchiseQuery.eq('cs_id', userId)
 
-  if (p.role === 'sales') query = query.eq('sales_id', userId)
-  if (p.role === 'cs') query = query.eq('cs_id', userId)
-
+  // 상태별 카운트
   const countStatuses: FranchiseStatus[] = ['doc_waiting', 'doc_incomplete', 'card_apply_done', 'toss_review_done']
-
   function buildCountQuery(status: FranchiseStatus) {
     let q = supabase.from('franchise_applications').select('id', { count: 'exact', head: true }).eq('status', status)
     if (p.role === 'sales') q = q.eq('sales_id', userId)
@@ -35,9 +39,59 @@ export default async function DashboardPage() {
     return q
   }
 
-  const [{ data: applications }, ...countResults] = await Promise.all([
-    query.limit(10),
+  // 미배정 건 수
+  const unassignedFranchiseQuery = supabase
+    .from('franchise_applications')
+    .select('id', { count: 'exact', head: true })
+    .is('cs_id', null)
+    .not('status', 'in', '(card_done,internet_done)')
+
+  const unassignedInstallQuery = supabase
+    .from('installations')
+    .select('id', { count: 'exact', head: true })
+    .is('assigned_to', null)
+    .not('status', 'in', '(completed,rejected)')
+
+  // 기사: 오늘 내 설치 일정
+  const todayInstallsQuery = p.role === 'tech'
+    ? supabase.from('installations').select('*, franchise_application_id').eq('assigned_to', userId).not('status', 'in', '(completed,rejected)').order('created_at')
+    : null
+
+  // 기사: 오늘 오픈예정 가맹 건 (install_date = today)
+  const todayFranchiseQuery = p.role === 'tech'
+    ? supabase.from('franchise_applications').select('id, business_name, owner_name, address').eq('install_date', today)
+    : null
+
+  // 7일 이상 미처리 건
+  const staleDate = new Date(Date.now() - 7 * 86400000).toISOString()
+  let staleQuery = supabase
+    .from('franchise_applications')
+    .select('id', { count: 'exact', head: true })
+    .lt('updated_at', staleDate)
+    .not('status', 'in', '(card_done,internet_done)')
+  if (p.role === 'sales') staleQuery = staleQuery.eq('sales_id', userId)
+  if (p.role === 'cs') staleQuery = staleQuery.eq('cs_id', userId)
+
+  const [
+    { data: applications },
+    ...countResults
+  ] = await Promise.all([
+    franchiseQuery.limit(8),
     ...countStatuses.map(buildCountQuery),
+  ])
+
+  const [
+    { count: unassignedFranchise },
+    { count: unassignedInstall },
+    { count: staleCount },
+    todayInstallsResult,
+    todayFranchiseResult,
+  ] = await Promise.all([
+    p.role === 'admin' ? unassignedFranchiseQuery : Promise.resolve({ count: 0 }),
+    p.role === 'admin' ? unassignedInstallQuery : Promise.resolve({ count: 0 }),
+    staleQuery,
+    todayInstallsQuery ?? Promise.resolve({ data: [] }),
+    todayFranchiseQuery ?? Promise.resolve({ data: [] }),
   ])
 
   const counts: Record<string, number> = {}
@@ -50,70 +104,148 @@ export default async function DashboardPage() {
     { label: FRANCHISE_STATUS_LABEL.toss_review_done, status: 'toss_review_done', icon: Flag, color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
   ]
 
+  const todayInstalls = (todayInstallsResult.data ?? []) as any[]
+  const todayFranchise = (todayFranchiseResult.data ?? []) as any[]
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* 헤더 */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {p.name}님 👋</h1>
-        <p className="text-slate-500 mt-1">
-          {format(new Date(), 'yyyy년 M월 d일 (EEE)', { locale: ko })}
-        </p>
-      </div>
-
-      {/* 상태 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {summaryCards.map(({ label, status, icon: Icon, color, border }) => (
-          <Link
-            key={status}
-            href={`/franchise?status=${status}`}
-            className={`bg-white rounded-2xl border ${border} p-5 hover:shadow-md transition-all group`}
-          >
-            <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
-              <Icon size={20} />
-            </div>
-            <p className="text-3xl font-bold text-slate-900">{counts[status] ?? 0}</p>
-            <p className="text-sm text-slate-500 mt-1">{label}</p>
-          </Link>
-        ))}
-      </div>
-
-      {/* 최근 가맹 접수 */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-bold text-slate-900">최근 가맹 접수</h2>
-          <Link href="/franchise" className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
-            전체보기 <ArrowRight size={14} />
-          </Link>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {p.name}님 👋</h1>
+          <p className="text-slate-500 mt-1">
+            {format(new Date(), 'yyyy년 M월 d일 (EEE)', { locale: ko })}
+          </p>
         </div>
-        <div className="divide-y divide-slate-50">
-          {applications?.length === 0 && (
-            <div className="text-center py-16">
-              <p className="text-slate-400 text-sm">등록된 가맹 접수가 없습니다</p>
-              <Link href="/franchise" className="inline-block mt-3 text-sm text-blue-600 hover:underline font-medium">
-                가맹 정보 입력하기
-              </Link>
+        {(p.role === 'admin' || p.role === 'cs') && (
+          <ExcelDownloadButton />
+        )}
+      </div>
+
+      {/* 관리자 전용: 경고 배지 */}
+      {p.role === 'admin' && ((unassignedFranchise ?? 0) > 0 || (unassignedInstall ?? 0) > 0 || (staleCount ?? 0) > 0) && (
+        <div className="flex flex-wrap gap-3">
+          {(unassignedFranchise ?? 0) > 0 && (
+            <Link href="/franchise" className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-2 rounded-xl hover:bg-red-100 transition-colors">
+              <UserX size={15} />
+              담당자 미배정 가맹 {unassignedFranchise}건
+            </Link>
+          )}
+          {(unassignedInstall ?? 0) > 0 && (
+            <Link href="/installs" className="flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-sm font-medium px-4 py-2 rounded-xl hover:bg-orange-100 transition-colors">
+              <UserX size={15} />
+              기사 미배정 설치 {unassignedInstall}건
+            </Link>
+          )}
+          {(staleCount ?? 0) > 0 && (
+            <Link href="/franchise" className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium px-4 py-2 rounded-xl hover:bg-amber-100 transition-colors">
+              <AlertTriangle size={15} />
+              7일 이상 미처리 {staleCount}건
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* CS/영업 전용: 내 담당 7일 이상 미처리 */}
+      {(p.role === 'cs' || p.role === 'sales') && (staleCount ?? 0) > 0 && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium px-4 py-2.5 rounded-xl">
+          <AlertTriangle size={15} />
+          내 담당 건 중 <strong>{staleCount}건</strong>이 7일 이상 상태 변화가 없습니다.
+          <Link href="/franchise" className="underline ml-1 hover:text-amber-900">확인하기</Link>
+        </div>
+      )}
+
+      {/* 기사 전용: 오늘 일정 */}
+      {p.role === 'tech' && (
+        <div className="space-y-3">
+          {todayInstalls.length === 0 && todayFranchise.length === 0 ? (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-sm text-slate-500">
+              오늘 배정된 설치 일정이 없습니다.
+            </div>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
+              <div className="flex items-center gap-2 font-semibold text-blue-800 mb-3">
+                <CalendarClock size={16} />
+                오늘 내 설치 일정 {todayInstalls.length + todayFranchise.length}건
+              </div>
+              <div className="space-y-2">
+                {todayInstalls.map((i: any) => (
+                  <Link key={i.id} href="/installs" className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm hover:bg-blue-50 transition-colors">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span className="font-medium text-slate-900">{i.customer_name}</span>
+                    {i.address && <span className="text-slate-400 text-xs truncate">{i.address}</span>}
+                  </Link>
+                ))}
+                {todayFranchise.map((f: any) => (
+                  <Link key={f.id} href="/franchise" className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm hover:bg-blue-50 transition-colors">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />
+                    <span className="font-medium text-slate-900">{f.business_name || f.owner_name || '미입력'}</span>
+                    {f.address && <span className="text-slate-400 text-xs truncate">{f.address}</span>}
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
-          {applications?.map(app => (
+        </div>
+      )}
+
+      {/* 상태 카드 — 기사는 제외 */}
+      {p.role !== 'tech' && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {summaryCards.map(({ label, status, icon: Icon, color, border }) => (
             <Link
-              key={app.id}
-              href="/franchise"
-              className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors"
+              key={status}
+              href={`/franchise?status=${status}`}
+              className={`bg-white rounded-2xl border ${border} p-5 hover:shadow-md transition-all`}
             >
-              <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${FRANCHISE_STATUS_COLOR[app.status as FranchiseStatus]}`}>
-                {FRANCHISE_STATUS_LABEL[app.status as FranchiseStatus]}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate">{app.business_name || '상호명 미입력'}</p>
-                <p className="text-xs text-slate-400 truncate mt-0.5">{app.owner_name ?? ''}</p>
+              <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
+                <Icon size={20} />
               </div>
-              <p className="text-xs text-slate-400 whitespace-nowrap">
-                {format(new Date(app.created_at), 'M/d', { locale: ko })}
-              </p>
+              <p className="text-3xl font-bold text-slate-900">{counts[status] ?? 0}</p>
+              <p className="text-sm text-slate-500 mt-1">{label}</p>
             </Link>
           ))}
         </div>
-      </div>
+      )}
+
+      {/* 최근 가맹 접수 — 기사는 제외 */}
+      {p.role !== 'tech' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="font-bold text-slate-900">
+              {p.role === 'admin' ? '최근 가맹 접수' : '내 담당 가맹 접수'}
+            </h2>
+            <Link href="/franchise" className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+              전체보기 <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {applications?.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-slate-400 text-sm">등록된 가맹 접수가 없습니다</p>
+              </div>
+            )}
+            {applications?.map(app => (
+              <Link
+                key={app.id}
+                href="/franchise"
+                className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors"
+              >
+                <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${FRANCHISE_STATUS_COLOR[app.status as FranchiseStatus]}`}>
+                  {FRANCHISE_STATUS_LABEL[app.status as FranchiseStatus]}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{app.business_name || '상호명 미입력'}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{(app as any).cs?.name ?? (app as any).sales?.name ?? ''}</p>
+                </div>
+                <p className="text-xs text-slate-400 whitespace-nowrap">
+                  {format(new Date(app.updated_at), 'M/d', { locale: ko })}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -213,8 +213,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   }
 
   async function saveNotes(id: string, notes: string) {
-    await supabase.from('installations').update({ notes: notes || null }).eq('id', id)
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes } : i))
+    const prev = installs.find(i => i.id === id)
+    let saveValue = notes || null
+    if (notes) {
+      const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+      const prevNotes = (prev?.notes ?? '').trim()
+      saveValue = prevNotes ? `${prevNotes}\n${stamp} ${notes}` : `${stamp} ${notes}`
+    }
+    await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined } : i))
     setEditingNotes(null)
   }
 

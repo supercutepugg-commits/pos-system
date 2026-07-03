@@ -39,6 +39,8 @@ interface Props {
   salesProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   csProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   currentUserId: string
+  currentUserName: string
+  currentUserRole: string
   initialStatusFilter?: string
   linkedInstalls?: Record<string, { id: string; status: string }>
 }
@@ -61,6 +63,7 @@ const EMPTY_FORM = {
   van_company: '',
   internet: '',
   memo: '',
+  sendDocNotify: false,
 }
 
 const ALIMTALK_LOG_LABEL: Record<string, string> = {
@@ -152,7 +155,7 @@ const EditableText = memo(function EditableText({ row, field, placeholder, type 
   )
 })
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, initialStatusFilter = '', linkedInstalls = {} }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', linkedInstalls = {} }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
@@ -182,6 +185,28 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setLocalRows(rows)
     setSelected(new Set())
   }, [rows])
+
+  // 장기 미처리 건 자동 알림 (7일 이상, 하루 1회)
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const key = `stale_notify_${currentUserId}_${today}`
+    if (localStorage.getItem(key)) return
+    const terminal: FranchiseStatus[] = ['card_done', 'internet_done']
+    const stale = rows.filter(r =>
+      !terminal.includes(r.status) &&
+      Math.floor((Date.now() - new Date(r.updated_at).getTime()) / 86400000) >= 7 &&
+      (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+    )
+    if (stale.length === 0) return
+    const supabase = createClient()
+    const names = stale.slice(0, 3).map(r => r.business_name || r.owner_name || '미입력').join(', ')
+    supabase.from('notifications').insert({
+      user_id: currentUserId,
+      type: 'stale_franchise',
+      title: `장기 미처리 건 ${stale.length}개`,
+      body: names + (stale.length > 3 ? ` 외 ${stale.length - 3}건` : '') + ' — 7일 이상 상태 변화가 없습니다.',
+    }).then(() => localStorage.setItem(key, '1'))
+  }, [])
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -303,6 +328,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
+    // 서류안내 즉시 발송 (체크된 경우)
+    if (form.sendDocNotify && form.phone) {
+      const docCase = docCaseOf(form.owner_name, form.business_name)
+      try {
+        await fetch('/api/franchise/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'doc_request', phone: form.phone, ownerName: form.owner_name, businessName: form.business_name, applicantType: form.applicant_type, docCase }),
+        })
+      } catch { /* 알림톡 실패해도 등록은 완료 */ }
+    }
     setForm(EMPTY_FORM)
     setShowForm(false)
     startTransition(() => router.refresh())
@@ -373,6 +409,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       }
     }
     if (status === 'toss_review_done') await createLinkedInstallTicket(row)
+    if (status === 'card_done') await autoTransferToTech(row)
     setBusyId(null)
     startTransition(() => router.refresh())
   }
@@ -403,10 +440,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
     const supabase = createClient()
-    const { error } = await supabase.from('franchise_applications').update({ [field]: value || null }).eq('id', row.id)
+    let saveValue: string | null = value || null
+    if (field === 'memo' && value) {
+      const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+      const prev = (row.memo ?? '').trim()
+      saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
+    }
+    const { error } = await supabase.from('franchise_applications').update({ [field]: saveValue }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
-  }, [])
+  }, [currentUserName])
 
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()
@@ -480,6 +523,43 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setBulkStatus('')
     setSelected(new Set())
     startTransition(() => router.refresh())
+  }
+
+  async function autoTransferToTech(row: FranchiseApplication) {
+    const existing = localLinkedInstalls[row.id]
+    if (existing && existing.status !== 'rejected') return // 이미 이관됨
+    const supabase = createClient()
+    let installId: string
+    if (existing?.status === 'rejected') {
+      const { error } = await supabase.from('installations').update({ status: 'received', updated_at: new Date().toISOString() }).eq('id', existing.id)
+      if (error) return
+      installId = existing.id
+    } else {
+      const { data, error } = await supabase.from('installations').insert({
+        customer_name: row.business_name || row.owner_name || '미입력',
+        customer_phone: row.phone || null,
+        items: row.equipment_items ?? [],
+        status: 'received',
+        notes: row.memo || null,
+        franchise_application_id: row.id,
+        address: row.address || null,
+        created_by: currentUserId,
+      }).select('id').single()
+      if (error) return
+      installId = data.id
+    }
+    setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
+    // 기술팀 전원 알림
+    const { data: techUsers } = await supabase.from('profiles').select('id').eq('role', 'tech')
+    for (const t of techUsers ?? []) {
+      await supabase.from('notifications').insert({
+        user_id: t.id,
+        franchise_application_id: row.id,
+        type: 'install_transfer',
+        title: `[${row.business_name || row.owner_name || '미입력'}] 설치 자동 이관`,
+        body: '카드가맹완료로 설치건이 자동 생성되었습니다.',
+      })
+    }
   }
 
   async function transferToTech(row: FranchiseApplication) {
@@ -814,10 +894,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <button type="submit" disabled={submitting}
-            className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
-            {submitting ? '등록 중...' : '등록'}
-          </button>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={form.sendDocNotify} onChange={e => setForm({ ...form, sendDocNotify: e.target.checked })}
+                className="w-4 h-4 accent-blue-600" />
+              등록 즉시 서류안내 알림톡 발송
+            </label>
+            <button type="submit" disabled={submitting}
+              className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
+              {submitting ? '등록 중...' : '등록'}
+            </button>
+          </div>
         </form>
       )}
 

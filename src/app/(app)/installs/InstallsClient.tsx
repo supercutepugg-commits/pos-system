@@ -66,6 +66,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [completeModal, setCompleteModal] = useState<{ id: string; notes: string } | null>(null)
   const [completePhotos, setCompletePhotos] = useState<File[]>([])
   const [completing, setCompleting] = useState(false)
+  const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null)
+  const [rejecting, setRejecting] = useState(false)
 
   const supabase = createClient()
 
@@ -112,10 +114,18 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
   }
 
-  async function handleReject(id: string) {
-    if (!confirm('이 설치건을 반려하시겠습니까?')) return
-    await supabase.from('installations').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id)
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'rejected' } : i))
+  async function submitReject() {
+    if (!rejectModal) return
+    setRejecting(true)
+    const { id, reason } = rejectModal
+    await supabase.from('installations').update({
+      status: 'rejected',
+      notes: reason || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'rejected', notes: reason || i.notes } : i))
+    setRejectModal(null)
+    setRejecting(false)
 
     // 연결된 가맹접수의 CS 담당자에게 알림
     const inst = installs.find(i => i.id === id)
@@ -128,22 +138,19 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
 
       const name = fa?.business_name || fa?.owner_name || '미입력'
       const notifyTargets: string[] = []
-
       if (fa?.cs_id) {
         notifyTargets.push(fa.cs_id)
       } else {
-        // cs_id 없으면 CS 역할 전체에게 알림
-        const { data: csUsers } = await supabase.from('profiles').select('id').eq('role', 'cs')
-        csUsers?.forEach(u => notifyTargets.push(u.id))
+        const { data: csProfiles } = await supabase.from('profiles').select('id').eq('role', 'cs')
+        csProfiles?.forEach(u => notifyTargets.push(u.id))
       }
-
       for (const uid of notifyTargets) {
         await supabase.from('notifications').insert({
           user_id: uid,
           franchise_application_id: inst.franchise_application_id,
           type: 'install_rejected',
           title: `[${name}] 기술지원 반려`,
-          body: '기술지원팀에서 설치건을 반려했습니다. 가맹접수를 확인해주세요.',
+          body: reason ? `반려 사유: ${reason}` : '기술지원팀에서 설치건을 반려했습니다. 가맹접수를 확인해주세요.',
         })
       }
     }
@@ -177,6 +184,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
+
+    // 가맹이관 건이면 CS/영업에게 완료 알림
+    const inst = installs.find(i => i.id === id)
+    if (inst?.franchise_application_id) {
+      const { data: fa } = await supabase
+        .from('franchise_applications')
+        .select('cs_id, sales_id, business_name, owner_name')
+        .eq('id', inst.franchise_application_id)
+        .single()
+      const name = fa?.business_name || fa?.owner_name || '미입력'
+      const notifyTargets = [...new Set([fa?.cs_id, fa?.sales_id].filter(Boolean) as string[])]
+      for (const uid of notifyTargets) {
+        await supabase.from('notifications').insert({
+          user_id: uid,
+          franchise_application_id: inst.franchise_application_id,
+          type: 'install_completed',
+          title: `[${name}] 설치완료`,
+          body: '기술지원팀에서 설치를 완료했습니다.',
+        })
+      }
+    }
   }
 
   async function handleAssign(id: string, assignedTo: string) {
@@ -244,6 +272,32 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">
+      {/* 반려 사유 모달 */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <p className="text-sm font-bold text-slate-800">반려 사유 입력</p>
+            <textarea
+              value={rejectModal.reason}
+              onChange={e => setRejectModal(prev => prev ? { ...prev, reason: e.target.value } : prev)}
+              placeholder="반려 사유를 입력하세요 (선택)"
+              rows={3}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
+            />
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={submitReject}
+                disabled={rejecting}
+                className="w-full py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+              >{rejecting ? '처리 중...' : '반려 확정'}</button>
+              <button
+                onClick={() => setRejectModal(null)}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
+              >취소</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">설치 관리</h1>
@@ -412,7 +466,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
                         {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
-                          <button onClick={() => handleReject(inst.id)}
+                          <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
                             className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>
                         )}
                         {(profile.role === 'admin') && (

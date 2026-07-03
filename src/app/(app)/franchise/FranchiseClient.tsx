@@ -387,23 +387,53 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }
 
   async function transferToTech(row: FranchiseApplication) {
-    if (localLinkedInstalls[row.id]) { alert('이미 기술지원으로 이관된 접수입니다.'); return }
-    if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 이관하시겠습니까?\n설치관리 탭에 새 설치건이 생성됩니다.`)) return
+    const existing = localLinkedInstalls[row.id]
+    const isRetransfer = existing?.status === 'rejected'
+    if (existing && !isRetransfer) { alert('이미 기술지원으로 이관된 접수입니다.'); return }
+    const label = isRetransfer ? '재이관' : '이관'
+    if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 ${label}하시겠습니까?${isRetransfer ? '\n반려된 설치건이 다시 접수 상태로 변경됩니다.' : '\n설치관리 탭에 새 설치건이 생성됩니다.'}`)) return
     setTransferringId(row.id)
     const supabase = createClient()
-    const { data, error } = await supabase.from('installations').insert({
-      customer_name: row.business_name || row.owner_name || '미입력',
-      customer_phone: row.phone || null,
-      items: row.equipment_items ?? [],
-      status: 'received',
-      notes: row.memo || null,
-      franchise_application_id: row.id,
-      address: row.address || null,
-      created_by: currentUserId,
-    }).select('id, status').single()
+
+    let installId: string
+    if (isRetransfer) {
+      const { error } = await supabase.from('installations').update({
+        status: 'received',
+        notes: row.memo || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id)
+      if (error) { alert('재이관 실패: ' + error.message); setTransferringId(null); return }
+      installId = existing.id
+    } else {
+      const { data, error } = await supabase.from('installations').insert({
+        customer_name: row.business_name || row.owner_name || '미입력',
+        customer_phone: row.phone || null,
+        items: row.equipment_items ?? [],
+        status: 'received',
+        notes: row.memo || null,
+        franchise_application_id: row.id,
+        address: row.address || null,
+        created_by: currentUserId,
+      }).select('id').single()
+      if (error) { alert('이관 실패: ' + error.message); setTransferringId(null); return }
+      installId = data.id
+    }
+
+    // 기술지원 전체에게 알림
+    const name = row.business_name || row.owner_name || '미입력'
+    const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
+    for (const u of techProfiles ?? []) {
+      await supabase.from('notifications').insert({
+        user_id: u.id,
+        franchise_application_id: row.id,
+        type: 'install_transfer',
+        title: `[${name}] 기술지원 ${label}`,
+        body: `CS팀에서 설치건을 ${label}했습니다. 설치관리를 확인해주세요.`,
+      })
+    }
+
     setTransferringId(null)
-    if (error) { alert('이관 실패: ' + error.message); return }
-    if (data) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: data.id, status: data.status } }))
+    setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
   }
 
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
@@ -792,25 +822,30 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mb-4">
-                        {localLinkedInstalls[row.id] ? (
+                        {localLinkedInstalls[row.id] && localLinkedInstalls[row.id].status !== 'rejected' ? (
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
-                            localLinkedInstalls[row.id].status === 'rejected'
-                              ? 'bg-red-50 text-red-600 border-red-200'
-                              : localLinkedInstalls[row.id].status === 'completed'
-                                ? 'bg-green-50 text-green-600 border-green-200'
-                                : 'bg-purple-50 text-purple-600 border-purple-200'
+                            localLinkedInstalls[row.id].status === 'completed'
+                              ? 'bg-green-50 text-green-600 border-green-200'
+                              : 'bg-purple-50 text-purple-600 border-purple-200'
                           }`}>
-                            {localLinkedInstalls[row.id].status === 'rejected' ? '기술지원 반려됨' :
-                             localLinkedInstalls[row.id].status === 'completed' ? '설치완료' : '기술지원 이관됨'}
+                            {localLinkedInstalls[row.id].status === 'completed' ? '설치완료' : '기술지원 이관됨'}
                           </span>
                         ) : (
-                          <button
-                            onClick={() => transferToTech(row)}
-                            disabled={transferringId === row.id}
-                            className="text-xs font-semibold bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                          >
-                            {transferringId === row.id ? '이관 중...' : '기술지원 이관'}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {localLinkedInstalls[row.id]?.status === 'rejected' && (
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg border bg-red-50 text-red-600 border-red-200">
+                                기술지원 반려됨
+                              </span>
+                            )}
+                            <button
+                              onClick={() => transferToTech(row)}
+                              disabled={transferringId === row.id}
+                              className="text-xs font-semibold bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                            >
+                              {transferringId === row.id ? '처리 중...' :
+                               localLinkedInstalls[row.id]?.status === 'rejected' ? '재이관' : '기술지원 이관'}
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div>

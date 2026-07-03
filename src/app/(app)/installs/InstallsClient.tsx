@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { Plus, Search, RefreshCw, Download } from 'lucide-react'
 import type { Profile } from '@/types'
+import { useToast } from '@/components/ui/Toast'
 
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
@@ -51,8 +52,17 @@ interface Props {
 
 const PAGE_SIZE = 10
 
+const STATUS_ICONS: Record<string, string> = {
+  received: '📋',
+  preparing: '📦',
+  in_transit: '🚚',
+  completed: '✅',
+  rejected: '❌',
+}
+
 export default function InstallsClient({ profile, techUsers, initialInstalls }: Props) {
   const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
+  const toast = useToast()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -82,6 +92,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [deliveryType, setDeliveryType] = useState<'install' | 'delivery'>('install')
   const [checklistItems, setChecklistItems] = useState<{ label: string; checked: boolean }[]>([])
   const [showMonthlyStats, setShowMonthlyStats] = useState(false)
+  const [skipNotify, setSkipNotify] = useState(false)
 
   const supabase = createClient()
 
@@ -130,7 +141,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       delivery_type: deliveryType,
     })
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return }
     setForm({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
     setDeliveryType('install')
     setCartItems([])
@@ -155,7 +166,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   async function handleStatusChange(id: string, status: string) {
     if (status === 'completed') {
       const inst = installs.find(i => i.id === id)
-      // 체크리스트 초기화
       setChecklistItems([
         { label: '전원 정상 확인', checked: false },
         { label: '영수증 프린터 테스트', checked: false },
@@ -169,7 +179,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
-    await sendInstallNotify(id, status)
+    if (!skipNotify) await sendInstallNotify(id, status)
   }
 
   async function submitReject() {
@@ -227,7 +237,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
 
   async function submitCompletion() {
     if (!completeModal) return
-    if (completePhotos.length === 0) { alert('설치완료사진을 최소 1장 첨부해주세요.'); return }
+    if (completePhotos.length === 0) { toast.warning('설치완료사진을 최소 1장 첨부해주세요.'); return }
     setCompleting(true)
     const { id, notes } = completeModal
 
@@ -236,7 +246,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       const ext = file.name.split('.').pop() ?? 'jpg'
       const path = `${id}/${Date.now()}-${i}.${ext}`
       const { error: uploadError } = await supabase.storage.from('install-photos').upload(path, file)
-      if (uploadError) { alert('사진 업로드 실패: ' + uploadError.message); setCompleting(false); return }
+      if (uploadError) { toast.error('사진 업로드 실패: ' + uploadError.message); setCompleting(false); return }
       const { data: { publicUrl } } = supabase.storage.from('install-photos').getPublicUrl(path)
       photoUrls.push(publicUrl)
     }
@@ -247,7 +257,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       completion_photo_urls: photoUrls,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
-    if (error) { alert('완료 처리 실패: ' + error.message); setCompleting(false); return }
+    if (error) { toast.error('완료 처리 실패: ' + error.message); setCompleting(false); return }
 
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'completed', notes, completion_photo_urls: photoUrls } : i))
     setCompleteModal(null)
@@ -339,7 +349,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   function copyLink(token: string) {
     const url = `${window.location.origin}/install-status/${token}`
     navigator.clipboard.writeText(url)
-    alert('고객 조회 링크가 복사됐습니다.')
+    toast.success('고객 조회 링크가 복사됐습니다.')
   }
 
   function handleExcel() {
@@ -471,15 +481,22 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         </div>
       )}
 
-      {/* 기사별 배정 현황 */}
+      {/* 기사별 배정 현황 — 클릭 시 해당 기사 필터 적용 */}
       {techUsers.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {techUsers.map(t => (
-            <div key={t.id} className="text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 flex items-center gap-1.5">
+            <button
+              key={t.id}
+              onClick={() => setTechFilter(prev => prev === t.id ? '' : t.id)}
+              className={`text-xs rounded-lg px-3 py-1.5 flex items-center gap-1.5 border transition-colors ${techFilter === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'}`}
+            >
               <span>{t.name}</span>
-              <span className="font-bold text-blue-600">{assignCounts[t.id] ?? 0}건</span>
-            </div>
+              <span className={`font-bold ${techFilter === t.id ? 'text-blue-100' : 'text-blue-600'}`}>{assignCounts[t.id] ?? 0}건</span>
+            </button>
           ))}
+          {techFilter && (
+            <button onClick={() => setTechFilter('')} className="text-xs text-slate-400 hover:text-red-500 px-2 py-1.5 transition-colors">✕ 필터 해제</button>
+          )}
         </div>
       )}
 
@@ -745,6 +762,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" title="시작일" />
         <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
           className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" title="종료일" />
+        {[
+          { label: '오늘', fn: () => { const d = new Date().toISOString().slice(0,10); setDateFrom(d); setDateTo(d); setPage(1) } },
+          { label: '이번주', fn: () => { const now = new Date(); const mon = new Date(now); mon.setDate(now.getDate() - now.getDay() + 1); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); setDateFrom(mon.toISOString().slice(0,10)); setDateTo(sun.toISOString().slice(0,10)); setPage(1) } },
+          { label: '이번달', fn: () => { const now = new Date(); const first = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`; const last = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10); setDateFrom(first); setDateTo(last); setPage(1) } },
+        ].map(({ label, fn }) => (
+          <button key={label} onClick={fn} className="text-xs text-slate-500 border border-slate-200 rounded-xl px-2.5 py-2.5 hover:bg-slate-50 whitespace-nowrap">{label}</button>
+        ))}
         <select value={techFilter} onChange={e => { setTechFilter(e.target.value); setPage(1) }}
           className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
           <option value="">기사 전체</option>
@@ -754,6 +778,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <button onClick={() => { setStatusFilter(''); setTechFilter(''); setSearch(''); setDateFrom(''); setDateTo(''); setPage(1) }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 transition-colors">초기화</button>
         )}
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer ml-auto whitespace-nowrap border border-slate-200 rounded-xl px-3 py-2.5 bg-white hover:bg-slate-50">
+          <input type="checkbox" checked={skipNotify} onChange={e => setSkipNotify(e.target.checked)} className="w-3.5 h-3.5 accent-slate-600" />
+          알림톡 건너뛰기
+        </label>
       </div>
 
       {/* 목록 */}
@@ -796,11 +824,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                          {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_ICONS[s]} {STATUS_LABELS[s]}</option>)}
                         </select>
                       ) : (
                         <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_LABELS[inst.status] ?? inst.status}
+                          {STATUS_ICONS[inst.status]} {STATUS_LABELS[inst.status] ?? inst.status}
                         </span>
                       )}
                     </td>

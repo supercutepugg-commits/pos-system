@@ -10,6 +10,7 @@ import { deleteFranchiseRows } from './actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import type { DocCase } from '@/lib/solapi'
+import { useToast } from '@/components/ui/Toast'
 
 const DOC_CASE_LABEL: Record<DocCase, string> = {
   both: '대표자명+상호명',
@@ -162,8 +163,17 @@ const EditableText = memo(function EditableText({ row, field, placeholder, type 
   )
 })
 
+// 현재 상태에서 다음 자연스러운 단계
+const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
+  doc_waiting: 'card_apply_done',
+  doc_incomplete: 'card_apply_done',
+  card_apply_done: 'toss_review_done',
+  toss_review_done: 'card_done',
+}
+
 export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', linkedInstalls = {} }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -336,7 +346,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   function shareLink(id: string) {
     const url = `${window.location.origin}/franchise?id=${id}`
     navigator.clipboard.writeText(url)
-    alert('📋 건별 링크가 복사됐습니다.')
+    toast.success('건별 링크가 복사됐습니다.')
   }
 
   function completeness(row: FranchiseApplication): number {
@@ -371,7 +381,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (bulkAssignSales) patch.sales_id = bulkAssignSales
     const { error } = await supabase.from('franchise_applications').update(patch).in('id', ids)
     setBulkAssigning(false)
-    if (error) { alert('일괄 배정 실패: ' + error.message); return }
+    if (error) { toast.error('일괄 배정 실패: ' + error.message); return }
     setBulkAssignModal(false)
     setBulkAssignCs('')
     setBulkAssignSales('')
@@ -417,7 +427,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setDeleting(true)
     const { error } = await deleteFranchiseRows([...selected])
     setDeleting(false)
-    if (error) { alert('삭제 실패: ' + error); return }
+    if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
@@ -470,7 +480,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       created_by: currentUserId,
     })
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return }
     // 서류안내 즉시 발송 (체크된 경우)
     if (form.sendDocNotify && form.phone) {
       const docCase = docCaseOf(form.owner_name, form.business_name)
@@ -489,7 +499,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   async function createLinkedInstallTicket(row: FranchiseApplication) {
     if (!row.business_name || !row.owner_name || !row.phone || !row.address) {
-      alert('가맹완료로 처리되었지만, 상호명·대표자명·연락처·주소가 모두 입력되지 않아 설치 작업을 자동으로 만들지 못했습니다. 가맹점/작업을 직접 등록해주세요.')
+      toast.warning('상호명·대표자명·연락처·주소가 모두 입력되지 않아 설치 작업을 자동으로 만들지 못했습니다. 직접 등록해주세요.')
       return
     }
     const supabase = createClient()
@@ -506,7 +516,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }).select('id').single()
 
     if (merchantError || !merchant) {
-      alert('가맹완료로 처리되었지만, 가맹점 자동 등록에 실패했습니다: ' + merchantError?.message)
+      toast.error('가맹점 자동 등록 실패: ' + merchantError?.message)
       return
     }
 
@@ -524,7 +534,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
 
     if (ticketError) {
-      alert('가맹점은 등록됐지만 설치 작업 생성에 실패했습니다: ' + ticketError.message)
+      toast.error('가맹점은 등록됐지만 설치 작업 생성 실패: ' + ticketError.message)
       return
     }
   }
@@ -535,7 +545,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const patch: Record<string, unknown> = { status }
     if (status === 'doc_waiting') patch.doc_template = APPLICANT_TYPE_LABEL[row.applicant_type]
     const { error } = await supabase.from('franchise_applications').update(patch).eq('id', row.id)
-    if (error) { setBusyId(null); alert('상태 변경 실패: ' + error.message); return }
+    if (error) { setBusyId(null); toast.error('상태 변경 실패: ' + error.message); return }
 
     await supabase.from('franchise_application_logs').insert({
       franchise_application_id: row.id,
@@ -564,7 +574,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (applicantType === row.applicant_type) return
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ applicant_type: applicantType }).eq('id', row.id)
-    if (error) { alert('사업자 유형 변경 실패: ' + error.message); return }
+    if (error) { toast.error('사업자 유형 변경 실패: ' + error.message); return }
     startTransition(() => router.refresh())
   }
 
@@ -572,7 +582,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (csId === (row.cs_id ?? '')) return
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ cs_id: csId || null }).eq('id', row.id)
-    if (error) { alert('담당 CS 변경 실패: ' + error.message); return }
+    if (error) { toast.error('담당 CS 변경 실패: ' + error.message); return }
     startTransition(() => router.refresh())
   }
 
@@ -580,7 +590,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (salesId === (row.sales_id ?? '')) return
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ sales_id: salesId || null }).eq('id', row.id)
-    if (error) { alert('담당 영업 변경 실패: ' + error.message); return }
+    if (error) { toast.error('담당 영업 변경 실패: ' + error.message); return }
     startTransition(() => router.refresh())
   }
 
@@ -593,14 +603,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
     }
     const { error } = await supabase.from('franchise_applications').update({ [field]: saveValue }).eq('id', row.id)
-    if (error) alert('수정 실패: ' + error.message)
+    if (error) toast.error('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
   }, [currentUserName])
 
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
-    if (error) alert('수정 실패: ' + error.message)
+    if (error) toast.error('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
   }
 
@@ -614,7 +624,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         console.error('가맹 알림톡 발송 실패:', json.error)
-        alert(`알림톡 발송 실패: ${json.error ?? res.status}\n\n상태는 변경되었습니다.`)
+        toast.error(`알림톡 발송 실패: ${json.error ?? res.status} (상태는 변경됨)`)
         return
       }
       const supabase = createClient()
@@ -623,10 +633,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         user_id: currentUserId,
         to_status: `alimtalk:${logKey}`,
       })
+      toast.success('알림톡이 발송되었습니다.')
       setLogsByRow(prev => prev[franchiseId] ? { ...prev, [franchiseId]: undefined as any } : prev)
     } catch (err) {
       console.error('가맹 알림톡 발송 실패:', err)
-      alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
+      toast.error('알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
     }
   }
 
@@ -664,7 +675,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const ids = [...selected]
     const { error } = await supabase.from('franchise_applications').update({ status: bulkStatus }).in('id', ids)
     setBulkChanging(false)
-    if (error) { alert('일괄 변경 실패: ' + error.message); return }
+    if (error) { toast.error('일괄 변경 실패: ' + error.message); return }
     setBulkStatusModal(false)
     setBulkStatus('')
     setSelected(new Set())
@@ -711,7 +722,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   async function transferToTech(row: FranchiseApplication) {
     const existing = localLinkedInstalls[row.id]
     const isRetransfer = existing?.status === 'rejected'
-    if (existing && !isRetransfer) { alert('이미 기술지원으로 이관된 접수입니다.'); return }
+    if (existing && !isRetransfer) { toast.warning('이미 기술지원으로 이관된 접수입니다.'); return }
     const label = isRetransfer ? '재이관' : '이관'
     if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 ${label}하시겠습니까?${isRetransfer ? '\n반려된 설치건이 다시 접수 상태로 변경됩니다.' : '\n설치관리 탭에 새 설치건이 생성됩니다.'}`)) return
     setTransferringId(row.id)
@@ -724,7 +735,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         notes: row.memo || null,
         updated_at: new Date().toISOString(),
       }).eq('id', existing.id)
-      if (error) { alert('재이관 실패: ' + error.message); setTransferringId(null); return }
+      if (error) { toast.error('재이관 실패: ' + error.message); setTransferringId(null); return }
       installId = existing.id
     } else {
       const { data, error } = await supabase.from('installations').insert({
@@ -737,7 +748,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         address: row.address || null,
         created_by: currentUserId,
       }).select('id').single()
-      if (error) { alert('이관 실패: ' + error.message); setTransferringId(null); return }
+      if (error) { toast.error('이관 실패: ' + error.message); setTransferringId(null); return }
       installId = data.id
     }
 
@@ -895,10 +906,23 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </div>
             )}
             <div className="flex flex-col gap-2">
-              <button
-                className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-                onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, canNotifyConfirm, c.docCase) }}
-              >{canNotifyConfirm ? '카톡 발송 후 변경' : '상태 변경'}</button>
+              {canNotifyConfirm ? (
+                <>
+                  <button
+                    className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                    onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, true, c.docCase) }}
+                  >카톡 발송 후 변경</button>
+                  <button
+                    className="w-full py-2 rounded-lg bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200"
+                    onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, false, c.docCase) }}
+                  >알림톡 없이 상태만 변경</button>
+                </>
+              ) : (
+                <button
+                  className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                  onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, false, c.docCase) }}
+                >상태 변경</button>
+              )}
               <button
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
                 onClick={() => setStatusConfirm(null)}
@@ -1033,7 +1057,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </button>
             </>
           )}
-          <div className="text-sm text-slate-500">전체 {filteredRows.length.toLocaleString()}건</div>
+          <div className="text-sm text-slate-500">
+            {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo)
+              ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
+              : `전체 ${localRows.length.toLocaleString()}건`}
+          </div>
           <button onClick={handleExcel}
             className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors">
             <Download size={14} />엑셀
@@ -1215,7 +1243,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                     {row.phone ? (
                       <button
-                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.phone!); alert(`📋 복사됨: ${row.phone}`) }}
+                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.phone!); toast.success(`복사됨: ${row.phone}`) }}
                         className="hover:text-blue-600 hover:underline transition-colors cursor-pointer"
                         title="클릭하여 복사"
                       >{row.phone}</button>
@@ -1234,9 +1262,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
                         ))}
                       </select>
-                      {(() => { const d = statusAgeDays(row); return d >= 3 ? (
-                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${d >= 7 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>{d}일째</span>
-                      ) : null })()}
+                      <div className="flex items-center gap-1">
+                        {(() => { const d = statusAgeDays(row); return d >= 1 ? (
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${d >= 30 ? 'bg-red-100 text-red-600' : d >= 15 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>{d}일째</span>
+                        ) : null })()}
+                        {NEXT_STATUS[row.status] && busyId !== row.id && (
+                          <button
+                            onClick={() => handleStatusChange(row, NEXT_STATUS[row.status]!)}
+                            title={`→ ${FRANCHISE_STATUS_LABEL[NEXT_STATUS[row.status]!]}`}
+                            className="text-xs text-slate-400 hover:text-blue-600 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors"
+                          >→</button>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">{row.memo || '-'}</td>
@@ -1305,11 +1342,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <EditableText row={row} field="memo" placeholder="-" onSave={saveField} />
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 mb-4">
+                      <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <button onClick={() => shareLink(row.id)}
                           className="text-xs text-slate-400 hover:text-blue-500 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-colors">
                           🔗 링크 복사
                         </button>
+                        {row.phone && (
+                          <button
+                            onClick={() => {
+                              const dc = docCaseOf(row.owner_name, row.business_name)
+                              notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase: dc })
+                            }}
+                            className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            📄 서류안내 재발송
+                          </button>
+                        )}
                         {localLinkedInstalls[row.id] && localLinkedInstalls[row.id].status !== 'rejected' ? (
                           <button onClick={() => router.push('/installs')}
                             className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${
@@ -1380,7 +1428,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={10} className="text-center text-slate-400 py-10">조건에 맞는 가맹 접수가 없습니다.</td></tr>
+              <tr><td colSpan={10} className="text-center text-slate-400 py-10">
+                <div className="flex flex-col items-center gap-2">
+                  <span>조건에 맞는 가맹 접수가 없습니다.</span>
+                  {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo) && (
+                    <button
+                      onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
+                      className="text-sm text-blue-500 hover:text-blue-700 underline">
+                      필터 초기화
+                    </button>
+                  )}
+                </div>
+              </td></tr>
             )}
           </tbody>
         </table>

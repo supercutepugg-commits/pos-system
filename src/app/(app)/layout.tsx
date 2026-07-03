@@ -4,6 +4,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import MobileNav from '@/components/layout/MobileNav'
 import RealtimeNotification from '@/components/layout/RealtimeNotification'
 import ScheduleAlertBanner from '@/components/layout/ScheduleAlertBanner'
+import { ToastProvider } from '@/components/ui/Toast'
 import type { Profile } from '@/types'
 
 const SCHEDULE_FIELDS = [
@@ -182,18 +183,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('is_read', false)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      <div className="hidden md:flex">
-        <Sidebar profile={profile as Profile} unreadCount={unreadCount ?? 0} unreadDmCount={unreadDmCount} />
+    <ToastProvider>
+      <div className="flex h-screen overflow-hidden bg-slate-50">
+        <div className="hidden md:flex">
+          <Sidebar profile={profile as Profile} unreadCount={unreadCount ?? 0} unreadDmCount={unreadDmCount} />
+        </div>
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+          {children}
+        </main>
+        <div className="md:hidden">
+          <MobileNav role={(profile as Profile).role} unreadCount={unreadCount ?? 0} />
+        </div>
+        <RealtimeNotification userId={user.id} initialCount={unreadCount ?? 0} />
+        <ScheduleAlertBanner alerts={scheduleAlerts} />
       </div>
-      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-        {children}
-      </main>
-      <div className="md:hidden">
-        <MobileNav role={(profile as Profile).role} unreadCount={unreadCount ?? 0} />
-      </div>
-      <RealtimeNotification userId={user.id} initialCount={unreadCount ?? 0} />
-      <ScheduleAlertBanner alerts={scheduleAlerts} />
-    </div>
+    </ToastProvider>
   )
 }

@@ -43,6 +43,7 @@ export default function ExternalTechsClient({
   const [submitting, setSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNotes, setEditNotes] = useState('')
+  const [areaFilter, setAreaFilter] = useState('')
 
   const supabase = createClient()
 
@@ -69,6 +70,15 @@ export default function ExternalTechsClient({
   }
 
   async function toggleAvailable(tech: ExternalTech) {
+    // 비활성화 시 배정 건 확인
+    if (tech.available) {
+      const { count } = await supabase
+        .from('installations')
+        .select('*', { count: 'exact', head: true })
+        .eq('assigned_to', tech.id)
+        .not('status', 'in', '("completed","rejected")')
+      if ((count ?? 0) > 0 && !confirm(`${tech.name} 기사에게 배정된 진행 중인 설치건이 ${count}건 있습니다. 그래도 비활성화하시겠습니까?`)) return
+    }
     const { error } = await supabase.from('external_techs').update({ available: !tech.available }).eq('id', tech.id)
     if (error) { alert('변경 실패: ' + error.message); return }
     setTechs(prev => prev.map(t => t.id === tech.id ? { ...t, available: !t.available } : t))
@@ -95,9 +105,12 @@ export default function ExternalTechsClient({
     }))
   }
 
+  const areas = [...new Set(techs.map(t => t.area).filter(Boolean))]
+
   const filtered = techs.filter(t => {
     if (availableOnly && !t.available) return false
     if (specialtyFilter && !t.specialty?.includes(specialtyFilter)) return false
+    if (areaFilter && t.area !== areaFilter) return false
     const term = search.trim().toLowerCase()
     if (term && !`${t.name} ${t.phone} ${t.area}`.toLowerCase().includes(term)) return false
     return true
@@ -175,6 +188,13 @@ export default function ExternalTechsClient({
           <option value="">전문분야 전체</option>
           {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+        {areas.length > 0 && (
+          <select value={areaFilter} onChange={e => setAreaFilter(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">지역 전체</option>
+            {areas.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        )}
         <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
           <input type="checkbox" checked={availableOnly} onChange={e => setAvailableOnly(e.target.checked)} className="w-4 h-4 accent-blue-600" />
           활성 기사만

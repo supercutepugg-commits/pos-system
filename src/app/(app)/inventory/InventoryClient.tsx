@@ -63,6 +63,7 @@ export default function InventoryClient({
   const [submitting, setSubmitting] = useState(false)
   const [adjustModal, setAdjustModal] = useState<{ item: InventoryItem; delta: number; reason: string } | null>(null)
   const [showLogs, setShowLogs] = useState(false)
+  const [inlineEdit, setInlineEdit] = useState<{ id: string; value: string } | null>(null)
 
   const supabase = createClient()
 
@@ -117,6 +118,25 @@ export default function InventoryClient({
     setAdjustModal(null)
   }
 
+  async function saveInlineQty(item: InventoryItem, newQtyStr: string) {
+    setInlineEdit(null)
+    const newQty = Math.max(0, Number(newQtyStr))
+    if (isNaN(newQty) || newQty === item.quantity) return
+    const delta = newQty - item.quantity
+    const { error } = await supabase.from('inventory_items').update({
+      quantity: newQty,
+      last_checked: new Date().toISOString().slice(0, 10),
+    }).eq('id', item.id)
+    if (error) return
+    await supabase.from('inventory_logs').insert({
+      item_id: item.id,
+      item_name: item.name,
+      change: delta,
+      reason: '직접 수정',
+    })
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: newQty, last_checked: new Date().toISOString().slice(0, 10) } : i))
+  }
+
   async function deleteItem(id: string, name: string) {
     if (!confirm(`"${name}"을 삭제하시겠습니까?`)) return
     const { error } = await supabase.from('inventory_items').delete().eq('id', id)
@@ -124,13 +144,21 @@ export default function InventoryClient({
     setItems(prev => prev.filter(i => i.id !== id))
   }
 
-  const filtered = useMemo(() => items.filter(item => {
-    if (categoryFilter && item.category !== categoryFilter) return false
-    if (lowStockOnly && item.quantity > item.min_quantity) return false
-    const term = search.trim().toLowerCase()
-    if (term && !`${item.name} ${item.category} ${item.location}`.toLowerCase().includes(term)) return false
-    return true
-  }), [items, search, categoryFilter, lowStockOnly])
+  const filtered = useMemo(() => {
+    const result = items.filter(item => {
+      if (categoryFilter && item.category !== categoryFilter) return false
+      if (lowStockOnly && item.quantity > item.min_quantity) return false
+      const term = search.trim().toLowerCase()
+      if (term && !`${item.name} ${item.category} ${item.location}`.toLowerCase().includes(term)) return false
+      return true
+    })
+    // 부족 품목 상단 자동 정렬
+    return result.sort((a, b) => {
+      const aLow = a.quantity <= a.min_quantity ? 0 : 1
+      const bLow = b.quantity <= b.min_quantity ? 0 : 1
+      return aLow - bLow
+    })
+  }, [items, search, categoryFilter, lowStockOnly])
 
   const lowCount = items.filter(i => i.quantity <= i.min_quantity).length
 
@@ -282,9 +310,26 @@ export default function InventoryClient({
                         <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50">
                           <td className="px-3 py-2.5 font-medium text-slate-900">{item.name}</td>
                           <td className="px-3 py-2.5">
-                            <span className={`font-bold ${isLow ? 'text-red-600' : 'text-slate-900'}`}>
-                              {item.quantity}{item.unit}
-                            </span>
+                            {canEdit && inlineEdit?.id === item.id ? (
+                              <input
+                                autoFocus
+                                type="number"
+                                min={0}
+                                value={inlineEdit.value}
+                                onChange={e => setInlineEdit({ id: item.id, value: e.target.value })}
+                                onBlur={() => saveInlineQty(item, inlineEdit.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') saveInlineQty(item, inlineEdit.value); if (e.key === 'Escape') setInlineEdit(null) }}
+                                className="w-20 border border-blue-300 rounded px-2 py-1 text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                            ) : (
+                              <span
+                                className={`font-bold ${isLow ? 'text-red-600' : 'text-slate-900'} ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
+                                onClick={() => canEdit && setInlineEdit({ id: item.id, value: String(item.quantity) })}
+                                title={canEdit ? '클릭하여 수량 직접 수정' : undefined}
+                              >
+                                {item.quantity}{item.unit}
+                              </span>
+                            )}
                             {item.min_quantity > 0 && (
                               <span className="text-xs text-slate-400 ml-1">(최소 {item.min_quantity})</span>
                             )}

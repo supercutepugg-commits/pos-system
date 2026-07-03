@@ -38,6 +38,7 @@ interface Props {
   csProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   currentUserId: string
   initialStatusFilter?: string
+  linkedInstalls?: Record<string, { id: string; status: string }>
 }
 
 const EMPTY_FORM = {
@@ -157,7 +158,7 @@ const EditableText = memo(function EditableText({ row, field, placeholder, type 
   )
 })
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, initialStatusFilter = '' }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, initialStatusFilter = '', linkedInstalls = {} }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
@@ -167,6 +168,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [transferringId, setTransferringId] = useState<string | null>(null)
+  const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
@@ -381,6 +384,26 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
+  }
+
+  async function transferToTech(row: FranchiseApplication) {
+    if (localLinkedInstalls[row.id]) { alert('이미 기술지원으로 이관된 접수입니다.'); return }
+    if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 이관하시겠습니까?\n설치관리 탭에 새 설치건이 생성됩니다.`)) return
+    setTransferringId(row.id)
+    const supabase = createClient()
+    const { data, error } = await supabase.from('installations').insert({
+      customer_name: row.business_name || row.owner_name || '미입력',
+      customer_phone: row.phone || null,
+      items: row.equipment_items ?? [],
+      status: 'received',
+      notes: row.memo || null,
+      franchise_application_id: row.id,
+      address: row.address || null,
+      created_by: currentUserId,
+    }).select('id, status').single()
+    setTransferringId(null)
+    if (error) { alert('이관 실패: ' + error.message); return }
+    if (data) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: data.id, status: data.status } }))
   }
 
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
@@ -767,6 +790,28 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <label className="text-xs font-semibold text-slate-400">비고</label>
                           <EditableText row={row} field="memo" placeholder="-" onSave={saveField} />
                         </div>
+                      </div>
+                      <div className="flex items-center gap-3 mb-4">
+                        {localLinkedInstalls[row.id] ? (
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+                            localLinkedInstalls[row.id].status === 'rejected'
+                              ? 'bg-red-50 text-red-600 border-red-200'
+                              : localLinkedInstalls[row.id].status === 'completed'
+                                ? 'bg-green-50 text-green-600 border-green-200'
+                                : 'bg-purple-50 text-purple-600 border-purple-200'
+                          }`}>
+                            {localLinkedInstalls[row.id].status === 'rejected' ? '기술지원 반려됨' :
+                             localLinkedInstalls[row.id].status === 'completed' ? '설치완료' : '기술지원 이관됨'}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => transferToTech(row)}
+                            disabled={transferringId === row.id}
+                            className="text-xs font-semibold bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                          >
+                            {transferringId === row.id ? '이관 중...' : '기술지원 이관'}
+                          </button>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-slate-400 mb-1.5">상태 변경 이력</p>

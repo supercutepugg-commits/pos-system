@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<string, string> = {
   preparing: '제품준비',
   in_transit: '이동중',
   completed: '설치완료',
+  rejected: '반려',
 }
 const STATUS_ORDER = ['received', 'preparing', 'in_transit', 'completed']
 const STATUS_COLORS: Record<string, string> = {
@@ -19,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
   preparing: 'bg-blue-50 text-blue-600 border-blue-200',
   in_transit: 'bg-amber-50 text-amber-600 border-amber-200',
   completed: 'bg-green-50 text-green-600 border-green-200',
+  rejected: 'bg-red-50 text-red-600 border-red-200',
 }
 const PRODUCT_CATALOG = ['포스기 1set', '포스기 본체', '영수증 프린터', '카드단말기', '기타']
 
@@ -36,6 +38,8 @@ interface Installation {
   created_at: string
   assignee?: { name: string } | null
   creator?: { name: string } | null
+  franchise_application_id?: string
+  address?: string
 }
 
 interface Props {
@@ -106,6 +110,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
+  }
+
+  async function handleReject(id: string) {
+    if (!confirm('이 설치건을 반려하시겠습니까?')) return
+    await supabase.from('installations').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'rejected' } : i))
   }
 
   async function submitCompletion() {
@@ -316,7 +326,14 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
               <tbody>
                 {pagedInstalls.map(inst => (
                   <tr key={inst.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{inst.customer_name}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span>{inst.customer_name}</span>
+                        {inst.franchise_application_id && (
+                          <span className="text-[10px] font-semibold bg-purple-100 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-md">가맹이관</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{inst.customer_phone || '-'}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
@@ -363,6 +380,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                       <div className="flex gap-1.5">
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
+                        {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
+                          <button onClick={() => handleReject(inst.id)}
+                            className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>
+                        )}
                         {(profile.role === 'admin') && (
                           <button onClick={() => handleDelete(inst.id)}
                             className="text-xs text-red-400 border border-red-100 px-2 py-1 rounded-lg hover:bg-red-50">삭제</button>

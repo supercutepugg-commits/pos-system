@@ -17,16 +17,18 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    // Solapi MessageNotReceivedError has failedMessageList
-    const failed = e?.failedMessageList ?? e?.response?.data?.failedMessageList
-    if (failed) {
-      console.error('[franchise/notify] failedMessageList:', JSON.stringify(failed))
+    const failed = e?.failedMessageList
+      ?? e?.response?.data?.failedMessageList
+      ?? e?.data?.failedMessageList
+    console.error('[franchise/notify] raw error keys:', Object.getOwnPropertyNames(e))
+    console.error('[franchise/notify] failedMessageList:', JSON.stringify(failed))
+    if (failed?.length) {
       const firstErr = failed[0]
-      const detail = firstErr?.resultMessage ?? firstErr?.reason ?? JSON.stringify(firstErr)
+      const detail = firstErr?.resultMessage ?? firstErr?.reason ?? firstErr?.statusMessage ?? JSON.stringify(firstErr)
       return NextResponse.json({ ok: false, error: detail }, { status: 500 })
     }
-    const detail = e?.response?.data ?? e?.message ?? String(e)
-    console.error('[franchise/notify] error:', JSON.stringify(detail))
-    return NextResponse.json({ ok: false, error: JSON.stringify(detail) }, { status: 500 })
+    const detail = e?.message ?? String(e)
+    console.error('[franchise/notify] error:', detail)
+    return NextResponse.json({ ok: false, error: detail }, { status: 500 })
   }
 }

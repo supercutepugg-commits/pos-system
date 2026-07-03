@@ -19,9 +19,16 @@ function kakaoOptions(templateEnvKey: string, variables: Record<string, string>)
 
 async function solapiSend(params: { to: string; from: string; text: string; kakaoOptions: object }) {
   try {
-    await (service as any).send(params)
+    const result = await (service as any).send(params)
+    const failed = result?.failedMessageList ?? result?.failed
+    if (failed?.length) {
+      const firstErr = failed[0]
+      const msg = firstErr?.resultMessage ?? firstErr?.statusMessage ?? firstErr?.reason ?? JSON.stringify(firstErr)
+      console.error('[solapi] failedMessageList:', JSON.stringify(failed))
+      throw Object.assign(new Error(msg), { failedMessageList: failed })
+    }
   } catch (e: any) {
-    // dump everything on the error to find failedMessageList
+    if (e.failedMessageList) throw e
     try {
       const dump: Record<string, any> = {}
       for (const k of Object.getOwnPropertyNames(e)) dump[k] = e[k]

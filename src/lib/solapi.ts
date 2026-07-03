@@ -134,6 +134,7 @@ export async function sendFranchiseDocRequest({
 }
 
 type FranchiseStatusUpdateKind =
+  | 'doc_waiting'
   | 'doc_incomplete'
   | 'card_apply_done'
   | 'internet_apply_done'
@@ -142,6 +143,7 @@ type FranchiseStatusUpdateKind =
   | 'toss_review_done'
 
 const FRANCHISE_STATUS_TEXT: Record<FranchiseStatusUpdateKind, string> = {
+  doc_waiting: '가맹 신청이 접수되었습니다. 서류 준비를 부탁드립니다. 담당자가 곧 안내드리겠습니다.',
   doc_incomplete: '제출하신 서류에 보완이 필요합니다. 담당자에게 문의해주세요.',
   card_apply_done: '카드가맹 접수가 완료되었습니다. 심사가 진행됩니다.',
   internet_apply_done: '인터넷 가입 접수가 완료되었습니다.',
@@ -151,6 +153,7 @@ const FRANCHISE_STATUS_TEXT: Record<FranchiseStatusUpdateKind, string> = {
 }
 
 const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, string> = {
+  doc_waiting: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_WAITING',
   doc_incomplete: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DOC_INCOMPLETE',
   card_apply_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_CARD_APPLY_DONE',
   internet_apply_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_INTERNET_APPLY_DONE',

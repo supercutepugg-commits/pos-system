@@ -546,6 +546,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
     if (sendNotify) {
       if (status === 'doc_waiting') {
+        // 서류대기 상태 알림톡 (가맹진행안내_서류대기)
+        await notifyAndLog(row.id, 'doc_waiting', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'doc_waiting' })
+        // 서류 목록 상세 안내 (가맹서류안내_* 16종)
         await notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase })
       } else {
         await notifyAndLog(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })

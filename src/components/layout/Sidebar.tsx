@@ -29,6 +29,7 @@ const COMMON_NAV: NavItem[] = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
   { href: '/chat', label: '채팅', icon: MessageCircle },
+  { href: '/inbound', label: '인입 내역', icon: PhoneIncoming },
 ]
 
 // 역할별 폴더 — admin은 전부 보임
@@ -40,7 +41,6 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
     items: [
       { href: '/merchants', label: '가맹점 목록', icon: Store },
       { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
-      { href: '/inbound', label: '인입 내역', icon: PhoneIncoming },
     ],
   },
   {

@@ -188,11 +188,54 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
   const [transferTab, setTransferTab] = useState<'all' | 'transferred' | 'rejected'>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('franchise_pinned') ?? '[]')) } catch { return new Set() }
+  })
+  const [bulkAssignModal, setBulkAssignModal] = useState(false)
+  const [bulkAssignCs, setBulkAssignCs] = useState('')
+  const [bulkAssignSales, setBulkAssignSales] = useState('')
+  const [bulkAssigning, setBulkAssigning] = useState(false)
+  const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
+  })
 
   useEffect(() => {
     setLocalRows(rows)
     setSelected(new Set())
   }, [rows])
+
+  // 오픈예정일 D-3 자동 알림 (하루 1회)
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const key = `d3_notify_${currentUserId}_${today}`
+    if (localStorage.getItem(key)) return
+    const d3 = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]
+    const d3Rows = rows.filter(r =>
+      r.open_date === d3 &&
+      (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+    )
+    if (d3Rows.length === 0) return
+    const supabase = createClient()
+    const names = d3Rows.map(r => r.business_name || r.owner_name || '미입력').join(', ')
+    supabase.from('notifications').insert({
+      user_id: currentUserId,
+      type: 'open_date_soon',
+      title: `오픈 D-3 알림 ${d3Rows.length}건`,
+      body: `${names} — 3일 후 오픈 예정입니다. 설치/준비 상태를 확인해주세요.`,
+    }).then(() => localStorage.setItem(key, '1'))
+  }, [])
+
+  // 반려 후 3일 이상 재이관 없는 건 재알림
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const key = `reject_renotify_${currentUserId}_${today}`
+    if (localStorage.getItem(key)) return
+    // localLinkedInstalls에서 rejected 상태인 건 찾기 (3일 이상)
+    // 이건 installsClient에서 처리되므로 여기선 별도 체크 불필요
+    localStorage.setItem(key, '1')
+  }, [])
 
   // 장기 미처리 건 자동 알림 (7일 이상, 하루 1회)
   useEffect(() => {
@@ -245,20 +288,81 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (salesFilter && row.sales_id !== salesFilter) return false
       if (csFilter && row.cs_id !== csFilter) return false
+      if (dateFrom && row.created_at < dateFrom) return false
+      if (dateTo && row.created_at > dateTo + 'T23:59:59') return false
       if (term) {
-        const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''}`.toLowerCase()
+        const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''} ${row.business_number ?? ''}`.toLowerCase()
         if (!haystack.includes(term)) return false
       }
       return true
     })
     return [...filtered].sort((a, b) => {
+      // 핀 고정 우선
+      const pa = pinnedIds.has(a.id) ? 0 : 1
+      const pb = pinnedIds.has(b.id) ? 0 : 1
+      if (pa !== pb) return pa - pb
       if (sortBy === 'status') return a.status.localeCompare(b.status)
       if (sortBy === 'open_date') return (a.open_date ?? '').localeCompare(b.open_date ?? '')
       if (sortBy === 'install_date') return (a.install_date ?? '').localeCompare(b.install_date ?? '')
       if (sortBy === 'created_at') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy, transferTab, transferredIds, rejectedIds])
+  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
+
+  function togglePin(id: string) {
+    setPinnedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      localStorage.setItem('franchise_pinned', JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  function shareLink(id: string) {
+    const url = `${window.location.origin}/franchise?id=${id}`
+    navigator.clipboard.writeText(url)
+    alert('📋 건별 링크가 복사됐습니다.')
+  }
+
+  function completeness(row: FranchiseApplication): number {
+    const fields = [row.business_name, row.owner_name, row.phone, row.business_number, row.address, row.open_date, row.cs_id, row.sales_id]
+    return Math.round(fields.filter(Boolean).length / fields.length * 100)
+  }
+
+  function saveFilterPreset() {
+    const name = prompt('필터 프리셋 이름을 입력하세요:')
+    if (!name) return
+    const preset = { name, filters: { statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy } }
+    const next = [...savedFilters, preset]
+    setSavedFilters(next)
+    localStorage.setItem('franchise_saved_filters', JSON.stringify(next))
+  }
+
+  function loadFilterPreset(preset: { name: string; filters: Record<string, string> }) {
+    setStatusFilter(preset.filters.statusFilter ?? '')
+    setApplicantTypeFilter(preset.filters.applicantTypeFilter ?? '')
+    setSalesFilter(preset.filters.salesFilter ?? '')
+    setCsFilter(preset.filters.csFilter ?? '')
+    setSortBy((preset.filters.sortBy as typeof sortBy) ?? 'updated_at')
+  }
+
+  async function handleBulkAssign() {
+    if (!bulkAssignCs && !bulkAssignSales) return
+    setBulkAssigning(true)
+    const supabase = createClient()
+    const ids = [...selected]
+    const patch: Record<string, string | null> = {}
+    if (bulkAssignCs) patch.cs_id = bulkAssignCs
+    if (bulkAssignSales) patch.sales_id = bulkAssignSales
+    const { error } = await supabase.from('franchise_applications').update(patch).in('id', ids)
+    setBulkAssigning(false)
+    if (error) { alert('일괄 배정 실패: ' + error.message); return }
+    setBulkAssignModal(false)
+    setBulkAssignCs('')
+    setBulkAssignSales('')
+    setSelected(new Set())
+    startTransition(() => router.refresh())
+  }
 
   function statusAgeDays(row: FranchiseApplication) {
     const ms = Date.now() - new Date(row.updated_at).getTime()
@@ -304,13 +408,24 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     startTransition(() => router.refresh())
   }, [selected])
 
+  function formatPhone(phone: string) {
+    const raw = phone.replace(/\D/g, '')
+    if (raw.length === 11) return `${raw.slice(0,3)}-${raw.slice(3,7)}-${raw.slice(7)}`
+    if (raw.length === 10) return `${raw.slice(0,3)}-${raw.slice(3,6)}-${raw.slice(6)}`
+    return phone
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    // 중복 접수 경고
-    if (form.phone || form.business_name) {
+    const fmtPhone = form.phone ? formatPhone(form.phone) : ''
+    if (fmtPhone !== form.phone) setForm(f => ({ ...f, phone: fmtPhone }))
+    // 중복 접수 경고 (전화, 상호명, 사업자번호)
+    const checkPhone = fmtPhone || form.phone
+    if (checkPhone || form.business_name || form.business_number) {
       const dupe = localRows.find(r =>
-        (form.phone && r.phone === form.phone) ||
-        (form.business_name && r.business_name === form.business_name)
+        (checkPhone && r.phone === checkPhone) ||
+        (form.business_name && r.business_name === form.business_name) ||
+        (form.business_number && r.business_number === form.business_number)
       )
       if (dupe) {
         const label = dupe.business_name || dupe.owner_name || dupe.phone || ''
@@ -666,6 +781,39 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   return (
     <div className="flex flex-col h-full">
+      {/* 일괄 배정 모달 */}
+      {bulkAssignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
+            <p className="text-sm font-bold text-slate-800">{selected.size}건 일괄 담당자 배정</p>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-slate-500">담당 CS</label>
+              <select value={bulkAssignCs} onChange={e => setBulkAssignCs(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">변경 안함</option>
+                {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-slate-500">담당 영업</label>
+              <select value={bulkAssignSales} onChange={e => setBulkAssignSales(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">변경 안함</option>
+                {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button onClick={handleBulkAssign} disabled={(!bulkAssignCs && !bulkAssignSales) || bulkAssigning}
+                className="w-full py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                {bulkAssigning ? '배정 중...' : '배정 확정'}
+              </button>
+              <button onClick={() => { setBulkAssignModal(false); setBulkAssignCs(''); setBulkAssignSales('') }}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 일괄 상태 변경 모달 */}
       {bulkStatusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -785,6 +933,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="">담당CS 전체</option>
           {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="등록일 시작"
+          className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <span className="text-slate-400 text-xs">~</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="등록일 종료"
+          className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="updated_at">최근 수정순</option>
@@ -793,11 +946,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="open_date">오픈예정일순</option>
           <option value="install_date">설치발송일순</option>
         </select>
-        {(search || statusFilter || applicantTypeFilter || salesFilter || csFilter) && (
-          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter(''); setCsFilter('') }}
+        {(search || statusFilter || applicantTypeFilter || salesFilter || csFilter || dateFrom || dateTo) && (
+          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter(''); setCsFilter(''); setDateFrom(''); setDateTo('') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
             초기화
           </button>
+        )}
+        <button onClick={saveFilterPreset} title="현재 필터 저장"
+          className="text-sm text-slate-500 border border-slate-200 hover:bg-slate-50 px-2 py-2 rounded-lg transition-colors">
+          💾 저장
+        </button>
+        {savedFilters.length > 0 && (
+          <select defaultValue="" onChange={e => { const p = savedFilters.find(f => f.name === e.target.value); if (p) loadFilterPreset(p) }}
+            className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">필터 프리셋</option>
+            {savedFilters.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
+          </select>
         )}
 
         <div className="ml-auto flex items-center gap-3">
@@ -807,6 +971,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               <button onClick={() => setBulkStatusModal(true)}
                 className="text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors">
                 일괄 상태 변경
+              </button>
+              <button onClick={() => setBulkAssignModal(true)}
+                className="text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-colors">
+                일괄 배정
               </button>
               <button onClick={handleDelete} disabled={deleting}
                 className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
@@ -967,7 +1135,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
                   <td className="px-3 py-2 text-slate-400">
-                    {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    <div className="flex items-center gap-1">
+                      {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      <button onClick={e => { e.stopPropagation(); togglePin(row.id) }}
+                        title={pinnedIds.has(row.id) ? '핀 해제' : '핀 고정'}
+                        className={`text-xs transition-colors ${pinnedIds.has(row.id) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}>
+                        📌
+                      </button>
+                    </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
@@ -990,7 +1165,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{row.business_name || '-'}</td>
+                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      <span>{row.business_name || '-'}</span>
+                      {(() => { const pct = completeness(row); return pct < 100 ? (
+                        <span className={`text-xs px-1 py-0.5 rounded font-medium ${pct >= 75 ? 'bg-blue-50 text-blue-500' : pct >= 50 ? 'bg-amber-50 text-amber-500' : 'bg-red-50 text-red-500'}`}>{pct}%</span>
+                      ) : null })()}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                     {row.phone ? (
@@ -1108,6 +1290,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mb-4">
+                        <button onClick={() => shareLink(row.id)}
+                          className="text-xs text-slate-400 hover:text-blue-500 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-colors">
+                          🔗 링크 복사
+                        </button>
                         {localLinkedInstalls[row.id] && localLinkedInstalls[row.id].status !== 'rejected' ? (
                           <button onClick={() => router.push('/installs')}
                             className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${

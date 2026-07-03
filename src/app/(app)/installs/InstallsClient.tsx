@@ -40,6 +40,7 @@ interface Installation {
   creator?: { name: string } | null
   franchise_application_id?: string
   address?: string
+  delivery_type?: string
 }
 
 interface Props {
@@ -75,6 +76,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [showRejected, setShowRejected] = useState(false)
   const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [deliveryTab, setDeliveryTab] = useState<'all' | 'install' | 'delivery'>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [deliveryType, setDeliveryType] = useState<'install' | 'delivery'>('install')
+  const [checklistItems, setChecklistItems] = useState<{ label: string; checked: boolean }[]>([])
+  const [showMonthlyStats, setShowMonthlyStats] = useState(false)
 
   const supabase = createClient()
 
@@ -104,33 +111,65 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!form.customerName) return
+    // 전화번호 자동 포맷
+    const rawPhone = form.customerPhone.replace(/\D/g, '')
+    const fmtPhone = rawPhone.length === 11
+      ? `${rawPhone.slice(0,3)}-${rawPhone.slice(3,7)}-${rawPhone.slice(7)}`
+      : rawPhone.length === 10
+        ? `${rawPhone.slice(0,3)}-${rawPhone.slice(3,6)}-${rawPhone.slice(6)}`
+        : form.customerPhone
     setSubmitting(true)
     const { error } = await supabase.from('installations').insert({
       customer_name: form.customerName,
-      customer_phone: form.customerPhone || null,
+      customer_phone: fmtPhone || null,
       items: cartItems,
       assigned_to: form.assignedTo || null,
       notes: form.notes || null,
       created_by: profile.id,
       status: 'received',
+      delivery_type: deliveryType,
     })
     setSubmitting(false)
     if (error) { alert('등록 실패: ' + error.message); return }
     setForm({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
+    setDeliveryType('install')
     setCartItems([])
     setShowForm(false)
     fetchInstalls()
   }
 
+  async function sendInstallNotify(id: string, status: string) {
+    const inst = installs.find(i => i.id === id)
+    if (!inst?.customer_phone) return
+    const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
+    if (!['preparing', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
+    try {
+      await fetch('/api/installs/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: inst.customer_phone, customerName: inst.customer_name, status: notifyStatus }),
+      })
+    } catch { /* 알림톡 실패 무시 */ }
+  }
+
   async function handleStatusChange(id: string, status: string) {
     if (status === 'completed') {
       const inst = installs.find(i => i.id === id)
+      // 체크리스트 초기화
+      setChecklistItems([
+        { label: '전원 정상 확인', checked: false },
+        { label: '영수증 프린터 테스트', checked: false },
+        { label: '카드단말기 연결', checked: false },
+        { label: '설치사진 촬영', checked: false },
+        { label: '고객 서명/동의', checked: false },
+      ])
       setCompleteModal({ id, notes: inst?.notes ?? '' })
       setCompletePhotos([])
       return
     }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
+    await sendInstallNotify(id, status)
   }
 
   async function submitReject() {
@@ -214,6 +253,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
+    await sendInstallNotify(id, 'completed')
 
     // 가맹이관 건이면 CS/영업에게 완료 알림 + 가맹접수 상태 업데이트 + 이관 로그
     const inst = installs.find(i => i.id === id)
@@ -367,12 +407,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     return list
   }, [installs])
 
+  const monthlyStats = useMemo(() => {
+    const stats: Record<string, { total: number; completed: number }> = {}
+    for (const i of installs) {
+      const m = i.created_at.slice(0, 7)
+      if (!stats[m]) stats[m] = { total: 0, completed: 0 }
+      stats[m].total++
+      if (i.status === 'completed') stats[m].completed++
+    }
+    return Object.entries(stats).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6)
+  }, [installs])
+
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
     return installs.filter(i => {
+      if (deliveryTab === 'install' && (i as any).delivery_type === 'delivery') return false
+      if (deliveryTab === 'delivery' && (i as any).delivery_type !== 'delivery') return false
       if (!showRejected && i.status === 'rejected') return false
       if (statusFilter && i.status !== statusFilter) return false
       if (techFilter && i.assigned_to !== techFilter) return false
+      if (dateFrom && i.created_at < dateFrom) return false
+      if (dateTo && i.created_at > dateTo + 'T23:59:59') return false
       if (q && !(
         i.customer_name?.toLowerCase().includes(q) ||
         i.customer_phone?.toLowerCase().includes(q) ||
@@ -380,7 +435,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       )) return false
       return true
     })
-  }, [installs, search, statusFilter, techFilter, showRejected])
+  }, [installs, search, statusFilter, techFilter, showRejected, deliveryTab, dateFrom, dateTo])
 
   const pagedInstalls = filteredInstalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totalPages = Math.ceil(filteredInstalls.length / PAGE_SIZE)
@@ -517,6 +572,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h2 className="text-sm font-bold text-slate-800 mb-4">새 설치건 등록</h2>
           <form onSubmit={handleCreate} className="space-y-4">
+            {/* 설치/택배 구분 */}
+            <div className="flex gap-2">
+              {(['install', 'delivery'] as const).map(t => (
+                <button key={t} type="button" onClick={() => setDeliveryType(t)}
+                  className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : 'bg-orange-500 text-white border-orange-500') : 'bg-white text-slate-500 border-slate-200'}`}>
+                  {t === 'install' ? '🔧 설치' : '📦 택배발송'}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-slate-500 mb-1">고객명 *</label>
@@ -577,6 +641,49 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         </div>
       )}
 
+      {/* 설치/택배 탭 */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {([['all', '전체'], ['install', '🔧 설치'], ['delivery', '📦 택배발송']] as const).map(([tab, label]) => (
+            <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${deliveryTab === tab ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setShowMonthlyStats(v => !v)}
+          className="text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50">
+          {showMonthlyStats ? '실적 숨기기' : '📊 기사별 월간 실적'}
+        </button>
+      </div>
+
+      {/* 기사별 월간 실적 */}
+      {showMonthlyStats && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs font-semibold text-slate-500 mb-3">최근 6개월 실적</p>
+          <div className="overflow-x-auto">
+            <table className="text-xs w-full">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left py-1.5 pr-4 text-slate-400">월</th>
+                  <th className="text-right py-1.5 pr-4 text-slate-400">총 건수</th>
+                  <th className="text-right py-1.5 text-slate-400">완료</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyStats.map(([month, s]) => (
+                  <tr key={month} className="border-b border-slate-50">
+                    <td className="py-1.5 pr-4 font-medium text-slate-700">{month}</td>
+                    <td className="py-1.5 pr-4 text-right text-slate-600">{s.total}건</td>
+                    <td className="py-1.5 text-right text-green-600 font-medium">{s.completed}건</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* 상태별 건수 */}
       <div className="flex flex-wrap gap-2">
         {(Object.entries(STATUS_LABELS) as [string, string][]).map(([s, label]) => statusCounts[s] ? (
@@ -604,13 +711,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <option value="">상태 전체</option>
           {(Object.entries(STATUS_LABELS) as [string, string][]).map(([s, l]) => <option key={s} value={s}>{l}</option>)}
         </select>
+        <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" title="시작일" />
+        <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" title="종료일" />
         <select value={techFilter} onChange={e => { setTechFilter(e.target.value); setPage(1) }}
           className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
           <option value="">기사 전체</option>
           {techProfiles.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        {(statusFilter || techFilter || search) && (
-          <button onClick={() => { setStatusFilter(''); setTechFilter(''); setSearch(''); setPage(1) }}
+        {(statusFilter || techFilter || search || dateFrom || dateTo) && (
+          <button onClick={() => { setStatusFilter(''); setTechFilter(''); setSearch(''); setDateFrom(''); setDateTo(''); setPage(1) }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 transition-colors">초기화</button>
         )}
       </div>
@@ -740,6 +851,19 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
             <h3 className="text-sm font-semibold text-slate-800">설치 완료 처리</h3>
+            {checklistItems.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <p className="text-xs text-slate-500 font-medium">완료 전 체크리스트</p>
+                {checklistItems.map((item, i) => (
+                  <label key={i} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={item.checked}
+                      onChange={() => setChecklistItems(prev => prev.map((c, j) => j === i ? { ...c, checked: !c.checked } : c))}
+                      className="w-3.5 h-3.5 accent-green-600" />
+                    <span className={item.checked ? 'line-through text-slate-400' : ''}>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">설치완료사진 (필수, 여러 장 가능)</label>
               <input

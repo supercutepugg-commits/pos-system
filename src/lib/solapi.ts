@@ -177,6 +177,36 @@ export async function sendFranchiseStatusUpdate({
   })
 }
 
+// 설치관리 상태 알림톡
+const INSTALL_STATUS_TEMPLATE: Record<string, string> = {
+  preparing: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING',
+  in_transit: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TRANSIT',
+  completed: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_COMPLETED',
+  delivery_sent: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_DELIVERY_SENT',
+}
+
+const INSTALL_STATUS_TEXT: Record<string, string> = {
+  preparing: '제품 준비가 시작되었습니다. 곧 배송 또는 설치 일정을 안내드리겠습니다.',
+  in_transit: '기사님이 이동 중입니다. 잠시 후 방문 예정입니다.',
+  completed: '설치가 완료되었습니다. 이용해 주셔서 감사합니다.',
+  delivery_sent: '제품이 발송되었습니다. 택배 도착 후 문의사항은 담당자에게 연락해 주세요.',
+}
+
+export async function sendInstallStatusUpdate({
+  phone, customerName, status,
+}: { phone: string; customerName: string; status: string }) {
+  if (!phone || !INSTALL_STATUS_TEXT[status]) return
+  const text = `[설치/배송 안내]\n${customerName}님, ${INSTALL_STATUS_TEXT[status]}`
+  const ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
+  if (!ko) return
+  await (service as any).send({
+    to: phone,
+    from: process.env.SOLAPI_SENDER!,
+    text,
+    kakaoOptions: ko,
+  })
+}
+
 export async function sendSignComplete({
   signerPhone, signerName, contractTitle,
 }: { signerPhone: string; signerName: string; contractTitle: string }) {

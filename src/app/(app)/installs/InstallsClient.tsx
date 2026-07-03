@@ -73,6 +73,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [statusFilter, setStatusFilter] = useState('')
   const [techFilter, setTechFilter] = useState('')
   const [showRejected, setShowRejected] = useState(false)
+  const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   const supabase = createClient()
 
@@ -85,6 +87,18 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       .limit(300)
     setInstalls((data as any) ?? [])
     setLoading(false)
+  }
+
+  async function openFranchiseDetail(franchiseId: string) {
+    setLoadingDetail(true)
+    setFranchiseDetail({})
+    const { data } = await supabase
+      .from('franchise_applications')
+      .select('*, sales:profiles!franchise_applications_sales_id_fkey(name), cs:profiles!franchise_applications_cs_id_fkey(name)')
+      .eq('id', franchiseId)
+      .single()
+    setFranchiseDetail(data ?? null)
+    setLoadingDetail(false)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -132,16 +146,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     setRejectModal(null)
     setRejecting(false)
 
-    // 연결된 가맹접수의 CS 담당자에게 알림
+    // 연결된 가맹접수 CS 담당자에게 알림 + 이관 로그 기록
     const inst = installs.find(i => i.id === id)
     if (inst?.franchise_application_id) {
       const { data: fa } = await supabase
         .from('franchise_applications')
-        .select('cs_id, business_name, owner_name')
+        .select('cs_id, business_name, owner_name, status')
         .eq('id', inst.franchise_application_id)
         .single()
 
       const name = fa?.business_name || fa?.owner_name || '미입력'
+
+      // 이관 로그에 반려 기록
+      if (fa) {
+        await supabase.from('franchise_application_logs').insert({
+          franchise_application_id: inst.franchise_application_id,
+          user_id: profile.id,
+          from_status: fa.status,
+          to_status: 'install_rejected',
+        })
+      }
+
       const notifyTargets: string[] = []
       if (fa?.cs_id) {
         notifyTargets.push(fa.cs_id)
@@ -190,15 +215,32 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     setCompletePhotos([])
     setCompleting(false)
 
-    // 가맹이관 건이면 CS/영업에게 완료 알림
+    // 가맹이관 건이면 CS/영업에게 완료 알림 + 가맹접수 상태 업데이트 + 이관 로그
     const inst = installs.find(i => i.id === id)
     if (inst?.franchise_application_id) {
       const { data: fa } = await supabase
         .from('franchise_applications')
-        .select('cs_id, sales_id, business_name, owner_name')
+        .select('cs_id, sales_id, business_name, owner_name, status')
         .eq('id', inst.franchise_application_id)
         .single()
       const name = fa?.business_name || fa?.owner_name || '미입력'
+
+      // 가맹접수 상태를 card_done으로 자동 업데이트 (이미 완료 상태가 아닌 경우)
+      if (fa && fa.status !== 'card_done') {
+        await supabase.from('franchise_applications').update({
+          status: 'card_done',
+          updated_at: new Date().toISOString(),
+        }).eq('id', inst.franchise_application_id)
+        // 이관 로그 기록
+        await supabase.from('franchise_application_logs').insert({
+          franchise_application_id: inst.franchise_application_id,
+          user_id: profile.id,
+          from_status: fa.status,
+          to_status: 'card_done',
+        })
+      }
+
+      // CS/영업 완료 알림
       const notifyTargets = [...new Set([fa?.cs_id, fa?.sales_id].filter(Boolean) as string[])]
       for (const uid of notifyTargets) {
         await supabase.from('notifications').insert({
@@ -206,7 +248,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           franchise_application_id: inst.franchise_application_id,
           type: 'install_completed',
           title: `[${name}] 설치완료`,
-          body: '기술지원팀에서 설치를 완료했습니다.',
+          body: '기술지원팀에서 설치를 완료했습니다. 가맹접수 상태가 카드가맹완료로 변경되었습니다.',
         })
       }
     }
@@ -372,6 +414,57 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         </div>
       )}
 
+      {/* 가맹접수 상세 모달 */}
+      {franchiseDetail !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setFranchiseDetail(null)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-800">가맹접수 원본 정보</h3>
+              <button onClick={() => setFranchiseDetail(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+            </div>
+            {loadingDetail ? (
+              <p className="text-sm text-slate-400 text-center py-8">불러오는 중...</p>
+            ) : franchiseDetail && Object.keys(franchiseDetail).length > 0 ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                {[
+                  ['상호명', (franchiseDetail as any).business_name],
+                  ['대표자', (franchiseDetail as any).owner_name],
+                  ['연락처', (franchiseDetail as any).phone],
+                  ['사업자번호', (franchiseDetail as any).business_number],
+                  ['주소', (franchiseDetail as any).address],
+                  ['상세주소', (franchiseDetail as any).address_detail],
+                  ['오픈예정일', (franchiseDetail as any).open_date],
+                  ['설치발송일', (franchiseDetail as any).install_date],
+                  ['VAN사', (franchiseDetail as any).van_company],
+                  ['인터넷', (franchiseDetail as any).internet],
+                  ['담당영업', (franchiseDetail as any).sales?.name],
+                  ['담당CS', (franchiseDetail as any).cs?.name],
+                ].map(([label, value]) => value ? (
+                  <div key={label as string}>
+                    <p className="text-xs text-slate-400 font-medium">{label}</p>
+                    <p className="text-slate-800 break-words">{value as string}</p>
+                  </div>
+                ) : null)}
+                {(franchiseDetail as any).equipment_items?.length > 0 && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-slate-400 font-medium">장비</p>
+                    <p className="text-slate-800">{(franchiseDetail as any).equipment_items.map((i: any) => `${i.name} x${i.quantity}`).join(', ')}</p>
+                  </div>
+                )}
+                {(franchiseDetail as any).memo && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-slate-400 font-medium">비고</p>
+                    <p className="text-slate-800 whitespace-pre-wrap">{(franchiseDetail as any).memo}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-8">정보를 불러올 수 없습니다.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 반려 사유 모달 */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -533,7 +626,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {['고객명', '전화번호', '제품', '상태', '담당기사', '비고', '등록일', ''].map(h => (
+                  {['고객명', '전화번호', '주소', '제품', '상태', '담당기사', '비고', '등록일', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -550,6 +643,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{inst.customer_phone || '-'}</td>
+                    <td className="px-4 py-3 text-slate-500 max-w-[160px]">
+                      {inst.address ? (
+                        <span className="text-xs truncate block" title={inst.address}>{inst.address}</span>
+                      ) : '-'}
+                    </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
@@ -605,6 +703,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-1.5">
+                        {inst.franchise_application_id && (
+                          <button onClick={() => openFranchiseDetail(inst.franchise_application_id!)}
+                            className="text-xs text-purple-600 border border-purple-200 px-2 py-1 rounded-lg hover:bg-purple-50">가맹접수</button>
+                        )}
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
                         {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (

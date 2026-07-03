@@ -76,6 +76,13 @@ const ALIMTALK_LOG_LABEL: Record<string, string> = {
   toss_review_done: '토스심사완료',
 }
 
+const INSTALL_LOG_LABEL: Record<string, string> = {
+  install_transfer: '🔧 기술지원 이관',
+  install_retransfer: '🔧 기술지원 재이관',
+  install_rejected: '❌ 기술지원 반려',
+  card_done: '✅ 설치완료 (가맹접수 자동갱신)',
+}
+
 function EquipmentCart({ items, onChange }: { items: EquipmentItem[]; onChange: (items: EquipmentItem[]) => void }) {
   const [product, setProduct] = useState(EQUIPMENT_CATALOG[0])
   const [qty, setQty] = useState(1)
@@ -180,6 +187,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
+  const [transferTab, setTransferTab] = useState<'all' | 'transferred' | 'rejected'>('all')
 
   useEffect(() => {
     setLocalRows(rows)
@@ -225,9 +233,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }, [router])
 
+  const transferredIds = useMemo(() => new Set(Object.keys(localLinkedInstalls)), [localLinkedInstalls])
+  const rejectedIds = useMemo(() => new Set(Object.entries(localLinkedInstalls).filter(([, v]) => v.status === 'rejected').map(([k]) => k)), [localLinkedInstalls])
+
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     const filtered = localRows.filter(row => {
+      if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
+      if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (salesFilter && row.sales_id !== salesFilter) return false
@@ -245,7 +258,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'created_at') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy])
+  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy, transferTab, transferredIds, rejectedIds])
 
   function statusAgeDays(row: FranchiseApplication) {
     const ms = Date.now() - new Date(row.updated_at).getTime()
@@ -608,6 +621,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       })
     }
 
+    // 이관 로그 기록
+    await supabase.from('franchise_application_logs').insert({
+      franchise_application_id: row.id,
+      user_id: currentUserId,
+      from_status: row.status,
+      to_status: isRetransfer ? 'install_retransfer' : 'install_transfer',
+    })
+
     setTransferringId(null)
     setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
   }
@@ -706,6 +727,20 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </div>
         </div>
       )}
+      {/* 이관 탭 */}
+      <div className="flex gap-1 mb-2">
+        {([
+          ['all', '전체', localRows.length],
+          ['transferred', '🔧 기술지원 이관', transferredIds.size],
+          ['rejected', '❌ 반려됨', rejectedIds.size],
+        ] as const).map(([tab, label, count]) => (
+          <button key={tab} onClick={() => setTransferTab(tab)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${transferTab === tab ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+            {label} {count > 0 && <span className="ml-0.5 opacity-70">({count})</span>}
+          </button>
+        ))}
+      </div>
+
       {/* 상태별 현황 배지 */}
       <div className="flex flex-wrap gap-1.5 mb-2">
         {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
@@ -1110,11 +1145,19 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <ul className="space-y-1">
                             {logsByRow[row.id].map(log => {
                               const isAlimtalk = log.to_status?.startsWith('alimtalk:')
+                              const isInstallEvent = log.to_status && INSTALL_LOG_LABEL[log.to_status]
                               if (isAlimtalk) {
                                 const key = log.to_status!.replace('alimtalk:', '')
                                 return (
                                   <li key={log.id} className="text-xs text-blue-500">
                                     {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 📨 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
+                                  </li>
+                                )
+                              }
+                              if (isInstallEvent) {
+                                return (
+                                  <li key={log.id} className="text-xs text-purple-600 font-medium">
+                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
                                   </li>
                                 )
                               }

@@ -10,10 +10,11 @@ function kakaoOptions(templateEnvKey: string, variables: Record<string, string>)
   const pfId = process.env.SOLAPI_KAKAO_PFID
   const templateId = process.env[templateEnvKey]
   if (!pfId || !templateId) {
-    console.error(`[solapi] missing env: pfId=${!!pfId} templateEnvKey=${templateEnvKey} templateId=${!!templateId}`)
-    return null
+    const msg = `알림톡 환경변수 누락: pfId=${!!pfId} ${templateEnvKey}=${!!templateId}`
+    console.error('[solapi]', msg)
+    throw new Error(msg)
   }
-  console.log(`[solapi] kakaoOptions pfId=${pfId} templateId=${templateId} variables=${JSON.stringify(variables)}`)
+  console.log(`[solapi] sending pfId=${pfId} templateId=${templateId}`)
   return { pfId, templateId, variables, disableSms: true }
 }
 

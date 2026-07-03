@@ -20,10 +20,12 @@ async function solapiSend(params: { to: string; from: string; text: string; kaka
   try {
     await (service as any).send(params)
   } catch (e: any) {
-    const failed = e?.failedMessageList
-    if (failed) {
-      console.error('[solapi] failedMessageList:', JSON.stringify(failed))
-    }
+    // dump everything on the error to find failedMessageList
+    try {
+      const dump: Record<string, any> = {}
+      for (const k of Object.getOwnPropertyNames(e)) dump[k] = e[k]
+      console.error('[solapi] error dump:', JSON.stringify(dump, null, 2))
+    } catch { console.error('[solapi] raw error:', String(e)) }
     throw e
   }
 }

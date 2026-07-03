@@ -6,14 +6,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { type, phone, ownerName, businessName, applicantType, status, docCase } = body
 
-    console.log('[franchise/notify] body:', JSON.stringify({ type, phone: phone?.slice(0, 4) + '****', applicantType, status, docCase }))
-    console.log('[franchise/notify] env check:', {
-      hasApiKey: !!process.env.SOLAPI_API_KEY,
-      hasApiSecret: !!process.env.SOLAPI_API_SECRET,
-      hasPfId: !!process.env.SOLAPI_KAKAO_PFID,
-      hasSender: !!process.env.SOLAPI_SENDER,
-    })
-
     if (type === 'doc_request') {
       await sendFranchiseDocRequest({ phone, ownerName, businessName, applicantType, docCase })
     } else if (type === 'status_update') {
@@ -24,6 +16,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
+    // Solapi MessageNotReceivedError has failedMessageList
+    const failed = e?.failedMessageList ?? e?.response?.data?.failedMessageList
+    if (failed) {
+      console.error('[franchise/notify] failedMessageList:', JSON.stringify(failed))
+      const firstErr = failed[0]
+      const detail = firstErr?.resultMessage ?? firstErr?.reason ?? JSON.stringify(firstErr)
+      return NextResponse.json({ ok: false, error: detail }, { status: 500 })
+    }
     const detail = e?.response?.data ?? e?.message ?? String(e)
     console.error('[franchise/notify] error:', JSON.stringify(detail))
     return NextResponse.json({ ok: false, error: JSON.stringify(detail) }, { status: 500 })

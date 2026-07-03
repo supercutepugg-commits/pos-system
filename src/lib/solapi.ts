@@ -9,8 +9,23 @@ const service = new SolapiMessageService(
 function kakaoOptions(templateEnvKey: string, variables: Record<string, string>) {
   const pfId = process.env.SOLAPI_KAKAO_PFID
   const templateId = process.env[templateEnvKey]
-  if (!pfId || !templateId) return null
+  if (!pfId || !templateId) {
+    console.error(`[solapi] missing env: pfId=${!!pfId} templateEnvKey=${templateEnvKey} templateId=${!!templateId}`)
+    return null
+  }
   return { pfId, templateId, variables, disableSms: true }
+}
+
+async function solapiSend(params: { to: string; from: string; text: string; kakaoOptions: object }) {
+  try {
+    await (service as any).send(params)
+  } catch (e: any) {
+    const failed = e?.failedMessageList
+    if (failed) {
+      console.error('[solapi] failedMessageList:', JSON.stringify(failed))
+    }
+    throw e
+  }
 }
 
 const origin = () => (process.env.NEXT_PUBLIC_APP_URL || 'https://pos-system.vercel.app').replace(/\/$/, '')
@@ -27,7 +42,7 @@ export async function sendSignRequest({
     '#{서명토큰}': signToken,
   })
   if (!ko) return
-  await (service as any).send({
+  await solapiSend({
     to: signerPhone,
     from: process.env.SOLAPI_SENDER!,
     text,
@@ -125,7 +140,7 @@ export async function sendFranchiseDocRequest({
     ...(businessName ? { '#{상호명}': businessName } : {}),
   })
   if (!ko) return
-  await (service as any).send({
+  await solapiSend({
     to: phone,
     from: process.env.SOLAPI_SENDER!,
     text,
@@ -175,7 +190,7 @@ export async function sendFranchiseStatusUpdate({
   if (biz) variables['#{상호명}'] = biz
   const ko = kakaoOptions(FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status], variables)
   if (!ko) return
-  await (service as any).send({
+  await solapiSend({
     to: phone,
     from: process.env.SOLAPI_SENDER!,
     text,
@@ -205,7 +220,7 @@ export async function sendInstallStatusUpdate({
   const text = `[설치/배송 안내]\n${customerName}님, ${INSTALL_STATUS_TEXT[status]}`
   const ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
   if (!ko) return
-  await (service as any).send({
+  await solapiSend({
     to: phone,
     from: process.env.SOLAPI_SENDER!,
     text,
@@ -223,7 +238,7 @@ export async function sendSignComplete({
     '#{계약서명}': contractTitle,
   })
   if (!ko) return
-  await (service as any).send({
+  await solapiSend({
     to: signerPhone,
     from: process.env.SOLAPI_SENDER!,
     text,

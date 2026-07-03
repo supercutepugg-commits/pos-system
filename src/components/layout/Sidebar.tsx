@@ -28,7 +28,6 @@ interface NavItem {
 const COMMON_NAV: NavItem[] = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
-  { href: '/notifications', label: '알림', icon: Bell },
   { href: '/chat', label: '채팅', icon: MessageCircle },
 ]
 

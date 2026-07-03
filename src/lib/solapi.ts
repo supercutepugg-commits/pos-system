@@ -13,6 +13,7 @@ function kakaoOptions(templateEnvKey: string, variables: Record<string, string>)
     console.error(`[solapi] missing env: pfId=${!!pfId} templateEnvKey=${templateEnvKey} templateId=${!!templateId}`)
     return null
   }
+  console.log(`[solapi] kakaoOptions pfId=${pfId} templateId=${templateId} variables=${JSON.stringify(variables)}`)
   return { pfId, templateId, variables, disableSms: true }
 }
 

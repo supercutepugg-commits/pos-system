@@ -116,6 +116,37 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     if (!confirm('이 설치건을 반려하시겠습니까?')) return
     await supabase.from('installations').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'rejected' } : i))
+
+    // 연결된 가맹접수의 CS 담당자에게 알림
+    const inst = installs.find(i => i.id === id)
+    if (inst?.franchise_application_id) {
+      const { data: fa } = await supabase
+        .from('franchise_applications')
+        .select('cs_id, business_name, owner_name')
+        .eq('id', inst.franchise_application_id)
+        .single()
+
+      const name = fa?.business_name || fa?.owner_name || '미입력'
+      const notifyTargets: string[] = []
+
+      if (fa?.cs_id) {
+        notifyTargets.push(fa.cs_id)
+      } else {
+        // cs_id 없으면 CS 역할 전체에게 알림
+        const { data: csUsers } = await supabase.from('profiles').select('id').eq('role', 'cs')
+        csUsers?.forEach(u => notifyTargets.push(u.id))
+      }
+
+      for (const uid of notifyTargets) {
+        await supabase.from('notifications').insert({
+          user_id: uid,
+          franchise_application_id: inst.franchise_application_id,
+          type: 'install_rejected',
+          title: `[${name}] 기술지원 반려`,
+          body: '기술지원팀에서 설치건을 반려했습니다. 가맹접수를 확인해주세요.',
+        })
+      }
+    }
   }
 
   async function submitCompletion() {

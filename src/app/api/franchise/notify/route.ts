@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    console.error('franchise notify error:', e)
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+    console.error('franchise notify error:', JSON.stringify(e?.response?.data ?? e?.message ?? e))
+    return NextResponse.json({ ok: false, error: e?.response?.data?.message ?? e.message }, { status: 500 })
   }
 }

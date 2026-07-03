@@ -45,7 +45,6 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
       { href: '/woo', label: '우국상 관리', icon: BookUser },
       { href: '/internet', label: '인터넷 관리', icon: Wifi },
       { href: '/rates', label: '요금 계산기', icon: Calculator },
-      { href: '/paper-orders', label: '용지 요청', icon: FileText },
     ],
   },
   {
@@ -62,6 +61,10 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
 
 const ADMIN_NAV: NavItem[] = [
   { href: '/admin/users', label: '직원 관리', icon: Users },
+]
+
+const BOTTOM_NAV: NavItem[] = [
+  { href: '/paper-orders', label: '용지 요청', icon: FileText },
 ]
 
 const EXTERNAL_LINKS: { href: string; label: string; icon: any; roles: string[] }[] = []
@@ -198,9 +201,11 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
           )
         })}
 
+        <div className="my-2 border-t border-slate-100" />
+        {BOTTOM_NAV.map(item => <NavLink key={item.href} item={item} />)}
+
         {profile.role === 'admin' && (
           <>
-            <div className="my-2 border-t border-slate-100" />
             {ADMIN_NAV.map(item => <NavLink key={item.href} item={item} />)}
           </>
         )}

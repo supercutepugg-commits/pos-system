@@ -614,7 +614,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         console.error('가맹 알림톡 발송 실패:', json.error)
-        alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
+        alert(`알림톡 발송 실패: ${json.error ?? res.status}\n\n상태는 변경되었습니다.`)
         return
       }
       const supabase = createClient()

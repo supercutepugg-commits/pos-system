@@ -895,16 +895,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {canNotifyConfirm && (
-                <button
-                  className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-                  onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, true, c.docCase) }}
-                >카톡 발송 후 변경</button>
-              )}
               <button
-                className="w-full py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
-                onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, false) }}
-              >발송 없이 변경</button>
+                className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                onClick={() => { const c = statusConfirm; setStatusConfirm(null); updateStatus(c.row, c.newStatus, canNotifyConfirm, c.docCase) }}
+              >{canNotifyConfirm ? '카톡 발송 후 변경' : '상태 변경'}</button>
               <button
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
                 onClick={() => setStatusConfirm(null)}

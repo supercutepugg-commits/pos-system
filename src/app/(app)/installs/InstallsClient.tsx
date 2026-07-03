@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -68,6 +68,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [completing, setCompleting] = useState(false)
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null)
   const [rejecting, setRejecting] = useState(false)
+  const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
+  const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
 
   const supabase = createClient()
 
@@ -207,8 +209,23 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     }
   }
 
+  async function saveNotes(id: string, notes: string) {
+    await supabase.from('installations').update({ notes: notes || null }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes } : i))
+    setEditingNotes(null)
+  }
+
   async function handleAssign(id: string, assignedTo: string) {
+    const prev = installs.find(i => i.id === id)
     await supabase.from('installations').update({ assigned_to: assignedTo || null }).eq('id', id)
+    if (assignedTo && assignedTo !== prev?.assigned_to) {
+      await supabase.from('notifications').insert({
+        user_id: assignedTo,
+        type: 'install_assigned',
+        title: '설치 배정',
+        body: `${prev?.customer_name ?? '고객'} 설치건이 배정되었습니다.`,
+      })
+    }
     fetchInstalls()
   }
 
@@ -251,6 +268,34 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     })
   }
 
+  // 당일 설치 예정 체크 (하루 한 번)
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const lastCheck = localStorage.getItem('install_schedule_check')
+    if (lastCheck === today) return
+    async function checkToday() {
+      const { data } = await supabase
+        .from('franchise_applications')
+        .select('id, business_name, owner_name')
+        .eq('install_date', today)
+      if (data && data.length > 0) {
+        setTodayScheduled(data)
+        localStorage.setItem('install_schedule_check', today)
+      }
+    }
+    checkToday()
+  }, [])
+
+  const assignCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const inst of installs) {
+      if (inst.assigned_to && inst.status !== 'completed' && inst.status !== 'rejected') {
+        counts[inst.assigned_to] = (counts[inst.assigned_to] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [installs])
+
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return installs
@@ -272,6 +317,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">
+      {/* 당일 설치 예정 배너 */}
+      {todayScheduled.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span className="text-amber-600 font-bold text-sm">📅 오늘 설치 예정 {todayScheduled.length}건</span>
+          <span className="text-amber-500 text-xs">{todayScheduled.map(f => f.business_name || f.owner_name || '미입력').join(' · ')}</span>
+          <button onClick={() => setTodayScheduled([])} className="ml-auto text-amber-400 hover:text-amber-600 text-xs">닫기</button>
+        </div>
+      )}
+
+      {/* 기사별 배정 현황 */}
+      {techUsers.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {techUsers.map(t => (
+            <div key={t.id} className="text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 flex items-center gap-1.5">
+              <span>{t.name}</span>
+              <span className="font-bold text-blue-600">{assignCounts[t.id] ?? 0}건</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 반려 사유 모달 */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -447,7 +513,19 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-500 max-w-[160px]">
-                      <span className="text-xs line-clamp-1">{inst.notes || '-'}</span>
+                      {canEdit && editingNotes?.id === inst.id ? (
+                        <input autoFocus value={editingNotes.value}
+                          onChange={e => setEditingNotes({ ...editingNotes, value: e.target.value })}
+                          onBlur={() => saveNotes(inst.id, editingNotes.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveNotes(inst.id, editingNotes.value); if (e.key === 'Escape') setEditingNotes(null) }}
+                          className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none" />
+                      ) : (
+                        <span className={`text-xs line-clamp-1 ${canEdit ? 'cursor-pointer hover:text-blue-500' : ''}`}
+                          onClick={() => canEdit && setEditingNotes({ id: inst.id, value: inst.notes ?? '' })}
+                          title={canEdit ? '클릭하여 수정' : undefined}>
+                          {inst.notes || (canEdit ? <span className="text-slate-300">비고 추가...</span> : '-')}
+                        </span>
+                      )}
                       {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
                         <div className="flex gap-1 mt-1">
                           {inst.completion_photo_urls.map(url => (

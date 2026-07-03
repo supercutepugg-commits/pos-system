@@ -2,7 +2,9 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download } from 'lucide-react'
+import { format } from 'date-fns'
+import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
 import { deleteFranchiseRows } from './actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
@@ -61,22 +63,14 @@ const EMPTY_FORM = {
   memo: '',
 }
 
-async function notify(payload: Record<string, unknown>) {
-  try {
-    const res = await fetch('/api/franchise/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}))
-      console.error('가맹 알림톡 발송 실패:', json.error)
-      alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
-    }
-  } catch (err) {
-    console.error('가맹 알림톡 발송 실패:', err)
-    alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
-  }
+const ALIMTALK_LOG_LABEL: Record<string, string> = {
+  doc_request: '서류 안내',
+  doc_incomplete: '서류미비',
+  card_apply_done: '카드접수완료',
+  card_done: '카드가맹완료',
+  internet_apply_done: '인터넷접수완료',
+  internet_done: '인터넷개통완료',
+  toss_review_done: '토스심사완료',
 }
 
 function EquipmentCart({ items, onChange }: { items: EquipmentItem[]; onChange: (items: EquipmentItem[]) => void }) {
@@ -178,6 +172,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
   const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
   const [salesFilter, setSalesFilter] = useState('')
+  const [csFilter, setCsFilter] = useState('')
+  const [bulkStatusModal, setBulkStatusModal] = useState(false)
+  const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
+  const [bulkChanging, setBulkChanging] = useState(false)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -207,13 +205,20 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (salesFilter && row.sales_id !== salesFilter) return false
+      if (csFilter && row.cs_id !== csFilter) return false
       if (term) {
         const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''}`.toLowerCase()
         if (!haystack.includes(term)) return false
       }
       return true
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter])
+  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter])
+
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<FranchiseStatus, number>> = {}
+    for (const row of localRows) counts[row.status] = (counts[row.status] ?? 0) + 1
+    return counts
+  }, [localRows])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
 
@@ -338,9 +343,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
     if (sendNotify) {
       if (status === 'doc_waiting') {
-        await notify({ type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase })
+        await notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase })
       } else {
-        await notify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
+        await notifyAndLog(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
       }
     }
     if (status === 'toss_review_done') await createLinkedInstallTicket(row)
@@ -383,6 +388,73 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
+    startTransition(() => router.refresh())
+  }
+
+  async function notifyAndLog(franchiseId: string, logKey: string, payload: Record<string, unknown>) {
+    try {
+      const res = await fetch('/api/franchise/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        console.error('가맹 알림톡 발송 실패:', json.error)
+        alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
+        return
+      }
+      const supabase = createClient()
+      await supabase.from('franchise_application_logs').insert({
+        franchise_application_id: franchiseId,
+        user_id: currentUserId,
+        to_status: `alimtalk:${logKey}`,
+      })
+      setLogsByRow(prev => prev[franchiseId] ? { ...prev, [franchiseId]: undefined as any } : prev)
+    } catch (err) {
+      console.error('가맹 알림톡 발송 실패:', err)
+      alert('상태는 변경되었지만 알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
+    }
+  }
+
+  function handleExcel() {
+    import('xlsx').then(XLSX => {
+      const data = filteredRows.map(r => ({
+        상호명: r.business_name ?? '',
+        대표자: r.owner_name ?? '',
+        연락처: r.phone ?? '',
+        사업자번호: r.business_number ?? '',
+        사업자유형: APPLICANT_TYPE_LABEL[r.applicant_type],
+        접수채널: r.reception_channel ?? '',
+        상태: FRANCHISE_STATUS_LABEL[r.status],
+        VAN사: r.van_company ?? '',
+        인터넷: r.internet ?? '',
+        주소: r.address ?? '',
+        오픈예정일: r.open_date ?? '',
+        설치발송일: r.install_date ?? '',
+        담당영업: (r as any).sales?.name ?? '',
+        담당CS: (r as any).cs?.name ?? '',
+        비고: r.memo ?? '',
+        등록일: format(new Date(r.created_at), 'yyyy-MM-dd', { locale: ko }),
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '가맹접수')
+      XLSX.writeFile(wb, `가맹접수_${format(new Date(), 'yyyyMMdd')}.xlsx`)
+    })
+  }
+
+  async function handleBulkStatusChange() {
+    if (!bulkStatus) return
+    setBulkChanging(true)
+    const supabase = createClient()
+    const ids = [...selected]
+    const { error } = await supabase.from('franchise_applications').update({ status: bulkStatus }).in('id', ids)
+    setBulkChanging(false)
+    if (error) { alert('일괄 변경 실패: ' + error.message); return }
+    setBulkStatusModal(false)
+    setBulkStatus('')
+    setSelected(new Set())
     startTransition(() => router.refresh())
   }
 
@@ -469,6 +541,30 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   return (
     <div className="flex flex-col h-full">
+      {/* 일괄 상태 변경 모달 */}
+      {bulkStatusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
+            <p className="text-sm font-bold text-slate-800">{selected.size}건 일괄 상태 변경</p>
+            <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as FranchiseStatus)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">상태 선택</option>
+              {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+                <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
+              ))}
+            </select>
+            <div className="flex flex-col gap-2">
+              <button onClick={handleBulkStatusChange} disabled={!bulkStatus || bulkChanging}
+                className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                {bulkChanging ? '변경 중...' : '변경 확정'}
+              </button>
+              <button onClick={() => { setBulkStatusModal(false); setBulkStatus('') }}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {statusConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
@@ -506,6 +602,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </div>
         </div>
       )}
+      {/* 상태별 현황 배지 */}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
+          <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${statusFilter === s ? FRANCHISE_STATUS_COLOR[s] + ' border-current' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+            {FRANCHISE_STATUS_LABEL[s]} {statusCounts[s]}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
@@ -535,8 +641,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="">담당영업 전체</option>
           {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        {(search || statusFilter || applicantTypeFilter || salesFilter) && (
-          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter('') }}
+        <select value={csFilter} onChange={e => setCsFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">담당CS 전체</option>
+          {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        {(search || statusFilter || applicantTypeFilter || salesFilter || csFilter) && (
+          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter(''); setCsFilter('') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
             초기화
           </button>
@@ -546,6 +657,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           {selected.size > 0 && (
             <>
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+              <button onClick={() => setBulkStatusModal(true)}
+                className="text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors">
+                일괄 상태 변경
+              </button>
               <button onClick={handleDelete} disabled={deleting}
                 className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
                 <Trash2 size={14} />
@@ -554,6 +669,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             </>
           )}
           <div className="text-sm text-slate-500">전체 {filteredRows.length.toLocaleString()}건</div>
+          <button onClick={handleExcel}
+            className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors">
+            <Download size={14} />엑셀
+          </button>
           <button onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
             <Plus size={14} />
@@ -823,13 +942,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       </div>
                       <div className="flex items-center gap-3 mb-4">
                         {localLinkedInstalls[row.id] && localLinkedInstalls[row.id].status !== 'rejected' ? (
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+                          <button onClick={() => router.push('/installs')}
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${
                             localLinkedInstalls[row.id].status === 'completed'
                               ? 'bg-green-50 text-green-600 border-green-200'
                               : 'bg-purple-50 text-purple-600 border-purple-200'
                           }`}>
-                            {localLinkedInstalls[row.id].status === 'completed' ? '설치완료' : '기술지원 이관됨'}
-                          </span>
+                            {localLinkedInstalls[row.id].status === 'completed' ? '설치완료 →' : '기술지원 이관됨 →'}
+                          </button>
                         ) : (
                           <div className="flex items-center gap-2">
                             {localLinkedInstalls[row.id]?.status === 'rejected' && (
@@ -856,13 +976,24 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <p className="text-xs text-slate-400">변경 이력이 없습니다.</p>
                         ) : (
                           <ul className="space-y-1">
-                            {logsByRow[row.id].map(log => (
-                              <li key={log.id} className="text-xs text-slate-500">
-                                {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
-                                {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
-                                {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
-                              </li>
-                            ))}
+                            {logsByRow[row.id].map(log => {
+                              const isAlimtalk = log.to_status?.startsWith('alimtalk:')
+                              if (isAlimtalk) {
+                                const key = log.to_status!.replace('alimtalk:', '')
+                                return (
+                                  <li key={log.id} className="text-xs text-blue-500">
+                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 📨 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
+                                  </li>
+                                )
+                              }
+                              return (
+                                <li key={log.id} className="text-xs text-slate-500">
+                                  {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
+                                  {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
+                                  {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+                                </li>
+                              )
+                            })}
                           </ul>
                         )}
                       </div>

@@ -70,6 +70,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [rejecting, setRejecting] = useState(false)
   const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
   const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
+  const [statusFilter, setStatusFilter] = useState('')
+  const [techFilter, setTechFilter] = useState('')
+  const [showRejected, setShowRejected] = useState(false)
 
   const supabase = createClient()
 
@@ -296,15 +299,39 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     return counts
   }, [installs])
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const i of installs) counts[i.status] = (counts[i.status] ?? 0) + 1
+    return counts
+  }, [installs])
+
+  const techProfiles = useMemo(() => {
+    const seen = new Set<string>()
+    const list: { id: string; name: string }[] = []
+    for (const i of installs) {
+      const assignee = (i as unknown as { assignee?: { name?: string } }).assignee
+      if (i.assigned_to && !seen.has(i.assigned_to)) {
+        seen.add(i.assigned_to)
+        list.push({ id: i.assigned_to, name: assignee?.name ?? i.assigned_to })
+      }
+    }
+    return list
+  }, [installs])
+
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return installs
-    return installs.filter(i =>
-      i.customer_name?.toLowerCase().includes(q) ||
-      i.customer_phone?.toLowerCase().includes(q) ||
-      i.items?.some(it => it.name.toLowerCase().includes(q))
-    )
-  }, [installs, search])
+    return installs.filter(i => {
+      if (!showRejected && i.status === 'rejected') return false
+      if (statusFilter && i.status !== statusFilter) return false
+      if (techFilter && i.assigned_to !== techFilter) return false
+      if (q && !(
+        i.customer_name?.toLowerCase().includes(q) ||
+        i.customer_phone?.toLowerCase().includes(q) ||
+        i.items?.some(it => it.name.toLowerCase().includes(q))
+      )) return false
+      return true
+    })
+  }, [installs, search, statusFilter, techFilter, showRejected])
 
   const pagedInstalls = filteredInstalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totalPages = Math.ceil(filteredInstalls.length / PAGE_SIZE)
@@ -450,12 +477,42 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         </div>
       )}
 
-      {/* 검색 */}
-      <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-          placeholder="고객명, 전화번호, 제품명 검색"
-          className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      {/* 상태별 건수 */}
+      <div className="flex flex-wrap gap-2">
+        {(Object.entries(STATUS_LABELS) as [string, string][]).map(([s, label]) => statusCounts[s] ? (
+          <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
+            className={`text-xs font-medium px-3 py-1 rounded-full border transition-all ${statusFilter === s ? STATUS_COLORS[s as keyof typeof STATUS_COLORS] + ' ring-2 ring-offset-1 ring-blue-400' : 'bg-white border-slate-200 text-slate-600'}`}>
+            {label} {statusCounts[s]}
+          </button>
+        ) : null)}
+        <button onClick={() => setShowRejected(v => !v)}
+          className={`text-xs font-medium px-3 py-1 rounded-full border transition-all ${showRejected ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white border-slate-200 text-slate-400'}`}>
+          {showRejected ? '반려건 포함' : '반려건 숨김'}
+        </button>
+      </div>
+
+      {/* 검색 + 필터 */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-48">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
+            placeholder="고객명, 전화번호, 제품명 검색"
+            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">상태 전체</option>
+          {(Object.entries(STATUS_LABELS) as [string, string][]).map(([s, l]) => <option key={s} value={s}>{l}</option>)}
+        </select>
+        <select value={techFilter} onChange={e => { setTechFilter(e.target.value); setPage(1) }}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">기사 전체</option>
+          {techProfiles.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        {(statusFilter || techFilter || search) && (
+          <button onClick={() => { setStatusFilter(''); setTechFilter(''); setSearch(''); setPage(1) }}
+            className="text-sm text-slate-400 hover:text-red-500 px-2 transition-colors">초기화</button>
+        )}
       </div>
 
       {/* 목록 */}

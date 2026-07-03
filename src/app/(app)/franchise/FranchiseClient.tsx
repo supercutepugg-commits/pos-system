@@ -173,6 +173,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
   const [salesFilter, setSalesFilter] = useState('')
   const [csFilter, setCsFilter] = useState('')
+  const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status'>('updated_at')
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
@@ -201,7 +202,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return localRows.filter(row => {
+    const filtered = localRows.filter(row => {
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (salesFilter && row.sales_id !== salesFilter) return false
@@ -212,7 +213,19 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       }
       return true
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter])
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'status') return a.status.localeCompare(b.status)
+      if (sortBy === 'open_date') return (a.open_date ?? '').localeCompare(b.open_date ?? '')
+      if (sortBy === 'install_date') return (a.install_date ?? '').localeCompare(b.install_date ?? '')
+      if (sortBy === 'created_at') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    })
+  }, [localRows, search, statusFilter, applicantTypeFilter, salesFilter, csFilter, sortBy])
+
+  function statusAgeDays(row: FranchiseApplication) {
+    const ms = Date.now() - new Date(row.updated_at).getTime()
+    return Math.floor(ms / 86400000)
+  }
 
   const statusCounts = useMemo(() => {
     const counts: Partial<Record<FranchiseStatus, number>> = {}
@@ -255,6 +268,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    // 중복 접수 경고
+    if (form.phone || form.business_name) {
+      const dupe = localRows.find(r =>
+        (form.phone && r.phone === form.phone) ||
+        (form.business_name && r.business_name === form.business_name)
+      )
+      if (dupe) {
+        const label = dupe.business_name || dupe.owner_name || dupe.phone || ''
+        if (!confirm(`"${label}" 건이 이미 접수되어 있습니다 (상태: ${FRANCHISE_STATUS_LABEL[dupe.status]}). 그래도 등록하시겠습니까?`)) return
+      }
+    }
     setSubmitting(true)
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').insert({
@@ -646,6 +670,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="">담당CS 전체</option>
           {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="updated_at">최근 수정순</option>
+          <option value="created_at">등록일순</option>
+          <option value="status">상태순</option>
+          <option value="open_date">오픈예정일순</option>
+          <option value="install_date">설치발송일순</option>
+        </select>
         {(search || statusFilter || applicantTypeFilter || salesFilter || csFilter) && (
           <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setSalesFilter(''); setCsFilter('') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
@@ -838,19 +870,32 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{row.business_name || '-'}</td>
                   <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.phone || '-'}</td>
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                    {row.phone ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.phone!); alert(`📋 복사됨: ${row.phone}`) }}
+                        className="hover:text-blue-600 hover:underline transition-colors cursor-pointer"
+                        title="클릭하여 복사"
+                      >{row.phone}</button>
+                    ) : '-'}
+                  </td>
                   <td className="px-3 py-2 text-slate-400 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    <select
-                      value={row.status}
-                      disabled={busyId === row.id}
-                      onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
-                      className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
-                    >
-                      {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
-                        <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col gap-0.5">
+                      <select
+                        value={row.status}
+                        disabled={busyId === row.id}
+                        onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
+                        className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
+                      >
+                        {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+                          <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
+                        ))}
+                      </select>
+                      {(() => { const d = statusAgeDays(row); return d >= 3 ? (
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${d >= 7 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>{d}일째</span>
+                      ) : null })()}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">{row.memo || '-'}</td>
                 </tr>

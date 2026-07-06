@@ -84,7 +84,7 @@ interface EditableTextProps {
   onSave: (id: string, field: string, value: string) => void
 }
 const EditableText = memo(function EditableText({ row, field, className, onSave }: EditableTextProps) {
-  const [value, setValue] = useState(row[field] ?? '')
+  const [value, setValue] = useState(String(row[field] ?? ''))
   return (
     <input
       value={value}

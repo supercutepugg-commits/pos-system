@@ -52,7 +52,7 @@ interface Props {
   currentUserRole: string
   initialStatusFilter?: string
   linkedInstalls?: Record<string, { id: string; status: string }>
-  linkedInternets?: Record<string, { id: string; status: string | null }>
+  linkedInternets?: Record<string, { id: string; status: string | null; category: string | null }>
 }
 
 const EMPTY_FORM = {
@@ -182,6 +182,31 @@ const EditableText = memo(function EditableText({ row, field, placeholder, type 
       onClick={e => e.stopPropagation()}
       className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     />
+  )
+})
+
+// 비고: 기존 로그(줄바꿈 포함 누적 스탬프)는 읽기 전용으로 보여주고, 새 내용만 textarea에 입력받아 저장 시 이어붙인다
+interface EditableMemoProps {
+  row: FranchiseApplication
+  onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
+}
+const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoProps) {
+  const [value, setValue] = useState('')
+  return (
+    <div className="flex flex-col gap-1">
+      {row.memo && (
+        <pre className="whitespace-pre-wrap break-words text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 max-h-40 overflow-y-auto">{row.memo}</pre>
+      )}
+      <textarea
+        value={value}
+        placeholder="새 비고 입력..."
+        onChange={e => setValue(e.target.value)}
+        onBlur={() => { if (value.trim()) { onSave(row, 'memo', value); setValue('') } }}
+        onClick={e => e.stopPropagation()}
+        rows={2}
+        className="w-full bg-transparent border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1 text-sm resize-y"
+      />
+    </div>
   )
 })
 
@@ -439,7 +464,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [busyId, setBusyId] = useState<string | null>(null)
   const [transferringId, setTransferringId] = useState<string | null>(null)
   const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
-  const [localLinkedInternets, setLocalLinkedInternets] = useState<Record<string, { id: string; status: string | null }>>(linkedInternets)
+  const [localLinkedInternets, setLocalLinkedInternets] = useState<Record<string, { id: string; status: string | null; category: string | null }>>(linkedInternets)
   const [linkingInternetId, setLinkingInternetId] = useState<string | null>(null)
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -1070,10 +1095,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       phone: row.phone || null,
       franchise_application_id: row.id,
       sort_order: Date.now(),
-    }).select('id, status').single()
+    }).select('id, status, category').single()
     setLinkingInternetId(null)
     if (error) { toast.error('인터넷관리 등록 실패: ' + error.message); return }
-    setLocalLinkedInternets(prev => ({ ...prev, [row.id]: { id: data.id, status: data.status } }))
+    setLocalLinkedInternets(prev => ({ ...prev, [row.id]: { id: data.id, status: data.status, category: data.category } }))
   }
 
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
@@ -1499,6 +1524,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     <span className={`text-sm font-bold ${localLinkedInternets[row.id] ? 'text-green-600' : 'text-slate-300'}`}>
                       {localLinkedInternets[row.id] ? 'O' : 'X'}
                     </span>
+                    {localLinkedInternets[row.id]?.category && (
+                      <span className="ml-1 text-xs text-slate-500">{localLinkedInternets[row.id].category}</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="flex flex-col gap-0.5">
@@ -1591,7 +1619,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                         <div className="col-span-4">
                           <label className="text-xs font-semibold text-slate-400">비고</label>
-                          <EditableText row={row} field="memo" placeholder="-" onSave={saveField} />
+                          <EditableMemo row={row} onSave={saveField} />
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mb-4 flex-wrap">

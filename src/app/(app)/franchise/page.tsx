@@ -24,7 +24,7 @@ export default async function FranchisePage({ searchParams }: Props) {
 
   // franchise_application_id → { id, status } 맵
   const linkedInstalls: Record<string, { id: string; status: string }> = {}
-  const linkedInternets: Record<string, { id: string; status: string | null }> = {}
+  const linkedInternets: Record<string, { id: string; status: string | null; category: string | null }> = {}
   if (rows && rows.length > 0) {
     const phones = [...new Set(rows.map(r => r.phone).filter((p): p is string => !!p))]
     const [{ data: installs }, { data: internetsById }, { data: internetsByPhone }] = await Promise.all([
@@ -34,24 +34,24 @@ export default async function FranchisePage({ searchParams }: Props) {
         .in('franchise_application_id', rows.map(r => r.id)),
       supabase
         .from('internet_management')
-        .select('id, status, franchise_application_id')
+        .select('id, status, category, franchise_application_id')
         .in('franchise_application_id', rows.map(r => r.id)),
       // franchise_application_id 없이 인터넷관리 탭에서 직접 등록된 건은 연락처로 매칭
       phones.length > 0
-        ? supabase.from('internet_management').select('id, status, phone').is('franchise_application_id', null).in('phone', phones)
-        : Promise.resolve({ data: [] as { id: string; status: string | null; phone: string | null }[] }),
+        ? supabase.from('internet_management').select('id, status, category, phone').is('franchise_application_id', null).in('phone', phones)
+        : Promise.resolve({ data: [] as { id: string; status: string | null; category: string | null; phone: string | null }[] }),
     ])
     for (const inst of installs ?? []) {
       if (inst.franchise_application_id) linkedInstalls[inst.franchise_application_id] = { id: inst.id, status: inst.status }
     }
     for (const net of internetsById ?? []) {
-      if (net.franchise_application_id) linkedInternets[net.franchise_application_id] = { id: net.id, status: net.status }
+      if (net.franchise_application_id) linkedInternets[net.franchise_application_id] = { id: net.id, status: net.status, category: net.category }
     }
     const normalizePhone = (p: string) => p.replace(/\D/g, '')
     const phoneToFranchiseId = new Map(rows.filter(r => r.phone).map(r => [normalizePhone(r.phone as string), r.id]))
     for (const net of internetsByPhone ?? []) {
       const fid = net.phone ? phoneToFranchiseId.get(normalizePhone(net.phone)) : undefined
-      if (fid && !linkedInternets[fid]) linkedInternets[fid] = { id: net.id, status: net.status }
+      if (fid && !linkedInternets[fid]) linkedInternets[fid] = { id: net.id, status: net.status, category: net.category }
     }
   }
 

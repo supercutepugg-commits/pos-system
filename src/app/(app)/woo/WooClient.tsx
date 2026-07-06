@@ -13,6 +13,15 @@ interface Props {
 
 const CATEGORIES = ['가맹접수', '가맹서류대기', '접수완료', '설치완료', '교체', '명의변경']
 
+const SELECT_OPTIONS: Partial<Record<keyof WooCustomer, string[]>> = {
+  category: CATEGORIES,
+  internet_type: ['3S', '백메가'],
+  card_apply_status: ['가맹완료', '가맹미확인'],
+  setting: ['PC세팅', '포스세팅'],
+}
+
+const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['internet_note']
+
 const EMPTY_FORM = {
   received_date: '',
   manager: '',
@@ -21,10 +30,15 @@ const EMPTY_FORM = {
   owner_name: '',
   business_number: '',
   phone: '',
+  internet_type: '',
+  internet_note: '',
   internet_open_date: '',
   card_apply_date: '',
+  card_apply_status: '',
+  easy_payment: '',
   pos_install_date: '',
   install_schedule_note: '',
+  setting: '',
   open_date: '',
   van_company: '',
   pos_program: '',
@@ -41,10 +55,15 @@ const COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'owner_name', label: '대표자명' },
   { key: 'business_number', label: '사업자번호' },
   { key: 'phone', label: '연락처' },
+  { key: 'internet_type', label: '인터넷' },
+  { key: 'internet_note', label: '인터넷 비고' },
   { key: 'internet_open_date', label: '인터넷 개통일자' },
   { key: 'card_apply_date', label: '카드가맹 접수일자' },
+  { key: 'card_apply_status', label: '가맹여부' },
+  { key: 'easy_payment', label: '간편결제' },
   { key: 'pos_install_date', label: '포스설치일' },
   { key: 'install_schedule_note', label: '설치일정추가함' },
+  { key: 'setting', label: '세팅' },
   { key: 'open_date', label: '오픈일' },
   { key: 'van_company', label: 'VAN' },
   { key: 'pos_program', label: '포스프로그램' },
@@ -84,22 +103,25 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onSave }: T
       <td className="px-3 py-2">
         <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
       </td>
-      {COLUMNS.map(col => (
-        <td key={col.key} className="px-3 py-2 whitespace-nowrap">
-          {col.key === 'category' ? (
-            <select
-              value={row.category ?? ''}
-              onChange={e => onSave(row, 'category', e.target.value)}
-              className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-            >
-              <option value="">-</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          ) : (
-            <EditableCell row={row} field={col.key} onSave={onSave} />
-          )}
-        </td>
-      ))}
+      {COLUMNS.map(col => {
+        const options = SELECT_OPTIONS[col.key]
+        return (
+          <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+            {options ? (
+              <select
+                value={(row[col.key] as string) ?? ''}
+                onChange={e => onSave(row, col.key, e.target.value)}
+                className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+              >
+                <option value="">-</option>
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <EditableCell row={row} field={col.key} onSave={onSave} />
+            )}
+          </td>
+        )
+      })}
     </tr>
   )
 })
@@ -114,27 +136,40 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    for (const field of REQUIRED_FIELDS) {
+      const col = COLUMNS.find(c => c.key === field)
+      if (!form[field as keyof typeof form]?.trim()) {
+        alert(`${col?.label ?? field}은(는) 필수 입력 항목입니다.`)
+        return
+      }
+    }
     await onSubmit(form)
     setForm(EMPTY_FORM)
   }
 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-      {COLUMNS.map(col => (
-        <div key={col.key} className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">{col.label}</label>
-          {col.key === 'category' ? (
-            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          ) : (
-            <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          )}
-        </div>
-      ))}
+      {COLUMNS.map(col => {
+        const options = SELECT_OPTIONS[col.key]
+        const required = REQUIRED_FIELDS.includes(col.key)
+        return (
+          <div key={col.key} className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">
+              {col.label}{required && <span className="text-red-500"> *</span>}
+            </label>
+            {options ? (
+              <select value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">선택 안함</option>
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            )}
+          </div>
+        )
+      })}
       <button type="submit" disabled={submitting}
         className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
         {submitting ? '등록 중...' : '등록'}
@@ -235,6 +270,10 @@ export default function WooClient({ rows }: Props) {
   }, [])
 
   const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {
+    if (REQUIRED_FIELDS.includes(field) && !value.trim()) {
+      alert(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
+      return
+    }
     const supabase = createClient()
     const { error } = await supabase.from('woo_customers').update({ [field]: value || null }).eq('id', row.id)
     if (error) alert('수정 실패: ' + error.message)
@@ -288,7 +327,7 @@ export default function WooClient({ rows }: Props) {
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse min-w-[2000px]">
+        <table className="w-full text-sm border-collapse min-w-[2600px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">

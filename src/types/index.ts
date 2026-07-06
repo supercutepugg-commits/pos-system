@@ -148,10 +148,15 @@ export interface WooCustomer {
   owner_name?: string
   business_number?: string
   phone?: string
+  internet_type?: string
+  internet_note?: string
   internet_open_date?: string
   card_apply_date?: string
+  card_apply_status?: string
+  easy_payment?: string
   pos_install_date?: string
   install_schedule_note?: string
+  setting?: string
   open_date?: string
   van_company?: string
   pos_program?: string

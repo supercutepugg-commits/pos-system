@@ -736,6 +736,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       sales_id: form.sales_id || null,
       cs_id: form.cs_id || null,
       applicant_type: form.applicant_type,
+      status: 'doc_waiting',
       reception_channel: form.reception_channel || null,
       reception_date: form.reception_date ? formatDateText(form.reception_date) : null,
       open_date: form.open_date ? formatDateText(form.open_date) : null,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useCallback, memo } from 'react'
+import { useState, useTransition, useEffect, useRef, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
 import { updateInboundRow, deleteInboundRows } from './actions'
@@ -328,9 +328,8 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
           </thead>
           <tbody>
             {localRows.map(row => (
-              <>
+              <Fragment key={row.id}>
                 <tr
-                  key={row.id}
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${savingId === row.id ? 'opacity-60' : ''}`}
                 >
                   <td className="px-3 py-2">
@@ -429,7 +428,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
             {localRows.length === 0 && (
               <tr>

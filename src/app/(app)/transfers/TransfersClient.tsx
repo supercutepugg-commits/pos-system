@@ -6,6 +6,7 @@ import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar, GripVertical } 
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
+import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { deleteFranchiseRows } from '../franchise/actions'
 import type { FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
@@ -264,7 +265,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
-    setLocalRows(rows)
+    setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
     setSelected(new Set())
   }, [rows])
 

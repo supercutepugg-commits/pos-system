@@ -6,6 +6,7 @@ import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical } from 'luci
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
+import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
 import { useToast } from '@/components/ui/Toast'
@@ -279,7 +280,7 @@ export default function InternetClient({ rows }: Props) {
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
-    setLocalRows(rows)
+    setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
     setSelected(new Set())
   }, [rows])
 

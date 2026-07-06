@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical } from 'lucide-react'
 import { format } from 'date-fns'
@@ -8,6 +8,7 @@ import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
+import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { deleteFranchiseRows } from './actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
@@ -448,7 +449,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [showShortcuts, setShowShortcuts] = useState(false)
 
   useEffect(() => {
-    setLocalRows(rows)
+    setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
     setSelected(new Set())
   }, [rows])
 
@@ -1358,8 +1359,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </thead>
           <tbody>
             {pagedRows.map(row => (
-              <>
-                <tr key={row.id}
+              <Fragment key={row.id}>
+                <tr
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
                   onClick={() => toggleExpand(row)}
                   onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
@@ -1603,7 +1604,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
             {filteredRows.length === 0 && (
               <tr><td colSpan={11} className="text-center text-slate-400 py-10">

@@ -29,7 +29,7 @@ function docCaseOf(ownerName?: string | null, businessName?: string | null): Doc
   return 'phone_only'
 }
 
-const RECEPTION_CHANNELS = ['토스 홈페이지', '직접 영업', '전환']
+const RECEPTION_CHANNELS = ['토스 홈페이지', '직접 영업', '전환', '토스리드건', '토스프리미엄', '승계', '명변', '랜탈', '할부']
 const EQUIPMENT_CATALOG = ['토스프론트', '포스기', '인터넷', '키오스크', '영수증프린터', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더']
 const VAN_COMPANIES = ['코세스2', '코세스1', '코벤', '기가맹']
 const INTERNET_PROVIDERS = ['3S', '백메가']
@@ -430,6 +430,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [page, setPage] = useState(1)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
   const [vanFilter, setVanFilter] = useState('')
+  const [channelFilter, setChannelFilter] = useState('')
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
@@ -547,6 +548,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
+      if (channelFilter && (row.reception_channel || '미지정') !== channelFilter) return false
       if (vanFilter && !row.van_company?.split(',').map(s => s.trim()).includes(vanFilter)) return false
       if (dateFrom && row.created_at < dateFrom) return false
       if (dateTo && row.created_at > dateTo + 'T23:59:59') return false
@@ -568,14 +570,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'manual') return (b.sort_order ?? new Date(b.created_at).getTime()) - (a.sort_order ?? new Date(a.created_at).getTime())
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
+  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
 
-  useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
+  useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const canReorder = sortBy === 'manual' && !search.trim() && !statusFilter && !applicantTypeFilter
-    && !vanFilter && !dateFrom && !dateTo && transferTab === 'all'
+    && !channelFilter && !vanFilter && !dateFrom && !dateTo && transferTab === 'all'
 
   const reorderRows = useCallback((dragId: string, dropId: string) => {
     if (dragId === dropId) return
@@ -1214,13 +1216,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         return total > 0 ? (
           <div className="flex flex-wrap gap-2 mb-2">
             {Object.entries(channelCounts).sort((a, b) => b[1] - a[1]).map(([ch, cnt]) => (
-              <div key={ch} className="flex items-center gap-1.5 text-xs text-slate-500">
+              <button key={ch} onClick={() => setChannelFilter(channelFilter === ch ? '' : ch)}
+                className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border transition-colors ${channelFilter === ch ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-transparent text-slate-500 hover:border-slate-200'}`}>
                 <span className="font-medium text-slate-700">{ch}</span>
                 <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(cnt / total) * 100}%` }} />
                 </div>
                 <span>{cnt}건</span>
-              </div>
+              </button>
             ))}
           </div>
         ) : null
@@ -1269,8 +1272,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="install_date">설치발송일순</option>
           <option value="manual">직접 정렬 (드래그)</option>
         </select>
-        {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo) && (
-          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
+        {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (
+          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setChannelFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
             초기화
           </button>
@@ -1307,7 +1310,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             </>
           )}
           <div className="text-sm text-slate-500">
-            {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo)
+            {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo)
               ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
               : `전체 ${localRows.length.toLocaleString()}건`}
           </div>
@@ -1610,9 +1613,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               <tr><td colSpan={11} className="text-center text-slate-400 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <span>조건에 맞는 가맹 접수가 없습니다.</span>
-                  {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo) && (
+                  {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (
                     <button
-                      onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
+                      onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setChannelFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
                       className="text-sm text-blue-500 hover:text-blue-700 underline">
                       필터 초기화
                     </button>

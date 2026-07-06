@@ -6,7 +6,7 @@ import { formatPhone } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus, Search, RefreshCw, Download, GripVertical } from 'lucide-react'
+import { Plus, Search, RefreshCw, Download, GripVertical, Trash2 } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 
@@ -211,6 +211,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const toast = useToast()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
   const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deletingSelected, setDeletingSelected] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
@@ -300,7 +302,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       await fetch('/api/installs/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: inst.customer_phone, customerName: inst.customer_name, status: notifyStatus, eta }),
+        body: JSON.stringify({ phone: inst.customer_phone, customerName: inst.customer_name, status: notifyStatus, eta, statusToken: inst.status_token }),
       })
     } catch { /* 알림톡 실패 무시 */ }
   }
@@ -493,6 +495,38 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     if (!confirm('삭제하시겠습니까?')) return
     await supabase.from('installations').delete().eq('id', id)
     setInstalls(prev => prev.filter(i => i.id !== id))
+    setSelected(prev => { const next = new Set(prev); next.delete(id); return next })
+  }
+
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(prev => {
+      if (pagedInstalls.length > 0 && pagedInstalls.every(i => prev.has(i.id))) {
+        const next = new Set(prev)
+        pagedInstalls.forEach(i => next.delete(i.id))
+        return next
+      }
+      return new Set([...prev, ...pagedInstalls.map(i => i.id)])
+    })
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
+    setDeletingSelected(true)
+    const ids = [...selected]
+    const { error } = await supabase.from('installations').delete().in('id', ids)
+    setDeletingSelected(false)
+    if (error) { toast.error('삭제 실패: ' + error.message); return }
+    setInstalls(prev => prev.filter(i => !selected.has(i.id)))
+    setSelected(new Set())
   }
 
   function copyLink(token: string) {
@@ -780,6 +814,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <p className="text-slate-500 text-sm mt-1">이번달 {thisMonth}건 / 전체 {installs.length}건</p>
         </div>
         <div className="flex gap-2">
+          {profile.role === 'admin' && selected.size > 0 && (
+            <button onClick={handleBulkDelete} disabled={deletingSelected}
+              className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors">
+              <Trash2 size={15} />
+              {deletingSelected ? '삭제 중...' : `선택 삭제 (${selected.size})`}
+            </button>
+          )}
           <button onClick={handleExcel} className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
             <Download size={15} />엑셀
           </button>
@@ -922,6 +963,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
               <colgroup>
+                {profile.role === 'admin' && <col style={{ width: 32 }} />}
                 <col style={{ width: 24 }} />
                 {MAIN_COLUMNS.map(col => (
                   <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
@@ -929,6 +971,14 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
+                  {profile.role === 'admin' && (
+                    <th className="px-3 py-3">
+                      <input type="checkbox"
+                        checked={pagedInstalls.length > 0 && pagedInstalls.every(i => selected.has(i.id))}
+                        onChange={toggleAll}
+                        className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                    </th>
+                  )}
                   <th className="px-1 py-3" />
                   {MAIN_COLUMNS.map(col => (
                     <th key={col.key} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis select-none">
@@ -949,6 +999,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
                   >
+                    {profile.role === 'admin' && (
+                      <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selected.has(inst.id)} onChange={() => toggleOne(inst.id)}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                      </td>
+                    )}
                     <td
                       className={`px-1 py-3 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                       draggable={canReorder}

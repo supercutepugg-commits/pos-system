@@ -125,8 +125,10 @@ export interface FranchiseApplication {
   install_date?: string
   van_company?: string
   internet?: string
+  program?: string
   sales_id?: string
   cs_id?: string
+  tech_id?: string
   created_by?: string
   status: FranchiseStatus
   applicant_type: ApplicantType
@@ -136,6 +138,7 @@ export interface FranchiseApplication {
   updated_at: string
   sales?: Profile
   cs?: Profile
+  tech?: Profile
   creator?: Profile
 }
 

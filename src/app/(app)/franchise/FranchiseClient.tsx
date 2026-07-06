@@ -822,6 +822,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         await notifyAndLog(row.id, 'doc_waiting', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'doc_waiting' })
         // 서류 목록 상세 안내 (가맹서류안내_* 16종)
         await notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase })
+      } else if (status === 'card_internet_apply_done') {
+        // 카드가맹접수완료 + 인터넷접수완료 템플릿을 함께 발송 (기존 템플릿 코드 그대로 사용)
+        await notifyAndLog(row.id, 'card_apply_done', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'card_apply_done' })
+        await notifyAndLog(row.id, 'internet_apply_done', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'internet_apply_done' })
       } else {
         await notifyAndLog(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
       }

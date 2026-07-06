@@ -19,6 +19,7 @@ export type FranchiseStatus =
   | 'doc_incomplete'
   | 'card_apply_done'
   | 'internet_apply_done'
+  | 'card_internet_apply_done'
   | 'card_done'
   | 'internet_done'
   | 'toss_review_done'
@@ -267,6 +268,7 @@ export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
   doc_incomplete: '서류미비',
   card_apply_done: '카드가맹접수완료',
   internet_apply_done: '인터넷접수완료',
+  card_internet_apply_done: '카드,인터넷접수완료',
   card_done: '카드가맹완료',
   internet_done: '인터넷 가입완료',
   toss_review_done: '토스심사완료',
@@ -278,6 +280,7 @@ export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
   doc_incomplete: 'bg-red-100 text-red-700',
   card_apply_done: 'bg-sky-100 text-sky-700',
   internet_apply_done: 'bg-cyan-100 text-cyan-700',
+  card_internet_apply_done: 'bg-teal-100 text-teal-700',
   card_done: 'bg-indigo-100 text-indigo-700',
   internet_done: 'bg-blue-100 text-blue-700',
   toss_review_done: 'bg-green-100 text-green-700',

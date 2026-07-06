@@ -67,6 +67,7 @@ const EMPTY_FORM = {
   cs_id: '',
   applicant_type: 'individual' as ApplicantType,
   reception_channel: '',
+  reception_date: '',
   open_date: '',
   install_date: '',
   van_company: '',
@@ -270,22 +271,26 @@ const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
 }
 
 const MAIN_COLUMNS = [
+  { key: 'reception_date', label: '접수날짜' },
   { key: 'reception_channel', label: '접수채널' },
   { key: 'applicant_type', label: '사업자유형' },
   { key: 'business_name', label: '상호명' },
   { key: 'owner_name', label: '대표자' },
   { key: 'phone', label: '연락처' },
   { key: 'creator', label: '등록자' },
+  { key: 'cs_id', label: '담당자' },
   { key: 'status', label: '상태' },
   { key: 'memo', label: '메모' },
 ] as const
 const DEFAULT_WIDTHS: Record<string, number> = {
+  reception_date: 100,
   reception_channel: 90,
   applicant_type: 110,
   business_name: 160,
   owner_name: 90,
   phone: 130,
   creator: 80,
+  cs_id: 90,
   status: 140,
   memo: 160,
 }
@@ -308,6 +313,10 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">접수날짜</label>
+        <DateFormField value={form.reception_date} onChange={v => setForm({ ...form, reception_date: v })} />
+      </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-slate-500">접수채널</label>
         <select value={form.reception_channel} onChange={e => setForm({ ...form, reception_channel: e.target.value })}
@@ -722,6 +731,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       cs_id: form.cs_id || null,
       applicant_type: form.applicant_type,
       reception_channel: form.reception_channel || null,
+      reception_date: form.reception_date ? formatDateText(form.reception_date) : null,
       open_date: form.open_date ? formatDateText(form.open_date) : null,
       install_date: form.install_date ? formatDateText(form.install_date) : null,
       van_company: form.van_company || null,
@@ -1393,6 +1403,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <DateField row={row} field="reception_date" onSave={saveField} />
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.reception_channel ?? ''}
                       onChange={e => saveField(row, 'reception_channel', e.target.value)}
@@ -1433,6 +1446,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   </td>
                   <td className="px-3 py-2 text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis text-xs">{row.creator?.name ?? '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <select
+                      value={row.cs_id ?? ''}
+                      onChange={e => updateCs(row, e.target.value)}
+                      className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
+                    >
+                      <option value="">미배정</option>
+                      {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="flex flex-col gap-0.5">
                       <select
                         value={row.status}
@@ -1462,7 +1485,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={11} className="px-6 py-4">
+                    <td colSpan={13} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1610,7 +1633,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={11} className="text-center text-slate-400 py-10">
+              <tr><td colSpan={13} className="text-center text-slate-400 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <span>조건에 맞는 가맹 접수가 없습니다.</span>
                   {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (

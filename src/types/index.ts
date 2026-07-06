@@ -121,6 +121,7 @@ export interface FranchiseApplication {
   address_detail?: string
   title?: string
   reception_channel?: string
+  reception_date?: string
   open_date?: string
   install_date?: string
   van_company?: string

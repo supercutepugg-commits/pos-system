@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo,
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { formatPhone } from '@/lib/format'
+import { formatPhone, formatDateText } from '@/lib/format'
 import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
 import { useToast } from '@/components/ui/Toast'
@@ -81,6 +81,8 @@ const COL_WIDTHS_STORAGE_KEY = 'internet_management_col_widths'
 
 const AUTO_FORMAT: Partial<Record<keyof InternetManagement, (raw: string) => string>> = {
   phone: formatPhone,
+  apply_date: formatDateText,
+  open_date: formatDateText,
 }
 
 // --- EditableText moved outside main component ---

@@ -107,7 +107,8 @@ const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps
     e.stopPropagation()
     const el = dateInputRef.current
     if (!el) return
-    if ('showPicker' in el) (el as HTMLInputElement & { showPicker: () => void }).showPicker()
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void }
+    if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
     else el.focus()
   }
 
@@ -179,7 +180,8 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
   function openPicker() {
     const el = dateInputRef.current
     if (!el) return
-    if ('showPicker' in el) (el as HTMLInputElement & { showPicker: () => void }).showPicker()
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void }
+    if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
     else el.focus()
   }
 

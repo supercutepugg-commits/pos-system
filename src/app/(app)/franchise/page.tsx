@@ -26,7 +26,8 @@ export default async function FranchisePage({ searchParams }: Props) {
   const linkedInstalls: Record<string, { id: string; status: string }> = {}
   const linkedInternets: Record<string, { id: string; status: string | null }> = {}
   if (rows && rows.length > 0) {
-    const [{ data: installs }, { data: internets }] = await Promise.all([
+    const phones = [...new Set(rows.map(r => r.phone).filter((p): p is string => !!p))]
+    const [{ data: installs }, { data: internetsById }, { data: internetsByPhone }] = await Promise.all([
       supabase
         .from('installations')
         .select('id, status, franchise_application_id')
@@ -35,12 +36,22 @@ export default async function FranchisePage({ searchParams }: Props) {
         .from('internet_management')
         .select('id, status, franchise_application_id')
         .in('franchise_application_id', rows.map(r => r.id)),
+      // franchise_application_id 없이 인터넷관리 탭에서 직접 등록된 건은 연락처로 매칭
+      phones.length > 0
+        ? supabase.from('internet_management').select('id, status, phone').is('franchise_application_id', null).in('phone', phones)
+        : Promise.resolve({ data: [] as { id: string; status: string | null; phone: string | null }[] }),
     ])
     for (const inst of installs ?? []) {
       if (inst.franchise_application_id) linkedInstalls[inst.franchise_application_id] = { id: inst.id, status: inst.status }
     }
-    for (const net of internets ?? []) {
+    for (const net of internetsById ?? []) {
       if (net.franchise_application_id) linkedInternets[net.franchise_application_id] = { id: net.id, status: net.status }
+    }
+    const normalizePhone = (p: string) => p.replace(/\D/g, '')
+    const phoneToFranchiseId = new Map(rows.filter(r => r.phone).map(r => [normalizePhone(r.phone as string), r.id]))
+    for (const net of internetsByPhone ?? []) {
+      const fid = net.phone ? phoneToFranchiseId.get(normalizePhone(net.phone)) : undefined
+      if (fid && !linkedInternets[fid]) linkedInternets[fid] = { id: net.id, status: net.status }
     }
   }
 

@@ -26,6 +26,28 @@ const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['internet_note']
 // 달력 선택 + 직접 텍스트 입력 둘 다 되는 필드
 const DATE_FIELDS: (keyof WooCustomer)[] = ['received_date', 'open_date', 'internet_open_date', 'card_apply_date']
 
+// 숫자만 입력해도 자동으로 구분자를 넣어주는 필드
+function formatPhone(raw: string) {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  return raw
+}
+function formatBusinessNumber(raw: string) {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`
+  return raw
+}
+function formatDateText(raw: string) {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 8) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
+  return raw
+}
+const AUTO_FORMAT: Partial<Record<keyof WooCustomer, (raw: string) => string>> = {
+  phone: formatPhone,
+  business_number: formatBusinessNumber,
+}
+
 const EMPTY_FORM = {
   received_date: '',
   category: '',
@@ -81,11 +103,16 @@ interface EditableTextProps {
 }
 const EditableText = memo(function EditableText({ row, field, onSave }: EditableTextProps) {
   const [value, setValue] = useState((row[field] as string) ?? '')
+  const format = AUTO_FORMAT[field]
   return (
     <input
       value={value}
       onChange={e => setValue(e.target.value)}
-      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      onBlur={() => {
+        const formatted = format ? format(value) : value
+        if (formatted !== value) setValue(formatted)
+        if (formatted !== ((row[field] as string) ?? '')) onSave(row, field, formatted)
+      }}
       onClick={e => e.stopPropagation()}
       className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     />
@@ -123,7 +150,11 @@ const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps
       <input
         value={value}
         onChange={e => setValue(e.target.value)}
-        onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+        onBlur={() => {
+          const formatted = formatDateText(value)
+          if (formatted !== value) setValue(formatted)
+          if (formatted !== ((row[field] as string) ?? '')) onSave(row, field, formatted)
+        }}
         onClick={e => e.stopPropagation()}
         placeholder="날짜 또는 텍스트"
         className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
@@ -187,7 +218,7 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
 
   return (
     <div className="flex items-center gap-1">
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder="날짜 또는 텍스트"
+      <input value={value} onChange={e => onChange(e.target.value)} onBlur={() => onChange(formatDateText(value))} placeholder="날짜 또는 텍스트"
         className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
       <button type="button" onClick={openPicker} className="shrink-0 text-slate-400 hover:text-blue-500">
         <Calendar size={14} />
@@ -244,6 +275,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
               <DateFormField value={form[col.key as keyof typeof form]} onChange={v => setForm({ ...form, [col.key]: v })} />
             ) : (
               <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+                onBlur={e => { const fmt = AUTO_FORMAT[col.key]; if (fmt) setForm(f => ({ ...f, [col.key]: fmt(e.target.value) })) }}
                 className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             )}
           </div>
@@ -359,10 +391,11 @@ export default function WooClient({ rows }: Props) {
       toast.warning(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
       return
     }
+    // 화면은 바로 반영 (서버 재조회를 기다리지 않음 - 실시간 구독이 다른 사용자 변경사항은 알아서 동기화)
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value } : r))
     const supabase = createClient()
     const { error } = await supabase.from('woo_customers').update({ [field]: value || null }).eq('id', row.id)
     if (error) toast.error('수정 실패: ' + error.message)
-    startTransition(() => router.refresh())
   }, [])
 
   return (

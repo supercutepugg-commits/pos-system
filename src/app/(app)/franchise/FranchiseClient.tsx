@@ -2,10 +2,11 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
+import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { deleteFranchiseRows } from './actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
@@ -33,6 +34,11 @@ const INTERNET_PROVIDERS = ['3S', '백메가']
 
 function parseVanList(value: string) {
   return value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
+}
+
+const AUTO_FORMAT: Partial<Record<keyof FranchiseApplication, (raw: string) => string>> = {
+  phone: formatPhone,
+  business_number: formatBusinessNumber,
 }
 
 interface Props {
@@ -150,16 +156,106 @@ interface EditableTextProps {
 }
 const EditableText = memo(function EditableText({ row, field, placeholder, type = 'text', onSave }: EditableTextProps) {
   const [value, setValue] = useState((row[field] as string) ?? '')
+  const autoFormat = AUTO_FORMAT[field]
   return (
     <input
       type={type}
       value={value}
       placeholder={placeholder}
-      onChange={e => setValue(e.target.value)}
-      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      onChange={e => setValue(autoFormat ? autoFormat(e.target.value) : e.target.value)}
+      onBlur={() => {
+        if (value !== ((row[field] as string) ?? '')) onSave(row, field, value)
+      }}
       onClick={e => e.stopPropagation()}
       className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     />
+  )
+})
+
+// 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드 (8자리 숫자는 자동으로 YYYY-MM-DD로 변환)
+interface DateFieldProps {
+  row: FranchiseApplication
+  field: keyof FranchiseApplication
+  onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
+}
+const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
+
+  function openPicker(e: React.MouseEvent) {
+    e.stopPropagation()
+    const el = dateInputRef.current
+    if (!el) return
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void }
+    if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
+    else el.focus()
+  }
+
+  function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value
+    setValue(next)
+    onSave(row, field, next)
+  }
+
+  return (
+    <div className="flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+      <input
+        value={value}
+        onChange={e => setValue(formatDateText(e.target.value))}
+        onBlur={() => {
+          if (value !== ((row[field] as string) ?? '')) onSave(row, field, value)
+        }}
+        placeholder="-"
+        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+      />
+      <button type="button" onClick={openPicker} tabIndex={-1} className="shrink-0 text-slate-400 hover:text-blue-500">
+        <Calendar size={14} />
+      </button>
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={isoValue}
+        onChange={handlePick}
+        tabIndex={-1}
+        className="w-0 h-0 opacity-0 absolute pointer-events-none"
+      />
+    </div>
+  )
+})
+
+// 달력 아이콘 + 직접 텍스트 입력 - 새 접수 폼용 (row 없이 value/onChange만 받음)
+interface DateFormFieldProps {
+  value: string
+  onChange: (value: string) => void
+}
+const DateFormField = memo(function DateFormField({ value, onChange }: DateFormFieldProps) {
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
+
+  function openPicker() {
+    const el = dateInputRef.current
+    if (!el) return
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void }
+    if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
+    else el.focus()
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input value={value} onChange={e => onChange(formatDateText(e.target.value))}
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <button type="button" onClick={openPicker} className="shrink-0 text-slate-400 hover:text-blue-500">
+        <Calendar size={14} />
+      </button>
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={isoValue}
+        onChange={e => onChange(e.target.value)}
+        className="w-0 h-0 opacity-0 absolute pointer-events-none"
+      />
+    </div>
   )
 })
 
@@ -193,7 +289,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
   const [salesFilter, setSalesFilter] = useState('')
   const [csFilter, setCsFilter] = useState('')
-  const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status'>('updated_at')
+  const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status' | 'manual'>('updated_at')
+  const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [vanFilter, setVanFilter] = useState('')
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
@@ -330,9 +427,29 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'open_date') return (a.open_date ?? '').localeCompare(b.open_date ?? '')
       if (sortBy === 'install_date') return (a.install_date ?? '').localeCompare(b.install_date ?? '')
       if (sortBy === 'created_at') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      if (sortBy === 'manual') return (b.sort_order ?? new Date(b.created_at).getTime()) - (a.sort_order ?? new Date(a.created_at).getTime())
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
   }, [localRows, search, statusFilter, applicantTypeFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
+
+  const canReorder = sortBy === 'manual' && !search.trim() && !statusFilter && !applicantTypeFilter
+    && !vanFilter && !dateFrom && !dateTo && transferTab === 'all'
+
+  const reorderRows = useCallback((dragId: string, dropId: string) => {
+    if (dragId === dropId) return
+    const from = localRows.findIndex(r => r.id === dragId)
+    const to = localRows.findIndex(r => r.id === dropId)
+    if (from === -1 || to === -1) return
+    const next = [...localRows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setLocalRows(next)
+    const n = next.length
+    const supabase = createClient()
+    Promise.all(next.map((r, i) =>
+      supabase.from('franchise_applications').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
+    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
+  }, [localRows, toast])
 
   function togglePin(id: string) {
     setPinnedIds(prev => {
@@ -433,13 +550,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     startTransition(() => router.refresh())
   }, [selected])
 
-  function formatPhone(phone: string) {
-    const raw = phone.replace(/\D/g, '')
-    if (raw.length === 11) return `${raw.slice(0,3)}-${raw.slice(3,7)}-${raw.slice(7)}`
-    if (raw.length === 10) return `${raw.slice(0,3)}-${raw.slice(3,6)}-${raw.slice(6)}`
-    return phone
-  }
-
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     const fmtPhone = form.phone ? formatPhone(form.phone) : ''
@@ -462,8 +572,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const { error } = await supabase.from('franchise_applications').insert({
       business_name: form.business_name || null,
       owner_name: form.owner_name || null,
-      phone: form.phone || null,
-      business_number: form.business_number || null,
+      phone: form.phone ? formatPhone(form.phone) : null,
+      business_number: form.business_number ? formatBusinessNumber(form.business_number) : null,
       equipment_items: form.equipmentItems,
       address: form.address || null,
       address_detail: form.address_detail || null,
@@ -472,8 +582,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       cs_id: form.cs_id || null,
       applicant_type: form.applicant_type,
       reception_channel: form.reception_channel || null,
-      open_date: form.open_date || null,
-      install_date: form.install_date || null,
+      open_date: form.open_date ? formatDateText(form.open_date) : null,
+      install_date: form.install_date ? formatDateText(form.install_date) : null,
       van_company: form.van_company || null,
       internet: form.internet || null,
       memo: form.memo || null,
@@ -1019,6 +1129,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <option value="status">상태순</option>
           <option value="open_date">오픈예정일순</option>
           <option value="install_date">설치발송일순</option>
+          <option value="manual">직접 정렬 (드래그)</option>
         </select>
         {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo) && (
           <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
@@ -1109,12 +1220,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">사업자번호</label>
-            <input value={form.business_number} onChange={e => setForm({ ...form, business_number: e.target.value })} placeholder="000-00-00000"
+            <input value={form.business_number} onChange={e => setForm({ ...form, business_number: formatBusinessNumber(e.target.value) })} placeholder="000-00-00000"
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">연락처</label>
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000"
+            <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
@@ -1131,13 +1242,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">오픈예정일</label>
-            <input type="date" value={form.open_date} onChange={e => setForm({ ...form, open_date: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <DateFormField value={form.open_date} onChange={v => setForm({ ...form, open_date: v })} />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
-            <input type="date" value={form.install_date} onChange={e => setForm({ ...form, install_date: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <DateFormField value={form.install_date} onChange={v => setForm({ ...form, install_date: v })} />
           </div>
           <div className="flex flex-col gap-1 w-full">
             <label className="text-xs font-medium text-slate-500">상품</label>
@@ -1181,6 +1290,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         <table className="w-full text-sm border-collapse min-w-[1250px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
+              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
@@ -1195,8 +1305,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <tbody>
             {filteredRows.map(row => (
               <>
-                <tr key={row.id} className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''}`}
-                  onClick={() => toggleExpand(row)}>
+                <tr key={row.id}
+                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  onClick={() => toggleExpand(row)}
+                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
+                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
+                >
+                  <td
+                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    onClick={e => e.stopPropagation()}
+                    draggable={canReorder}
+                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
+                    onDragEnd={() => setRowDragId(null)}
+                    title={canReorder ? '드래그해서 순서 변경' : '"직접 정렬" + 필터 해제 상태에서만 순서를 바꿀 수 있습니다'}
+                  >
+                    <GripVertical size={14} />
+                  </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
@@ -1280,7 +1404,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={10} className="px-6 py-4">
+                    <td colSpan={11} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1316,11 +1440,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">오픈예정일</label>
-                          <EditableText row={row} field="open_date" placeholder="-" type="date" onSave={saveField} />
+                          <DateField row={row} field="open_date" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">설치 및 발송일</label>
-                          <EditableText row={row} field="install_date" placeholder="-" type="date" onSave={saveField} />
+                          <DateField row={row} field="install_date" onSave={saveField} />
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">인터넷</label>
@@ -1428,7 +1552,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={10} className="text-center text-slate-400 py-10">
+              <tr><td colSpan={11} className="text-center text-slate-400 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <span>조건에 맞는 가맹 접수가 없습니다.</span>
                   {(search || statusFilter || applicantTypeFilter || vanFilter || dateFrom || dateTo) && (

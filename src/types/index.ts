@@ -134,6 +134,7 @@ export interface FranchiseApplication {
   applicant_type: ApplicantType
   doc_template?: string
   memo?: string
+  sort_order?: number | null
   created_at: string
   updated_at: string
   sales?: Profile
@@ -166,6 +167,7 @@ export interface WooCustomer {
   product?: string
   address?: string
   memo?: string
+  sort_order?: number | null
   created_at: string
   updated_at: string
 }
@@ -187,6 +189,7 @@ export interface InternetManagement {
   monthly_fee?: string
   install_fee?: string
   memo?: string
+  sort_order?: number | null
   created_at: string
   updated_at: string
 }

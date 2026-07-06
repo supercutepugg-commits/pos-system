@@ -2,8 +2,9 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { formatPhone } from '@/lib/format'
 import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
 import { useToast } from '@/components/ui/Toast'
@@ -78,6 +79,10 @@ const DEFAULT_WIDTHS: Partial<Record<keyof InternetManagement, number>> = {
 
 const COL_WIDTHS_STORAGE_KEY = 'internet_management_col_widths'
 
+const AUTO_FORMAT: Partial<Record<keyof InternetManagement, (raw: string) => string>> = {
+  phone: formatPhone,
+}
+
 // --- EditableText moved outside main component ---
 interface EditableTextProps {
   row: InternetManagement
@@ -86,10 +91,11 @@ interface EditableTextProps {
 }
 const EditableText = memo(function EditableText({ row, field, onSave }: EditableTextProps) {
   const [value, setValue] = useState((row[field] as string) ?? '')
+  const autoFormat = AUTO_FORMAT[field]
   return (
     <input
       value={value}
-      onChange={e => setValue(e.target.value)}
+      onChange={e => setValue(autoFormat ? autoFormat(e.target.value) : e.target.value)}
       onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
       onClick={e => e.stopPropagation()}
       className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
@@ -236,7 +242,8 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
                 {options.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             ) : (
-              <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+              <input value={form[col.key as keyof typeof form]}
+                onChange={e => { const fmt = AUTO_FORMAT[col.key]; setForm({ ...form, [col.key]: fmt ? fmt(e.target.value) : e.target.value }) }}
                 className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             )}
           </div>
@@ -263,6 +270,7 @@ export default function InternetClient({ rows }: Props) {
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}
     try { return JSON.parse(localStorage.getItem(COL_WIDTHS_STORAGE_KEY) ?? '{}') } catch { return {} }
@@ -363,6 +371,24 @@ export default function InternetClient({ rows }: Props) {
     setExpandedId(prev => prev === id ? null : id)
   }, [])
 
+  const canReorder = !search.trim() && !statusFilter && !categoryFilter
+
+  const reorderRows = useCallback((dragId: string, dropId: string) => {
+    if (dragId === dropId) return
+    const from = localRows.findIndex(r => r.id === dragId)
+    const to = localRows.findIndex(r => r.id === dropId)
+    if (from === -1 || to === -1) return
+    const next = [...localRows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setLocalRows(next)
+    const n = next.length
+    const supabase = createClient()
+    Promise.all(next.map((r, i) =>
+      supabase.from('internet_management').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
+    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
+  }, [localRows, toast])
+
   const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
@@ -449,6 +475,7 @@ export default function InternetClient({ rows }: Props) {
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
+            <col style={{ width: 24 }} />
             <col style={{ width: 32 }} />
             <col style={{ width: 24 }} />
             {MAIN_COLUMNS.map(col => (
@@ -457,6 +484,7 @@ export default function InternetClient({ rows }: Props) {
           </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
+              <th className="px-1 py-2.5 border-b border-slate-200" />
               <th className="px-3 py-2.5 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
@@ -475,8 +503,22 @@ export default function InternetClient({ rows }: Props) {
           <tbody>
             {filteredRows.map(row => (
               <Fragment key={row.id}>
-                <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
-                  onClick={() => toggleExpand(row.id)}>
+                <tr
+                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  onClick={() => toggleExpand(row.id)}
+                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
+                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
+                >
+                  <td
+                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    onClick={e => e.stopPropagation()}
+                    draggable={canReorder}
+                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
+                    onDragEnd={() => setRowDragId(null)}
+                    title={canReorder ? '드래그해서 순서 변경' : '검색/필터 중에는 순서를 변경할 수 없습니다'}
+                  >
+                    <GripVertical size={14} />
+                  </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
@@ -500,7 +542,7 @@ export default function InternetClient({ rows }: Props) {
                 </tr>
                 {expandedId === row.id && (
                   <tr className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={MAIN_COLUMNS.length + 2} className="px-6 py-4">
+                    <td colSpan={MAIN_COLUMNS.length + 3} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4">
                         {DETAIL_COLUMNS.map(col => {
                           const options = SELECT_OPTIONS[col.key]
@@ -525,7 +567,7 @@ export default function InternetClient({ rows }: Props) {
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={MAIN_COLUMNS.length + 2} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr><td colSpan={MAIN_COLUMNS.length + 3} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

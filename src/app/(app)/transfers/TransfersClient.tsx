@@ -2,8 +2,9 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { formatPhone, formatDateText } from '@/lib/format'
 import { deleteFranchiseRows } from '../franchise/actions'
 import type { FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
@@ -61,6 +62,93 @@ const EditableText = memo(function EditableText({ row, field, onSave, type = 'te
   )
 })
 
+// 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드 (8자리 숫자는 자동으로 YYYY-MM-DD로 변환)
+interface DateFieldProps {
+  row: FranchiseApplication
+  field: keyof FranchiseApplication
+  onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
+}
+const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
+
+  function openPicker(e: React.MouseEvent) {
+    e.stopPropagation()
+    const el = dateInputRef.current
+    if (!el) return
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void }
+    if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
+    else el.focus()
+  }
+
+  function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value
+    setValue(next)
+    onSave(row, field, next)
+  }
+
+  return (
+    <div className="flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+      <input
+        value={value}
+        onChange={e => setValue(formatDateText(e.target.value))}
+        onBlur={() => {
+          if (value !== ((row[field] as string) ?? '')) onSave(row, field, value)
+        }}
+        placeholder="-"
+        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+      />
+      <button type="button" onClick={openPicker} tabIndex={-1} className="shrink-0 text-slate-400 hover:text-blue-500">
+        <Calendar size={14} />
+      </button>
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={isoValue}
+        onChange={handlePick}
+        tabIndex={-1}
+        className="w-0 h-0 opacity-0 absolute pointer-events-none"
+      />
+    </div>
+  )
+})
+
+// 달력 아이콘 + 직접 텍스트 입력 - 등록 폼용 (row 없이 value/onChange만 받음)
+interface DateFormFieldProps {
+  value: string
+  onChange: (value: string) => void
+}
+const DateFormField = memo(function DateFormField({ value, onChange }: DateFormFieldProps) {
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
+
+  function openPicker() {
+    const el = dateInputRef.current
+    if (!el) return
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void }
+    if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
+    else el.focus()
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input value={value} onChange={e => onChange(formatDateText(e.target.value))}
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <button type="button" onClick={openPicker} className="shrink-0 text-slate-400 hover:text-blue-500">
+        <Calendar size={14} />
+      </button>
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={isoValue}
+        onChange={e => onChange(e.target.value)}
+        className="w-0 h-0 opacity-0 absolute pointer-events-none"
+      />
+    </div>
+  )
+})
+
 export default function TransfersClient({ rows, techProfiles, currentUserId }: Props) {
   const router = useRouter()
   const toast = useToast()
@@ -75,6 +163,8 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
   const [form, setForm] = useState(EMPTY_FORM)
+  const [manualSort, setManualSort] = useState(false)
+  const [rowDragId, setRowDragId] = useState<string | null>(null)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -100,7 +190,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return localRows.filter(row => {
+    const filtered = localRows.filter(row => {
       if (statusFilter && row.status !== statusFilter) return false
       if (term) {
         const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''}`.toLowerCase()
@@ -108,7 +198,29 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
       }
       return true
     })
-  }, [localRows, search, statusFilter])
+    if (!manualSort) return filtered
+    return [...filtered].sort((a, b) =>
+      (b.sort_order ?? new Date(b.updated_at).getTime()) - (a.sort_order ?? new Date(a.updated_at).getTime())
+    )
+  }, [localRows, search, statusFilter, manualSort])
+
+  const canReorder = manualSort && !search.trim() && !statusFilter
+
+  const reorderRows = useCallback((dragId: string, dropId: string) => {
+    if (dragId === dropId) return
+    const from = localRows.findIndex(r => r.id === dragId)
+    const to = localRows.findIndex(r => r.id === dropId)
+    if (from === -1 || to === -1) return
+    const next = [...localRows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setLocalRows(next)
+    const n = next.length
+    const supabase = createClient()
+    Promise.all(next.map((r, i) =>
+      supabase.from('franchise_applications').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
+    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
+  }, [localRows, toast])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
 
@@ -164,14 +276,14 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
     const { error } = await supabase.from('franchise_applications').insert({
       owner_name: form.owner_name || null,
       business_name: form.business_name || null,
-      phone: form.phone || null,
+      phone: form.phone ? formatPhone(form.phone) : null,
       program: form.program || null,
       status: form.status,
       tech_id: form.tech_id || null,
       equipment: form.equipment || null,
       memo: form.memo || null,
-      open_date: form.open_date || null,
-      install_date: form.install_date || null,
+      open_date: form.open_date ? formatDateText(form.open_date) : null,
+      install_date: form.install_date ? formatDateText(form.install_date) : null,
       reception_channel: '전환',
       created_by: currentUserId,
     })
@@ -229,6 +341,10 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
             초기화
           </button>
         )}
+        <button onClick={() => setManualSort(v => !v)}
+          className={`text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${manualSort ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+          직접 정렬{manualSort ? ' (드래그로 순서 변경)' : ''}
+        </button>
 
         <div className="ml-auto flex items-center gap-3">
           {selected.size > 0 && (
@@ -264,7 +380,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">전화번호</label>
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000"
+            <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
@@ -323,6 +439,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
         <table className="w-full text-sm border-collapse">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
+              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
@@ -337,8 +454,22 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
           <tbody>
             {filteredRows.map(row => (
               <Fragment key={row.id}>
-                <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
-                  onClick={() => toggleExpand(row)}>
+                <tr
+                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  onClick={() => toggleExpand(row)}
+                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
+                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
+                >
+                  <td
+                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    onClick={e => e.stopPropagation()}
+                    draggable={canReorder}
+                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
+                    onDragEnd={() => setRowDragId(null)}
+                    title={canReorder ? '드래그해서 순서 변경' : '"직접 정렬" 켜고 검색/필터 해제 시에만 순서를 바꿀 수 있습니다'}
+                  >
+                    <GripVertical size={14} />
+                  </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
@@ -390,7 +521,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
                 </tr>
                 {expandedId === row.id && (
                   <tr className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={MAIN_FIELDS.length + 2} className="px-6 py-4">
+                    <td colSpan={MAIN_FIELDS.length + 3} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div className="col-span-2">
                           <label className="text-xs font-semibold text-slate-400">장비목록</label>
@@ -433,7 +564,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={MAIN_FIELDS.length + 2} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr><td colSpan={MAIN_FIELDS.length + 3} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

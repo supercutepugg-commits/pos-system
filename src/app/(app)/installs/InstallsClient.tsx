@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { formatPhone } from '@/lib/format'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus, Search, RefreshCw, Download } from 'lucide-react'
+import { Plus, Search, RefreshCw, Download, GripVertical } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 
@@ -42,6 +43,7 @@ interface Installation {
   franchise_application_id?: string
   address?: string
   delivery_type?: string
+  sort_order?: number | null
 }
 
 interface Props {
@@ -93,6 +95,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [checklistItems, setChecklistItems] = useState<{ label: string; checked: boolean }[]>([])
   const [showMonthlyStats, setShowMonthlyStats] = useState(false)
   const [skipNotify, setSkipNotify] = useState(false)
+  const [rowDragId, setRowDragId] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -101,6 +104,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     const { data } = await supabase
       .from('installations')
       .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
+      .order('sort_order', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(300)
     setInstalls((data as any) ?? [])
@@ -122,17 +126,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!form.customerName) return
-    // 전화번호 자동 포맷
-    const rawPhone = form.customerPhone.replace(/\D/g, '')
-    const fmtPhone = rawPhone.length === 11
-      ? `${rawPhone.slice(0,3)}-${rawPhone.slice(3,7)}-${rawPhone.slice(7)}`
-      : rawPhone.length === 10
-        ? `${rawPhone.slice(0,3)}-${rawPhone.slice(3,6)}-${rawPhone.slice(6)}`
-        : form.customerPhone
     setSubmitting(true)
     const { error } = await supabase.from('installations').insert({
       customer_name: form.customerName,
-      customer_phone: fmtPhone || null,
+      customer_phone: form.customerPhone ? formatPhone(form.customerPhone) : null,
       items: cartItems,
       assigned_to: form.assignedTo || null,
       notes: form.notes || null,
@@ -461,6 +458,23 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     })
   }, [installs, search, statusFilter, techFilter, showRejected, deliveryTab, dateFrom, dateTo])
 
+  const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected
+
+  const reorderInstalls = useCallback((dragId: string, dropId: string) => {
+    if (dragId === dropId) return
+    const from = installs.findIndex(i => i.id === dragId)
+    const to = installs.findIndex(i => i.id === dropId)
+    if (from === -1 || to === -1) return
+    const next = [...installs]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setInstalls(next)
+    const n = next.length
+    Promise.all(next.map((r, i) =>
+      supabase.from('installations').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
+    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
+  }, [installs, supabase, toast])
+
   const pagedInstalls = filteredInstalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totalPages = Math.ceil(filteredInstalls.length / PAGE_SIZE)
 
@@ -620,7 +634,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
               </div>
               <div>
                 <label className="block text-xs text-slate-500 mb-1">전화번호</label>
-                <input value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))}
+                <input value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: formatPhone(e.target.value) }))}
                   className={INPUT} placeholder="01012345678" />
               </div>
               {techUsers.length > 0 && (
@@ -795,6 +809,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="px-1 py-3 w-6" />
                   {['고객명', '전화번호', '주소', '제품', '상태', '담당기사', '비고', '등록일', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
@@ -802,7 +817,21 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
               </thead>
               <tbody>
                 {pagedInstalls.map(inst => (
-                  <tr key={inst.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                  <tr
+                    key={inst.id}
+                    className={`border-b border-slate-50 hover:bg-slate-50 transition ${rowDragId === inst.id ? 'opacity-40' : ''}`}
+                    onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
+                    onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
+                  >
+                    <td
+                      className={`px-1 py-3 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                      draggable={canReorder}
+                      onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(inst.id) }}
+                      onDragEnd={() => setRowDragId(null)}
+                      title={canReorder ? '드래그해서 순서 변경' : '검색/필터 중에는 순서를 변경할 수 없습니다'}
+                    >
+                      <GripVertical size={14} />
+                    </td>
                     <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <span>{inst.customer_name}</span>

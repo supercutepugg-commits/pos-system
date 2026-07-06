@@ -10,7 +10,8 @@ export default async function InternetPage() {
   const { data: rows, error } = await supabase
     .from('internet_management')
     .select('*')
-    .order('created_at', { ascending: true })
+    .order('sort_order', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
 
   return (
     <div className="flex flex-col h-screen p-6 gap-4">

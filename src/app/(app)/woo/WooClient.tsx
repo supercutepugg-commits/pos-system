@@ -12,7 +12,7 @@ interface Props {
   rows: WooCustomer[]
 }
 
-const CATEGORIES = ['가맹접수', '가맹서류대기', '접수완료', '설치완료', '교체', '명의변경']
+const CATEGORIES = ['명의변경', '승계', '신규']
 
 const SELECT_OPTIONS: Partial<Record<keyof WooCustomer, string[]>> = {
   category: CATEGORIES,
@@ -25,7 +25,6 @@ const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['internet_note']
 
 const EMPTY_FORM = {
   received_date: '',
-  manager: '',
   category: '',
   business_name: '',
   owner_name: '',
@@ -37,13 +36,9 @@ const EMPTY_FORM = {
   card_apply_date: '',
   card_apply_status: '',
   easy_payment: '',
-  pos_install_date: '',
-  install_schedule_note: '',
   setting: '',
   open_date: '',
-  van_company: '',
   pos_program: '',
-  product: '',
   address: '',
   memo: '',
 }
@@ -51,29 +46,24 @@ const EMPTY_FORM = {
 // 목록에 항상 보이는 핵심 컬럼
 const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'received_date', label: '접수날짜' },
-  { key: 'manager', label: '담당자' },
   { key: 'category', label: '분류' },
   { key: 'business_name', label: '상호명' },
   { key: 'owner_name', label: '대표자명' },
   { key: 'phone', label: '연락처' },
+  { key: 'open_date', label: '오픈일' },
+  { key: 'card_apply_status', label: '가맹여부' },
+  { key: 'setting', label: '세팅' },
+  { key: 'easy_payment', label: '간편결제' },
+  { key: 'internet_note', label: '인터넷 비고' },
 ]
 
-// 상세보기(펼침)에만 나오는 컬럼 - 요청하신 순서 그대로
+// 상세보기(펼침)에만 나오는 컬럼
 const DETAIL_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'business_number', label: '사업자번호' },
   { key: 'internet_type', label: '인터넷' },
-  { key: 'internet_note', label: '인터넷 비고' },
   { key: 'internet_open_date', label: '인터넷 개통일자' },
   { key: 'card_apply_date', label: '카드가맹 접수일자' },
-  { key: 'card_apply_status', label: '가맹여부' },
-  { key: 'easy_payment', label: '간편결제' },
-  { key: 'pos_install_date', label: '포스설치일' },
-  { key: 'install_schedule_note', label: '설치일정추가함' },
-  { key: 'setting', label: '세팅' },
-  { key: 'open_date', label: '오픈일' },
-  { key: 'van_company', label: 'VAN' },
   { key: 'pos_program', label: '포스프로그램' },
-  { key: 'product', label: '상품' },
   { key: 'address', label: '주소' },
   { key: 'memo', label: '비고' },
 ]

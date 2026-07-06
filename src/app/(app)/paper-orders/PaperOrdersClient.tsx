@@ -94,7 +94,7 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
       onDrop={e => { e.preventDefault(); onDropOn(row.id) }}
     >
       <td
-        className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+        className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
         draggable={canReorder}
         onDragStart={e => { if (!canReorder) { e.preventDefault(); return } onDragStart(row.id) }}
         onDragEnd={onDragEnd}

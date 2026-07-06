@@ -52,6 +52,7 @@ interface Props {
   currentUserRole: string
   initialStatusFilter?: string
   linkedInstalls?: Record<string, { id: string; status: string }>
+  linkedInternets?: Record<string, { id: string; status: string | null }>
 }
 
 const EMPTY_FORM = {
@@ -79,6 +80,11 @@ const EMPTY_FORM = {
 function defaultCreateForm() {
   return { ...EMPTY_FORM, reception_date: new Date().toISOString().slice(0, 10) }
 }
+
+// 인터넷 접수완료/가입완료 알림은 인터넷관리 탭 상태 변경 시 발송하므로, 가맹접수 상태 드롭다운에서는 숨긴다
+const STATUS_DROPDOWN_HIDDEN: FranchiseStatus[] = ['internet_apply_done', 'internet_done']
+const SELECTABLE_FRANCHISE_STATUSES = (Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[])
+  .filter(s => !STATUS_DROPDOWN_HIDDEN.includes(s))
 
 const ALIMTALK_LOG_LABEL: Record<string, string> = {
   doc_request: '서류 안내',
@@ -419,7 +425,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
   )
 })
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', linkedInstalls = {} }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', linkedInstalls = {}, linkedInternets = {} }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
@@ -431,6 +437,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [busyId, setBusyId] = useState<string | null>(null)
   const [transferringId, setTransferringId] = useState<string | null>(null)
   const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
+  const [localLinkedInternets, setLocalLinkedInternets] = useState<Record<string, { id: string; status: string | null }>>(linkedInternets)
+  const [linkingInternetId, setLinkingInternetId] = useState<string | null>(null)
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
@@ -449,7 +457,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
-  const [transferTab, setTransferTab] = useState<'all' | 'transferred' | 'rejected'>('all')
+  const [transferTab, setTransferTab] = useState<'all' | 'internet' | 'transferred' | 'rejected'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
@@ -555,12 +563,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   const transferredIds = useMemo(() => new Set(Object.keys(localLinkedInstalls)), [localLinkedInstalls])
   const rejectedIds = useMemo(() => new Set(Object.entries(localLinkedInstalls).filter(([, v]) => v.status === 'rejected').map(([k]) => k)), [localLinkedInstalls])
+  const internetIds = useMemo(() => new Set(Object.keys(localLinkedInternets)), [localLinkedInternets])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     const filtered = localRows.filter(row => {
       if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
+      if (transferTab === 'internet' && !internetIds.has(row.id)) return false
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (channelFilter && (row.reception_channel || '미지정') !== channelFilter) return false
@@ -585,7 +595,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'manual') return (b.sort_order ?? new Date(b.created_at).getTime()) - (a.sort_order ?? new Date(a.created_at).getTime())
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
+  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, internetIds, dateFrom, dateTo, pinnedIds])
 
   useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
@@ -828,9 +838,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         // 서류 목록 상세 안내 (가맹서류안내_* 16종)
         await notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase })
       } else if (status === 'card_internet_apply_done') {
-        // 카드가맹접수완료 + 인터넷접수완료 템플릿을 함께 발송 (기존 템플릿 코드 그대로 사용)
+        // 카드가맹접수완료 템플릿만 발송 (인터넷 접수완료 알림은 인터넷관리 탭 상태 변경 시 발송됨)
         await notifyAndLog(row.id, 'card_apply_done', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'card_apply_done' })
-        await notifyAndLog(row.id, 'internet_apply_done', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'internet_apply_done' })
       } else {
         await notifyAndLog(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
       }
@@ -1048,6 +1057,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
   }
 
+  async function linkToInternet(row: FranchiseApplication) {
+    if (localLinkedInternets[row.id]) { toast.warning('이미 인터넷관리에 등록된 접수입니다.'); return }
+    if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 인터넷관리 탭에 등록하시겠습니까?`)) return
+    setLinkingInternetId(row.id)
+    const supabase = createClient()
+    const { data, error } = await supabase.from('internet_management').insert({
+      business_name: row.business_name || null,
+      owner_name: row.owner_name || null,
+      phone: row.phone || null,
+      franchise_application_id: row.id,
+    }).select('id, status').single()
+    setLinkingInternetId(null)
+    if (error) { toast.error('인터넷관리 등록 실패: ' + error.message); return }
+    setLocalLinkedInternets(prev => ({ ...prev, [row.id]: { id: data.id, status: data.status } }))
+  }
+
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
     if (newStatus === row.status) return
     const canNotify = !!row.phone
@@ -1142,7 +1167,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as FranchiseStatus)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">상태 선택</option>
-              {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+              {SELECTABLE_FRANCHISE_STATUSES.map(s => (
                 <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
               ))}
             </select>
@@ -1206,6 +1231,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       <div className="flex gap-1 mb-2">
         {([
           ['all', '전체', localRows.length],
+          ['internet', '🌐 인터넷', internetIds.size],
           ['transferred', '🔧 기술지원 이관', transferredIds.size],
           ['rejected', '❌ 반려됨', rejectedIds.size],
         ] as const).map(([tab, label, count]) => (
@@ -1391,7 +1417,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
@@ -1474,7 +1500,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
                         className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
                       >
-                        {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+                        {SELECTABLE_FRANCHISE_STATUSES.map(s => (
                           <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
                         ))}
                       </select>
@@ -1601,6 +1627,26 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                                localLinkedInstalls[row.id]?.status === 'rejected' ? '재이관' : '기술지원 이관'}
                             </button>
                           </div>
+                        )}
+                        {localLinkedInternets[row.id] ? (
+                          <button onClick={() => router.push('/internet')}
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${
+                            localLinkedInternets[row.id].status === '개통완료'
+                              ? 'bg-green-50 text-green-600 border-green-200'
+                              : localLinkedInternets[row.id].status === '취소'
+                                ? 'bg-red-50 text-red-600 border-red-200'
+                                : 'bg-cyan-50 text-cyan-600 border-cyan-200'
+                          }`}>
+                            🌐 인터넷 {localLinkedInternets[row.id].status || '등록됨'} →
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => linkToInternet(row)}
+                            disabled={linkingInternetId === row.id}
+                            className="text-xs font-semibold bg-cyan-600 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-700 disabled:opacity-50"
+                          >
+                            {linkingInternetId === row.id ? '처리 중...' : '🌐 인터넷 등록'}
+                          </button>
                         )}
                       </div>
                       <div>

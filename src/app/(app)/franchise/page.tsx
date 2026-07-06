@@ -24,13 +24,23 @@ export default async function FranchisePage({ searchParams }: Props) {
 
   // franchise_application_id → { id, status } 맵
   const linkedInstalls: Record<string, { id: string; status: string }> = {}
+  const linkedInternets: Record<string, { id: string; status: string | null }> = {}
   if (rows && rows.length > 0) {
-    const { data: installs } = await supabase
-      .from('installations')
-      .select('id, status, franchise_application_id')
-      .in('franchise_application_id', rows.map(r => r.id))
+    const [{ data: installs }, { data: internets }] = await Promise.all([
+      supabase
+        .from('installations')
+        .select('id, status, franchise_application_id')
+        .in('franchise_application_id', rows.map(r => r.id)),
+      supabase
+        .from('internet_management')
+        .select('id, status, franchise_application_id')
+        .in('franchise_application_id', rows.map(r => r.id)),
+    ])
     for (const inst of installs ?? []) {
       if (inst.franchise_application_id) linkedInstalls[inst.franchise_application_id] = { id: inst.id, status: inst.status }
+    }
+    for (const net of internets ?? []) {
+      if (net.franchise_application_id) linkedInternets[net.franchise_application_id] = { id: net.id, status: net.status }
     }
   }
 
@@ -43,7 +53,7 @@ export default async function FranchisePage({ searchParams }: Props) {
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} currentUserName={currentProfile?.name ?? ''} currentUserRole={currentProfile?.role ?? ''} initialStatusFilter={status ?? ''} linkedInstalls={linkedInstalls} />
+        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} currentUserName={currentProfile?.name ?? ''} currentUserRole={currentProfile?.role ?? ''} initialStatusFilter={status ?? ''} linkedInstalls={linkedInstalls} linkedInternets={linkedInternets} />
       )}
     </div>
   )

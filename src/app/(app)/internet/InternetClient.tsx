@@ -15,7 +15,13 @@ interface Props {
   rows: InternetManagement[]
 }
 
-const STATUSES = ['진행중', '개통완료', '취소']
+const STATUSES = ['접수완료', '개통완료', '취소']
+
+// 상태가 이 값으로 바뀌면 가맹접수 고객에게 알림톡을 발송한다 (기존에 가맹접수 탭에서 보내던 것을 이곳으로 이전)
+const STATUS_NOTIFY_KIND: Partial<Record<string, 'internet_apply_done' | 'internet_done'>> = {
+  '접수완료': 'internet_apply_done',
+  '개통완료': 'internet_done',
+}
 const CATEGORIES = ['백메가', '3S']
 const CARRIERS = ['LG', 'KT', 'SKT']
 const SPEEDS = ['100M', '500M']
@@ -117,7 +123,7 @@ interface SelectFieldProps {
 }
 const SelectField = memo(function SelectField({ row, field, options, onSave, pill }: SelectFieldProps) {
   const statusColor = field === 'status'
-    ? (row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700')
+    ? (row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : row.status === '접수완료' ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-700')
     : 'bg-slate-100 text-slate-700'
   return (
     <select
@@ -389,7 +395,27 @@ export default function InternetClient({ rows }: Props) {
   const saveField = useCallback(async (row: InternetManagement, field: keyof InternetManagement, value: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('internet_management').update({ [field]: value || null }).eq('id', row.id)
-    if (error) toast.error('수정 실패: ' + error.message)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+
+    if (field === 'status' && value !== row.status) {
+      const notifyKind = STATUS_NOTIFY_KIND[value]
+      if (notifyKind && row.phone) {
+        if (confirm(`'${value}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 계속하시겠습니까?`)) {
+          try {
+            const res = await fetch('/api/franchise/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: notifyKind }),
+            })
+            const data = await res.json()
+            if (!data.ok) toast.error('메시지 발송 실패: ' + data.error)
+          } catch {
+            toast.error('메시지 발송 실패')
+          }
+        }
+      }
+    }
+
     startTransition(() => router.refresh())
   }, [])
 
@@ -482,7 +508,7 @@ export default function InternetClient({ rows }: Props) {
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}

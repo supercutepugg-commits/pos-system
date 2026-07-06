@@ -365,7 +365,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}

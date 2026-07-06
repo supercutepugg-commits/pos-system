@@ -176,6 +176,7 @@ export interface WooCustomer {
 
 export interface InternetManagement {
   id: string
+  franchise_application_id?: string | null
   business_name?: string
   apply_date?: string
   open_date?: string

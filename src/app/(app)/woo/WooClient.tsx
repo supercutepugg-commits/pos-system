@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteWooRows } from './actions'
 import type { WooCustomer } from '@/types'
+import { useToast } from '@/components/ui/Toast'
 
 interface Props {
   rows: WooCustomer[]
@@ -47,14 +48,19 @@ const EMPTY_FORM = {
   memo: '',
 }
 
-const COLUMNS: { key: keyof WooCustomer; label: string }[] = [
+// 목록에 항상 보이는 핵심 컬럼
+const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'received_date', label: '접수날짜' },
   { key: 'manager', label: '담당자' },
   { key: 'category', label: '분류' },
   { key: 'business_name', label: '상호명' },
   { key: 'owner_name', label: '대표자명' },
-  { key: 'business_number', label: '사업자번호' },
   { key: 'phone', label: '연락처' },
+]
+
+// 상세보기(펼침)에만 나오는 컬럼 - 요청하신 순서 그대로
+const DETAIL_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
+  { key: 'business_number', label: '사업자번호' },
   { key: 'internet_type', label: '인터넷' },
   { key: 'internet_note', label: '인터넷 비고' },
   { key: 'internet_open_date', label: '인터넷 개통일자' },
@@ -72,57 +78,47 @@ const COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'memo', label: '비고' },
 ]
 
-// --- EditableCell moved outside main component ---
-interface EditableCellProps {
+const COLUMNS = [...MAIN_COLUMNS, ...DETAIL_COLUMNS]
+
+// --- EditableText moved outside main component ---
+interface EditableTextProps {
   row: WooCustomer
   field: keyof WooCustomer
   onSave: (row: WooCustomer, field: keyof WooCustomer, value: string) => void
 }
-const EditableCell = memo(function EditableCell({ row, field, onSave }: EditableCellProps) {
+const EditableText = memo(function EditableText({ row, field, onSave }: EditableTextProps) {
   const [value, setValue] = useState((row[field] as string) ?? '')
   return (
     <input
       value={value}
       onChange={e => setValue(e.target.value)}
       onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
-      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm min-w-[100px]"
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     />
   )
 })
 
-// --- Memoized table row ---
-interface TableRowProps {
+interface SelectFieldProps {
   row: WooCustomer
-  isSelected: boolean
-  onToggle: (id: string) => void
+  field: keyof WooCustomer
+  options: string[]
   onSave: (row: WooCustomer, field: keyof WooCustomer, value: string) => void
+  pill?: boolean
 }
-const TableRow = memo(function TableRow({ row, isSelected, onToggle, onSave }: TableRowProps) {
+const SelectField = memo(function SelectField({ row, field, options, onSave, pill }: SelectFieldProps) {
   return (
-    <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
-      <td className="px-3 py-2">
-        <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
-      </td>
-      {COLUMNS.map(col => {
-        const options = SELECT_OPTIONS[col.key]
-        return (
-          <td key={col.key} className="px-3 py-2 whitespace-nowrap">
-            {options ? (
-              <select
-                value={(row[col.key] as string) ?? ''}
-                onChange={e => onSave(row, col.key, e.target.value)}
-                className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-              >
-                <option value="">-</option>
-                {options.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ) : (
-              <EditableCell row={row} field={col.key} onSave={onSave} />
-            )}
-          </td>
-        )
-      })}
-    </tr>
+    <select
+      value={(row[field] as string) ?? ''}
+      onChange={e => onSave(row, field, e.target.value)}
+      onClick={e => e.stopPropagation()}
+      className={pill
+        ? 'text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer'
+        : 'w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm'}
+    >
+      <option value="">-</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
   )
 })
 
@@ -180,6 +176,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
 
 export default function WooClient({ rows }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -188,6 +185,7 @@ export default function WooClient({ rows }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -244,13 +242,17 @@ export default function WooClient({ rows }: Props) {
     })
   }, [])
 
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedId(prev => prev === id ? null : id)
+  }, [])
+
   const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
     const { error } = await deleteWooRows([...selected])
     setDeleting(false)
-    if (error) { alert('삭제 실패: ' + error); return }
+    if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
@@ -264,19 +266,19 @@ export default function WooClient({ rows }: Props) {
     )
     const { error } = await supabase.from('woo_customers').insert(payload)
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
     startTransition(() => router.refresh())
   }, [])
 
   const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {
     if (REQUIRED_FIELDS.includes(field) && !value.trim()) {
-      alert(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
+      toast.warning(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
       return
     }
     const supabase = createClient()
     const { error } = await supabase.from('woo_customers').update({ [field]: value || null }).eq('id', row.id)
-    if (error) alert('수정 실패: ' + error.message)
+    if (error) toast.error('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
   }, [])
 
@@ -327,13 +329,14 @@ export default function WooClient({ rows }: Props) {
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse min-w-[2600px]">
+        <table className="w-full text-sm border-collapse">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              {COLUMNS.map(col => (
+              <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
+              {MAIN_COLUMNS.map(col => (
                 <th key={col.key} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
                   {col.label}
                 </th>
@@ -342,16 +345,59 @@ export default function WooClient({ rows }: Props) {
           </thead>
           <tbody>
             {filteredRows.map(row => (
-              <TableRow
-                key={row.id}
-                row={row}
-                isSelected={selected.has(row.id)}
-                onToggle={toggleOne}
-                onSave={saveField}
-              />
+              <Fragment key={row.id}>
+                <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
+                  onClick={() => toggleExpand(row.id)}>
+                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2 text-slate-400">
+                    {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </td>
+                  {MAIN_COLUMNS.map(col => {
+                    const options = SELECT_OPTIONS[col.key]
+                    return (
+                      <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+                        {options ? (
+                          <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
+                        ) : col.key === 'business_name' ? (
+                          <span className="font-medium text-slate-900">{row.business_name || '-'}</span>
+                        ) : (
+                          <EditableText row={row} field={col.key} onSave={saveField} />
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+                {expandedId === row.id && (
+                  <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
+                    <td colSpan={MAIN_COLUMNS.length + 2} className="px-6 py-4">
+                      <div className="grid grid-cols-4 gap-4">
+                        {DETAIL_COLUMNS.map(col => {
+                          const options = SELECT_OPTIONS[col.key]
+                          const required = REQUIRED_FIELDS.includes(col.key)
+                          const wide = col.key === 'address' || col.key === 'memo'
+                          return (
+                            <div key={col.key} className={wide ? 'col-span-4' : ''}>
+                              <label className="text-xs font-semibold text-slate-400">
+                                {col.label}{required && <span className="text-red-500"> *</span>}
+                              </label>
+                              {options ? (
+                                <SelectField row={row} field={col.key} options={options} onSave={saveField} />
+                              ) : (
+                                <EditableText row={row} field={col.key} onSave={saveField} />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={COLUMNS.length + 1} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr><td colSpan={MAIN_COLUMNS.length + 2} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

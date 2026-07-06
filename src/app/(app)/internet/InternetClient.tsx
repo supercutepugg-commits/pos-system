@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
+import { useToast } from '@/components/ui/Toast'
 
 interface Props {
   rows: InternetManagement[]
@@ -13,6 +14,11 @@ interface Props {
 
 const STATUSES = ['진행중', '개통완료', '취소']
 const CATEGORIES = ['백메가', '3S']
+
+const SELECT_OPTIONS: Partial<Record<keyof InternetManagement, string[]>> = {
+  status: STATUSES,
+  category: CATEGORIES,
+}
 
 const EMPTY_FORM = {
   business_name: '',
@@ -32,83 +38,84 @@ const EMPTY_FORM = {
   memo: '',
 }
 
-const COLUMNS: { key: keyof InternetManagement; label: string }[] = [
+// 목록에 항상 보이는 핵심 컬럼
+const MAIN_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
   { key: 'business_name', label: '상호명' },
   { key: 'apply_date', label: '접수신청일' },
   { key: 'open_date', label: '개통완료일' },
   { key: 'status', label: '상태' },
+  { key: 'owner_name', label: '대표자' },
+  { key: 'phone', label: '연락처' },
+]
+
+// 상세보기(펼침)에만 나오는 컬럼
+const DETAIL_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
   { key: 'category', label: '구분' },
   { key: 'carrier', label: '통신사' },
   { key: 'speed', label: '속도' },
   { key: 'addon', label: '추가 가입상품' },
   { key: 'gift', label: '사은품' },
-  { key: 'owner_name', label: '대표자' },
-  { key: 'phone', label: '연락처' },
   { key: 'region', label: '지역' },
   { key: 'monthly_fee', label: '월요금' },
   { key: 'install_fee', label: '설치비' },
   { key: 'memo', label: '비고' },
 ]
 
-// --- EditableCell moved outside main component ---
-interface EditableCellProps {
+const COLUMNS = [...MAIN_COLUMNS, ...DETAIL_COLUMNS]
+
+const DEFAULT_WIDTHS: Partial<Record<keyof InternetManagement, number>> = {
+  business_name: 180,
+  apply_date: 110,
+  open_date: 110,
+  status: 100,
+  owner_name: 100,
+  phone: 130,
+}
+
+const COL_WIDTHS_STORAGE_KEY = 'internet_management_col_widths'
+
+// --- EditableText moved outside main component ---
+interface EditableTextProps {
   row: InternetManagement
   field: keyof InternetManagement
   onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
 }
-const EditableCell = memo(function EditableCell({ row, field, onSave }: EditableCellProps) {
+const EditableText = memo(function EditableText({ row, field, onSave }: EditableTextProps) {
   const [value, setValue] = useState((row[field] as string) ?? '')
   return (
     <input
       value={value}
       onChange={e => setValue(e.target.value)}
       onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
-      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm min-w-[100px]"
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     />
   )
 })
 
-// --- Memoized table row ---
-interface TableRowProps {
+interface SelectFieldProps {
   row: InternetManagement
-  isSelected: boolean
-  onToggle: (id: string) => void
+  field: keyof InternetManagement
+  options: string[]
   onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
+  pill?: boolean
 }
-const TableRow = memo(function TableRow({ row, isSelected, onToggle, onSave }: TableRowProps) {
+const SelectField = memo(function SelectField({ row, field, options, onSave, pill }: SelectFieldProps) {
+  const statusColor = field === 'status'
+    ? (row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700')
+    : 'bg-slate-100 text-slate-700'
   return (
-    <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
-      <td className="px-3 py-2">
-        <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
-      </td>
-      {COLUMNS.map(col => (
-        <td key={col.key} className="px-3 py-2 whitespace-nowrap">
-          {col.key === 'status' ? (
-            <select
-              value={row.status ?? ''}
-              onChange={e => onSave(row, 'status', e.target.value)}
-              className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${
-                row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
-              }`}
-            >
-              <option value="">-</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          ) : col.key === 'category' ? (
-            <select
-              value={row.category ?? ''}
-              onChange={e => onSave(row, 'category', e.target.value)}
-              className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-            >
-              <option value="">-</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          ) : (
-            <EditableCell row={row} field={col.key} onSave={onSave} />
-          )}
-        </td>
-      ))}
-    </tr>
+    <select
+      value={(row[field] as string) ?? ''}
+      onChange={e => onSave(row, field, e.target.value)}
+      onClick={e => e.stopPropagation()}
+      className={pill
+        ? `text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${statusColor}`
+        : 'w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm'}
+    >
+      <option value="">-</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
   )
 })
 
@@ -128,27 +135,24 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-      {COLUMNS.map(col => (
-        <div key={col.key} className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">{col.label}</label>
-          {col.key === 'status' ? (
-            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          ) : col.key === 'category' ? (
-            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-24 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          ) : (
-            <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          )}
-        </div>
-      ))}
+      {COLUMNS.map(col => {
+        const options = SELECT_OPTIONS[col.key]
+        return (
+          <div key={col.key} className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">{col.label}</label>
+            {options ? (
+              <select value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">선택 안함</option>
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            )}
+          </div>
+        )
+      })}
       <button type="submit" disabled={submitting}
         className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
         {submitting ? '등록 중...' : '등록'}
@@ -159,6 +163,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
 
 export default function InternetClient({ rows }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -168,6 +173,45 @@ export default function InternetClient({ rows }: Props) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    if (typeof window === 'undefined') return {}
+    try { return JSON.parse(localStorage.getItem(COL_WIDTHS_STORAGE_KEY) ?? '{}') } catch { return {} }
+  })
+  const dragState = useRef<{ key: string; startX: number; startWidth: number } | null>(null)
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!dragState.current) return
+      const { key, startX, startWidth } = dragState.current
+      const newWidth = Math.max(60, startWidth + (e.clientX - startX))
+      setColWidths(prev => ({ ...prev, [key]: newWidth }))
+    }
+    function onUp() {
+      if (!dragState.current) return
+      dragState.current = null
+      setColWidths(prev => {
+        localStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
+        return prev
+      })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
+  const startResize = useCallback((e: React.MouseEvent, key: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragState.current = {
+      key,
+      startX: e.clientX,
+      startWidth: colWidths[key] ?? DEFAULT_WIDTHS[key as keyof InternetManagement] ?? 140,
+    }
+  }, [colWidths])
 
   useEffect(() => {
     setLocalRows(rows)
@@ -225,13 +269,17 @@ export default function InternetClient({ rows }: Props) {
     })
   }, [])
 
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedId(prev => prev === id ? null : id)
+  }, [])
+
   const handleDelete = useCallback(async () => {
     if (selected.size === 0) return
     if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
     setDeleting(true)
     const { error } = await deleteInternetRows([...selected])
     setDeleting(false)
-    if (error) { alert('삭제 실패: ' + error); return }
+    if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
     startTransition(() => router.refresh())
@@ -245,7 +293,7 @@ export default function InternetClient({ rows }: Props) {
     )
     const { error } = await supabase.from('internet_management').insert(payload)
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
     startTransition(() => router.refresh())
   }, [])
@@ -253,7 +301,7 @@ export default function InternetClient({ rows }: Props) {
   const saveField = useCallback(async (row: InternetManagement, field: keyof InternetManagement, value: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('internet_management').update({ [field]: value || null }).eq('id', row.id)
-    if (error) alert('수정 실패: ' + error.message)
+    if (error) toast.error('수정 실패: ' + error.message)
     startTransition(() => router.refresh())
   }, [])
 
@@ -309,31 +357,83 @@ export default function InternetClient({ rows }: Props) {
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse min-w-[1800px]">
+        <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: 32 }} />
+            <col style={{ width: 24 }} />
+            {MAIN_COLUMNS.map(col => (
+              <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+              <th className="px-3 py-2.5 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              {COLUMNS.map(col => (
-                <th key={col.key} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
+              <th className="px-3 py-2.5 border-b border-slate-200" />
+              {MAIN_COLUMNS.map(col => (
+                <th key={col.key} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {col.label}
+                  <div
+                    onMouseDown={e => startResize(e, col.key)}
+                    className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
+                  />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filteredRows.map(row => (
-              <TableRow
-                key={row.id}
-                row={row}
-                isSelected={selected.has(row.id)}
-                onToggle={toggleOne}
-                onSave={saveField}
-              />
+              <Fragment key={row.id}>
+                <tr className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
+                  onClick={() => toggleExpand(row.id)}>
+                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2 text-slate-400">
+                    {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </td>
+                  {MAIN_COLUMNS.map(col => {
+                    const options = SELECT_OPTIONS[col.key]
+                    return (
+                      <td key={col.key} className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis">
+                        {options ? (
+                          <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
+                        ) : col.key === 'business_name' ? (
+                          <span className="font-medium text-slate-900 block overflow-hidden text-ellipsis">{row.business_name || '-'}</span>
+                        ) : (
+                          <EditableText row={row} field={col.key} onSave={saveField} />
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+                {expandedId === row.id && (
+                  <tr className="bg-blue-50/50 border-b border-slate-100">
+                    <td colSpan={MAIN_COLUMNS.length + 2} className="px-6 py-4">
+                      <div className="grid grid-cols-4 gap-4">
+                        {DETAIL_COLUMNS.map(col => {
+                          const options = SELECT_OPTIONS[col.key]
+                          const wide = col.key === 'memo'
+                          return (
+                            <div key={col.key} className={wide ? 'col-span-4' : ''}>
+                              <label className="text-xs font-semibold text-slate-400">{col.label}</label>
+                              {options ? (
+                                <SelectField row={row} field={col.key} options={options} onSave={saveField} />
+                              ) : (
+                                <EditableText row={row} field={col.key} onSave={saveField} />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={COLUMNS.length + 1} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr><td colSpan={MAIN_COLUMNS.length + 2} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

@@ -274,21 +274,22 @@ export default function InternetClient({ rows }: Props) {
       if (!dragState.current) return
       const { key, startX, startWidth } = dragState.current
       const newWidth = Math.max(60, startWidth + (e.clientX - startX))
-      setColWidths(prev => ({ ...prev, [key]: newWidth }))
+      setColWidths(prev => {
+        const next = { ...prev, [key]: newWidth }
+        localStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(next))
+        return next
+      })
     }
     function onUp() {
-      if (!dragState.current) return
       dragState.current = null
-      setColWidths(prev => {
-        localStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
-        return prev
-      })
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('blur', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('blur', onUp)
     }
   }, [])
 

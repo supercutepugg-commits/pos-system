@@ -76,6 +76,10 @@ const EMPTY_FORM = {
   sendDocNotify: false,
 }
 
+function defaultCreateForm() {
+  return { ...EMPTY_FORM, reception_date: new Date().toISOString().slice(0, 10) }
+}
+
 const ALIMTALK_LOG_LABEL: Record<string, string> = {
   doc_request: '서류 안내',
   doc_incomplete: '서류미비',
@@ -303,12 +307,12 @@ interface CreateFormProps {
   submitting: boolean
 }
 const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState(defaultCreateForm)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const success = await onSubmit(form)
-    if (success) setForm(EMPTY_FORM)
+    if (success) setForm(defaultCreateForm())
   }
 
   return (

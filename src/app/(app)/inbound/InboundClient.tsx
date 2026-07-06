@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, GripVertical } from 'lucide-react'
 import { updateInboundRow, deleteInboundRows } from './actions'
 import { createClient } from '@/lib/supabase/client'
 
@@ -22,6 +22,7 @@ export interface InboundRow {
   ai_summary: string | null
   tech_note: string | null
   note: string | null
+  sort_order?: number | null
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -128,6 +129,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
   const [localRows, setLocalRows] = useState(rows)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [rowDragId, setRowDragId] = useState<string | null>(null)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -212,6 +214,28 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
     if (error) alert('수정 실패: ' + error)
   }, [])
 
+  // "직접 정렬" 모드 + 검색/필터 없이 전체가 한 페이지에 들어올 때만 드래그 재정렬 허용
+  // (서버 페이지네이션 특성상 여러 페이지에 걸쳐 있으면 sort_order 값이 서로 충돌할 수 있음)
+  const canReorder = sortKey === 'sort_order' && totalPages <= 1
+    && !currentParams.q && !currentParams.staff && !currentParams.channel
+    && !currentParams.category && !currentParams.status && !currentParams.from && !currentParams.to
+
+  const reorderRows = useCallback((dragId: string, dropId: string) => {
+    if (dragId === dropId) return
+    const from = localRows.findIndex(r => r.id === dragId)
+    const to = localRows.findIndex(r => r.id === dropId)
+    if (from === -1 || to === -1) return
+    const next = [...localRows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setLocalRows(next)
+    const n = next.length
+    const supabase = createClient()
+    Promise.all(next.map((r, i) =>
+      supabase.from('crm_inbound').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
+    )).catch(() => alert('순서 저장에 실패했습니다.'))
+  }, [localRows])
+
   return (
     <div className="flex flex-col h-full">
       {/* 필터 바 */}
@@ -258,6 +282,11 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
             초기화
           </button>
         )}
+        <button onClick={() => pushParams({ sort: sortKey === 'sort_order' ? 'date' : 'sort_order', dir: 'desc', page: undefined })}
+          title={sortKey === 'sort_order' && !canReorder ? '검색/필터가 있거나 결과가 여러 페이지에 걸쳐 있으면 드래그할 수 없습니다' : undefined}
+          className={`text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${sortKey === 'sort_order' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+          직접 정렬{canReorder ? ' (드래그로 순서 변경)' : ''}
+        </button>
         {/* 프리셋 필터 버튼 */}
         <div className="flex gap-1">
           <button
@@ -298,6 +327,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
         <table className="w-full text-sm border-collapse min-w-[1200px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
+              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
@@ -330,8 +360,20 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
             {localRows.map(row => (
               <Fragment key={row.id}>
                 <tr
-                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${savingId === row.id ? 'opacity-60' : ''}`}
+                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${savingId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
+                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
+                  <td
+                    className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    onClick={e => e.stopPropagation()}
+                    draggable={canReorder}
+                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
+                    onDragEnd={() => setRowDragId(null)}
+                    title={canReorder ? '드래그해서 순서 변경' : '"직접 정렬" 모드 + 검색/필터 없이 한 페이지에 다 보일 때만 순서를 바꿀 수 있습니다'}
+                  >
+                    <GripVertical size={14} />
+                  </td>
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
@@ -374,7 +416,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50">
-                    <td colSpan={11} className="px-4 py-4">
+                    <td colSpan={12} className="px-4 py-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="font-semibold text-slate-700 mb-1">문의내용</p>
@@ -432,7 +474,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
             ))}
             {localRows.length === 0 && (
               <tr>
-                <td colSpan={11} className="text-center py-16 text-slate-400">
+                <td colSpan={12} className="text-center py-16 text-slate-400">
                   검색 결과가 없습니다
                 </td>
               </tr>

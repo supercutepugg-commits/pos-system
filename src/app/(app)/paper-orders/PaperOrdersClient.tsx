@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 function calcUnitStandard(count: string | null, revenue: string | null): string {
@@ -34,6 +34,7 @@ export interface PaperOrder {
   revenue: string | null
   unit_standard: string | null
   memo: string | null
+  sort_order?: number | null
   created_at: string
 }
 
@@ -79,10 +80,28 @@ interface TableRowProps {
   onToggle: (id: string) => void
   onToggleShipped: (row: PaperOrder) => void
   onSave: (row: PaperOrder, field: keyof PaperOrder, value: string) => void
+  canReorder: boolean
+  isDragging: boolean
+  onDragStart: (id: string) => void
+  onDragEnd: () => void
+  onDropOn: (id: string) => void
 }
-const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShipped, onSave }: TableRowProps) {
+const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShipped, onSave, canReorder, isDragging, onDragStart, onDragEnd, onDropOn }: TableRowProps) {
   return (
-    <tr className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${row.shipped ? '' : 'bg-yellow-50/40'}`}>
+    <tr
+      className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${row.shipped ? '' : 'bg-yellow-50/40'} ${isDragging ? 'opacity-40' : ''}`}
+      onDragOver={e => { if (canReorder) e.preventDefault() }}
+      onDrop={e => { e.preventDefault(); onDropOn(row.id) }}
+    >
+      <td
+        className={`px-1 py-2 text-slate-300 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+        draggable={canReorder}
+        onDragStart={e => { if (!canReorder) { e.preventDefault(); return } onDragStart(row.id) }}
+        onDragEnd={onDragEnd}
+        title={canReorder ? '드래그해서 순서 변경' : '검색/필터 중에는 순서를 변경할 수 없습니다'}
+      >
+        <GripVertical size={14} />
+      </td>
       <td className="px-3 py-2">
         <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
       </td>
@@ -184,6 +203,7 @@ export default function PaperOrdersClient({ rows }: Props) {
   const [search, setSearch] = useState('')
   const [shippedFilter, setShippedFilter] = useState<'all' | 'shipped' | 'pending'>('all')
   const [page, setPage] = useState(1)
+  const [rowDragId, setRowDragId] = useState<string | null>(null)
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -200,6 +220,24 @@ export default function PaperOrdersClient({ rows }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = useMemo(() => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredRows, page])
+
+  const canReorder = !search.trim() && shippedFilter === 'all'
+
+  const reorderRows = useCallback((dragId: string, dropId: string) => {
+    if (dragId === dropId) return
+    const from = localRows.findIndex(r => r.id === dragId)
+    const to = localRows.findIndex(r => r.id === dropId)
+    if (from === -1 || to === -1) return
+    const next = [...localRows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setLocalRows(next)
+    const n = next.length
+    const supabase = createClient()
+    Promise.all(next.map((r, i) =>
+      supabase.from('paper_orders').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
+    )).catch(() => alert('순서 저장에 실패했습니다.'))
+  }, [localRows])
 
   const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
 
@@ -321,6 +359,7 @@ export default function PaperOrdersClient({ rows }: Props) {
         <table className="w-full text-sm border-collapse min-w-[1400px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
+              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
               <th className="px-3 py-2.5 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
@@ -341,10 +380,15 @@ export default function PaperOrdersClient({ rows }: Props) {
                 onToggle={toggleOne}
                 onToggleShipped={toggleShipped}
                 onSave={saveField}
+                canReorder={canReorder}
+                isDragging={rowDragId === row.id}
+                onDragStart={setRowDragId}
+                onDragEnd={() => setRowDragId(null)}
+                onDropOn={dropId => { if (rowDragId) reorderRows(rowDragId, dropId) }}
               />
             ))}
             {pagedRows.length === 0 && (
-              <tr><td colSpan={13} className="text-center text-slate-400 py-10">데이터가 없습니다.</td></tr>
+              <tr><td colSpan={14} className="text-center text-slate-400 py-10">데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

@@ -19,7 +19,7 @@ interface Props {
   }>
 }
 
-const SORTABLE = new Set(['date', 'staff', 'channel', 'category', 'status', 'owner_name', 'business_name', 'phone'])
+const SORTABLE = new Set(['date', 'staff', 'channel', 'category', 'status', 'owner_name', 'business_name', 'phone', 'sort_order'])
 
 export default async function InboundPage({ searchParams }: Props) {
   const params = await searchParams
@@ -50,7 +50,7 @@ export default async function InboundPage({ searchParams }: Props) {
 
   const [rowsResult, optionsResult] = await Promise.all([
     applyFilters(supabase.from('crm_inbound').select('*', { count: 'exact' }))
-      .order(sortKey, { ascending: sortDir === 'asc' })
+      .order(sortKey, { ascending: sortDir === 'asc', nullsFirst: false })
       .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
     supabase.from('crm_inbound').select('staff, channel, category, status'),

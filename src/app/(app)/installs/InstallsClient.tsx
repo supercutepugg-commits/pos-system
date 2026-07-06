@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone } from '@/lib/format'
 import { format } from 'date-fns'
@@ -62,6 +62,125 @@ const STATUS_ICONS: Record<string, string> = {
   rejected: '❌',
 }
 
+// --- Separate form component so typing here doesn't re-render the whole list ---
+interface CreateFormProps {
+  techUsers: { id: string; name: string }[]
+  onSubmit: (v: {
+    customerName: string
+    customerPhone: string
+    assignedTo: string
+    notes: string
+    items: { name: string; quantity: number }[]
+    deliveryType: 'install' | 'delivery'
+  }) => Promise<void>
+  submitting: boolean
+  onCancel: () => void
+}
+const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel }: CreateFormProps) {
+  const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
+  const [deliveryType, setDeliveryType] = useState<'install' | 'delivery'>('install')
+  const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
+  const [cartQty, setCartQty] = useState(1)
+  const [cartItems, setCartItems] = useState<{ name: string; quantity: number }[]>([])
+
+  function addToCart() {
+    setCartItems(prev => {
+      const existing = prev.find(i => i.name === cartProduct)
+      if (existing) return prev.map(i => i.name === cartProduct ? { ...i, quantity: i.quantity + cartQty } : i)
+      return [...prev, { name: cartProduct, quantity: cartQty }]
+    })
+    setCartQty(1)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await onSubmit({
+      customerName: form.customerName,
+      customerPhone: form.customerPhone,
+      assignedTo: form.assignedTo,
+      notes: form.notes,
+      items: cartItems,
+      deliveryType,
+    })
+    setForm({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
+    setDeliveryType('install')
+    setCartItems([])
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 className="text-sm font-bold text-slate-800 mb-4">새 설치건 등록</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 설치/택배 구분 */}
+        <div className="flex gap-2">
+          {(['install', 'delivery'] as const).map(t => (
+            <button key={t} type="button" onClick={() => setDeliveryType(t)}
+              className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : 'bg-orange-500 text-white border-orange-500') : 'bg-white text-slate-500 border-slate-200'}`}>
+              {t === 'install' ? '🔧 설치' : '📦 택배발송'}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">고객명 *</label>
+            <input required value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
+              className={INPUT} placeholder="홍길동" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">전화번호</label>
+            <input value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: formatPhone(e.target.value) }))}
+              className={INPUT} placeholder="01012345678" />
+          </div>
+          {techUsers.length > 0 && (
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">담당 기사</label>
+              <select value={form.assignedTo} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))} className={INPUT}>
+                <option value="">미배정</option>
+                {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">비고</label>
+            <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className={INPUT} />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">제품 추가</label>
+            <div className="flex gap-2">
+              <select value={cartProduct} onChange={e => setCartProduct(e.target.value)} className={INPUT}>
+                {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <input type="number" min={1} value={cartQty} onChange={e => setCartQty(Number(e.target.value))}
+                className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm text-center" />
+              <button type="button" onClick={addToCart}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200">추가</button>
+            </div>
+            {cartItems.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {cartItems.map(it => (
+                  <li key={it.name} className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-sm">
+                    <span>{it.name} × {it.quantity}</span>
+                    <button type="button" onClick={() => setCartItems(prev => prev.filter(i => i.name !== it.name))}
+                      className="text-red-400 text-xs">삭제</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onCancel}
+            className="px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-600">취소</button>
+          <button type="submit" disabled={submitting}
+            className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
+            {submitting ? '등록 중...' : '등록'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+})
+
 export default function InstallsClient({ profile, techUsers, initialInstalls }: Props) {
   const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
   const toast = useToast()
@@ -72,10 +191,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [detailInst, setDetailInst] = useState<Installation | null>(null)
-  const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
-  const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
-  const [cartQty, setCartQty] = useState(1)
-  const [cartItems, setCartItems] = useState<{ name: string; quantity: number }[]>([])
   const [completeModal, setCompleteModal] = useState<{ id: string; notes: string } | null>(null)
   const [completePhotos, setCompletePhotos] = useState<File[]>([])
   const [completing, setCompleting] = useState(false)
@@ -91,7 +206,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [deliveryTab, setDeliveryTab] = useState<'all' | 'install' | 'delivery'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [deliveryType, setDeliveryType] = useState<'install' | 'delivery'>('install')
   const [checklistItems, setChecklistItems] = useState<{ label: string; checked: boolean }[]>([])
   const [showMonthlyStats, setShowMonthlyStats] = useState(false)
   const [skipNotify, setSkipNotify] = useState(false)
@@ -123,25 +237,28 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     setLoadingDetail(false)
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.customerName) return
+  async function handleCreate(newInstall: {
+    customerName: string
+    customerPhone: string
+    assignedTo: string
+    notes: string
+    items: { name: string; quantity: number }[]
+    deliveryType: 'install' | 'delivery'
+  }) {
+    if (!newInstall.customerName) return
     setSubmitting(true)
     const { error } = await supabase.from('installations').insert({
-      customer_name: form.customerName,
-      customer_phone: form.customerPhone ? formatPhone(form.customerPhone) : null,
-      items: cartItems,
-      assigned_to: form.assignedTo || null,
-      notes: form.notes || null,
+      customer_name: newInstall.customerName,
+      customer_phone: newInstall.customerPhone ? formatPhone(newInstall.customerPhone) : null,
+      items: newInstall.items,
+      assigned_to: newInstall.assignedTo || null,
+      notes: newInstall.notes || null,
       created_by: profile.id,
       status: 'received',
-      delivery_type: deliveryType,
+      delivery_type: newInstall.deliveryType,
     })
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
-    setForm({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
-    setDeliveryType('install')
-    setCartItems([])
     setShowForm(false)
     fetchInstalls()
   }
@@ -332,15 +449,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     if (!confirm('삭제하시겠습니까?')) return
     await supabase.from('installations').delete().eq('id', id)
     setInstalls(prev => prev.filter(i => i.id !== id))
-  }
-
-  function addToCart() {
-    setCartItems(prev => {
-      const existing = prev.find(i => i.name === cartProduct)
-      if (existing) return prev.map(i => i.name === cartProduct ? { ...i, quantity: i.quantity + cartQty } : i)
-      return [...prev, { name: cartProduct, quantity: cartQty }]
-    })
-    setCartQty(1)
   }
 
   function copyLink(token: string) {
@@ -614,76 +722,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
 
       {/* 등록 폼 */}
       {canEdit && showForm && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <h2 className="text-sm font-bold text-slate-800 mb-4">새 설치건 등록</h2>
-          <form onSubmit={handleCreate} className="space-y-4">
-            {/* 설치/택배 구분 */}
-            <div className="flex gap-2">
-              {(['install', 'delivery'] as const).map(t => (
-                <button key={t} type="button" onClick={() => setDeliveryType(t)}
-                  className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : 'bg-orange-500 text-white border-orange-500') : 'bg-white text-slate-500 border-slate-200'}`}>
-                  {t === 'install' ? '🔧 설치' : '📦 택배발송'}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">고객명 *</label>
-                <input required value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
-                  className={INPUT} placeholder="홍길동" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">전화번호</label>
-                <input value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: formatPhone(e.target.value) }))}
-                  className={INPUT} placeholder="01012345678" />
-              </div>
-              {techUsers.length > 0 && (
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">담당 기사</label>
-                  <select value={form.assignedTo} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))} className={INPUT}>
-                    <option value="">미배정</option>
-                    {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">비고</label>
-                <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className={INPUT} />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs text-slate-500 mb-1">제품 추가</label>
-                <div className="flex gap-2">
-                  <select value={cartProduct} onChange={e => setCartProduct(e.target.value)} className={INPUT}>
-                    {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <input type="number" min={1} value={cartQty} onChange={e => setCartQty(Number(e.target.value))}
-                    className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm text-center" />
-                  <button type="button" onClick={addToCart}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200">추가</button>
-                </div>
-                {cartItems.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {cartItems.map(it => (
-                      <li key={it.name} className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-sm">
-                        <span>{it.name} × {it.quantity}</span>
-                        <button type="button" onClick={() => setCartItems(prev => prev.filter(i => i.name !== it.name))}
-                          className="text-red-400 text-xs">삭제</button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowForm(false)}
-                className="px-4 py-2 border border-slate-200 rounded-xl text-sm text-slate-600">취소</button>
-              <button type="submit" disabled={submitting}
-                className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-                {submitting ? '등록 중...' : '등록'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} />
       )}
 
       {/* 설치/택배 탭 */}

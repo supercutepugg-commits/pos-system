@@ -149,6 +149,91 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
   )
 })
 
+// --- Separate form component so typing here doesn't re-render the whole table ---
+interface CreateFormProps {
+  techProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
+  onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
+  submitting: boolean
+}
+const CreateForm = memo(function CreateForm({ techProfiles, onSubmit, submitting }: CreateFormProps) {
+  const [form, setForm] = useState(EMPTY_FORM)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await onSubmit(form)
+    setForm(EMPTY_FORM)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">고객명</label>
+        <input value={form.owner_name} onChange={e => setForm({ ...form, owner_name: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">상호</label>
+        <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">전화번호</label>
+        <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">프로그램</label>
+        <select value={form.program} onChange={e => setForm({ ...form, program: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">선택 안함</option>
+          {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">상태</label>
+        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as FranchiseStatus })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
+            <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">담당자</label>
+        <select value={form.tech_id} onChange={e => setForm({ ...form, tech_id: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">미배정</option>
+          {techProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+        <label className="text-xs font-medium text-slate-500">장비목록</label>
+        <input value={form.equipment} onChange={e => setForm({ ...form, equipment: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">오픈일</label>
+        <input type="date" value={form.open_date} onChange={e => setForm({ ...form, open_date: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
+        <input type="date" value={form.install_date} onChange={e => setForm({ ...form, install_date: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+        <label className="text-xs font-medium text-slate-500">비고</label>
+        <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <button type="submit" disabled={submitting}
+        className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
+        {submitting ? '등록 중...' : '등록'}
+      </button>
+    </form>
+  )
+})
+
 export default function TransfersClient({ rows, techProfiles, currentUserId }: Props) {
   const router = useRouter()
   const toast = useToast()
@@ -162,7 +247,6 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
   const [statusFilter, setStatusFilter] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
-  const [form, setForm] = useState(EMPTY_FORM)
   const [manualSort, setManualSort] = useState(false)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
 
@@ -269,8 +353,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
     startTransition(() => router.refresh())
   }, [selected])
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+  const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
     setSubmitting(true)
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').insert({
@@ -289,10 +372,9 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
     })
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
-    setForm(EMPTY_FORM)
     setShowForm(false)
     startTransition(() => router.refresh())
-  }
+  }, [currentUserId, startTransition, router, toast])
 
   const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
     const supabase = createClient()
@@ -366,74 +448,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
         </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">고객명</label>
-            <input value={form.owner_name} onChange={e => setForm({ ...form, owner_name: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">상호</label>
-            <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">전화번호</label>
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">프로그램</label>
-            <select value={form.program} onChange={e => setForm({ ...form, program: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">상태</label>
-            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as FranchiseStatus })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
-                <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">담당자</label>
-            <select value={form.tech_id} onChange={e => setForm({ ...form, tech_id: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">미배정</option>
-              {techProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
-            <label className="text-xs font-medium text-slate-500">장비목록</label>
-            <input value={form.equipment} onChange={e => setForm({ ...form, equipment: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">오픈일</label>
-            <input type="date" value={form.open_date} onChange={e => setForm({ ...form, open_date: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
-            <input type="date" value={form.install_date} onChange={e => setForm({ ...form, install_date: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
-            <label className="text-xs font-medium text-slate-500">비고</label>
-            <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <button type="submit" disabled={submitting}
-            className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
-            {submitting ? '등록 중...' : '등록'}
-          </button>
-        </form>
-      )}
+      {showForm && <CreateForm techProfiles={techProfiles} onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse">

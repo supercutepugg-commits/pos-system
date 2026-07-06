@@ -267,6 +267,118 @@ const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   toss_review_done: 'card_done',
 }
 
+// --- 신규 접수 폼: 별도 컴포넌트로 분리해서 타이핑할 때 전체 목록이 다시 렌더링되지 않도록 함 ---
+interface CreateFormProps {
+  onSubmit: (form: typeof EMPTY_FORM) => Promise<boolean>
+  submitting: boolean
+}
+const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
+  const [form, setForm] = useState(EMPTY_FORM)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const success = await onSubmit(form)
+    if (success) setForm(EMPTY_FORM)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">접수채널</label>
+        <select value={form.reception_channel} onChange={e => setForm({ ...form, reception_channel: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">선택 안함</option>
+          {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">사업자 유형</label>
+        <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ApplicantType })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
+            <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">상호명</label>
+        <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">대표자명</label>
+        <input value={form.owner_name} onChange={e => setForm({ ...form, owner_name: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">사업자번호</label>
+        <input value={form.business_number} onChange={e => setForm({ ...form, business_number: formatBusinessNumber(e.target.value) })} placeholder="000-00-00000"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">연락처</label>
+        <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">인터넷</label>
+        <select value={form.internet} onChange={e => setForm({ ...form, internet: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">선택 안함</option>
+          {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">VAN사 (중복선택 가능)</label>
+        <VanMultiSelect value={form.van_company} onChange={v => setForm({ ...form, van_company: v })} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">오픈예정일</label>
+        <DateFormField value={form.open_date} onChange={v => setForm({ ...form, open_date: v })} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
+        <DateFormField value={form.install_date} onChange={v => setForm({ ...form, install_date: v })} />
+      </div>
+      <div className="flex flex-col gap-1 w-full">
+        <label className="text-xs font-medium text-slate-500">상품</label>
+        <EquipmentCart items={form.equipmentItems} onChange={items => setForm({ ...form, equipmentItems: items })} />
+      </div>
+      <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+        <label className="text-xs font-medium text-slate-500">주소</label>
+        <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">상세주소</label>
+        <input value={form.address_detail} onChange={e => setForm({ ...form, address_detail: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500">작업제목</label>
+        <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+        <label className="text-xs font-medium text-slate-500">비고</label>
+        <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+          <input type="checkbox" checked={form.sendDocNotify} onChange={e => setForm({ ...form, sendDocNotify: e.target.checked })}
+            className="w-4 h-4 accent-blue-600" />
+          등록 즉시 서류안내 알림톡 발송
+        </label>
+        <button type="submit" disabled={submitting}
+          className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
+          {submitting ? '등록 중...' : '등록'}
+        </button>
+      </div>
+    </form>
+  )
+})
+
 export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', linkedInstalls = {} }: Props) {
   const router = useRouter()
   const toast = useToast()
@@ -276,7 +388,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [deleting, setDeleting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [transferringId, setTransferringId] = useState<string | null>(null)
   const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
@@ -550,21 +661,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     startTransition(() => router.refresh())
   }, [selected])
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    const fmtPhone = form.phone ? formatPhone(form.phone) : ''
-    if (fmtPhone !== form.phone) setForm(f => ({ ...f, phone: fmtPhone }))
+  async function handleCreate(form: typeof EMPTY_FORM): Promise<boolean> {
     // 중복 접수 경고 (전화, 상호명, 사업자번호)
-    const checkPhone = fmtPhone || form.phone
-    if (checkPhone || form.business_name || form.business_number) {
+    if (form.phone || form.business_name || form.business_number) {
       const dupe = localRows.find(r =>
-        (checkPhone && r.phone === checkPhone) ||
+        (form.phone && r.phone === form.phone) ||
         (form.business_name && r.business_name === form.business_name) ||
         (form.business_number && r.business_number === form.business_number)
       )
       if (dupe) {
         const label = dupe.business_name || dupe.owner_name || dupe.phone || ''
-        if (!confirm(`"${label}" 건이 이미 접수되어 있습니다 (상태: ${FRANCHISE_STATUS_LABEL[dupe.status]}). 그래도 등록하시겠습니까?`)) return
+        if (!confirm(`"${label}" 건이 이미 접수되어 있습니다 (상태: ${FRANCHISE_STATUS_LABEL[dupe.status]}). 그래도 등록하시겠습니까?`)) return false
       }
     }
     setSubmitting(true)
@@ -590,7 +697,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       created_by: currentUserId,
     })
     setSubmitting(false)
-    if (error) { toast.error('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return false }
     // 서류안내 즉시 발송 (체크된 경우)
     if (form.sendDocNotify && form.phone) {
       const docCase = docCaseOf(form.owner_name, form.business_name)
@@ -602,9 +709,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         })
       } catch { /* 알림톡 실패해도 등록은 완료 */ }
     }
-    setForm(EMPTY_FORM)
     setShowForm(false)
     startTransition(() => router.refresh())
+    return true
   }
 
   async function createLinkedInstallTicket(row: FranchiseApplication) {
@@ -1189,102 +1296,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">접수채널</label>
-            <select value={form.reception_channel} onChange={e => setForm({ ...form, reception_channel: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">사업자 유형</label>
-            <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ApplicantType })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
-                <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">상호명</label>
-            <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">대표자명</label>
-            <input value={form.owner_name} onChange={e => setForm({ ...form, owner_name: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">사업자번호</label>
-            <input value={form.business_number} onChange={e => setForm({ ...form, business_number: formatBusinessNumber(e.target.value) })} placeholder="000-00-00000"
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">연락처</label>
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">인터넷</label>
-            <select value={form.internet} onChange={e => setForm({ ...form, internet: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">선택 안함</option>
-              {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">VAN사 (중복선택 가능)</label>
-            <VanMultiSelect value={form.van_company} onChange={v => setForm({ ...form, van_company: v })} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">오픈예정일</label>
-            <DateFormField value={form.open_date} onChange={v => setForm({ ...form, open_date: v })} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
-            <DateFormField value={form.install_date} onChange={v => setForm({ ...form, install_date: v })} />
-          </div>
-          <div className="flex flex-col gap-1 w-full">
-            <label className="text-xs font-medium text-slate-500">상품</label>
-            <EquipmentCart items={form.equipmentItems} onChange={items => setForm({ ...form, equipmentItems: items })} />
-          </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
-            <label className="text-xs font-medium text-slate-500">주소</label>
-            <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">상세주소</label>
-            <input value={form.address_detail} onChange={e => setForm({ ...form, address_detail: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">작업제목</label>
-            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
-            <label className="text-xs font-medium text-slate-500">비고</label>
-            <input value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-              <input type="checkbox" checked={form.sendDocNotify} onChange={e => setForm({ ...form, sendDocNotify: e.target.checked })}
-                className="w-4 h-4 accent-blue-600" />
-              등록 즉시 서류안내 알림톡 발송
-            </label>
-            <button type="submit" disabled={submitting}
-              className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
-              {submitting ? '등록 중...' : '등록'}
-            </button>
-          </div>
-        </form>
-      )}
+      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse min-w-[1250px]">

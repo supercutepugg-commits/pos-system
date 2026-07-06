@@ -13,14 +13,16 @@ import { useToast } from '@/components/ui/Toast'
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
   preparing: '제품준비',
+  scheduled: '일정확정',
   in_transit: '이동중',
   completed: '설치완료',
   rejected: '반려',
 }
-const STATUS_ORDER = ['received', 'preparing', 'in_transit', 'completed']
+const STATUS_ORDER = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
 const STATUS_COLORS: Record<string, string> = {
   received: 'bg-gray-100 text-gray-600 border-gray-200',
   preparing: 'bg-blue-50 text-blue-600 border-blue-200',
+  scheduled: 'bg-purple-50 text-purple-600 border-purple-200',
   in_transit: 'bg-amber-50 text-amber-600 border-amber-200',
   completed: 'bg-green-50 text-green-600 border-green-200',
   rejected: 'bg-red-50 text-red-600 border-red-200',
@@ -82,6 +84,7 @@ const COL_WIDTHS_STORAGE_KEY = 'installs_col_widths'
 const STATUS_ICONS: Record<string, string> = {
   received: '📋',
   preparing: '📦',
+  scheduled: '📅',
   in_transit: '🚚',
   completed: '✅',
   rejected: '❌',
@@ -225,6 +228,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [rejecting, setRejecting] = useState(false)
   const [transitModal, setTransitModal] = useState<{ id: string; eta: string } | null>(null)
   const [sendingTransit, setSendingTransit] = useState(false)
+  const [scheduleModal, setScheduleModal] = useState<{ id: string; date: string; time: string } | null>(null)
+  const [sendingSchedule, setSendingSchedule] = useState(false)
   const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
   const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
   const [statusFilter, setStatusFilter] = useState('')
@@ -293,16 +298,24 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     fetchInstalls()
   }
 
-  async function sendInstallNotify(id: string, status: string, eta?: string) {
+  async function sendInstallNotify(id: string, status: string, extra?: { eta?: string; scheduledDate?: string; scheduledTime?: string }) {
     const inst = installs.find(i => i.id === id)
     if (!inst?.customer_phone) return
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
-    if (!['preparing', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
+    if (!['preparing', 'scheduled', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
     try {
       await fetch('/api/installs/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: inst.customer_phone, customerName: inst.customer_name, status: notifyStatus, eta, statusToken: inst.status_token }),
+        body: JSON.stringify({
+          phone: inst.customer_phone,
+          customerName: inst.customer_name,
+          status: notifyStatus,
+          eta: extra?.eta,
+          scheduledDate: extra?.scheduledDate,
+          scheduledTime: extra?.scheduledTime,
+          statusToken: inst.status_token,
+        }),
       })
     } catch { /* 알림톡 실패 무시 */ }
   }
@@ -325,6 +338,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       setTransitModal({ id, eta: '' })
       return
     }
+    if (status === 'scheduled') {
+      setScheduleModal({ id, date: '', time: '' })
+      return
+    }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
     if (!skipNotify) await sendInstallNotify(id, status)
@@ -339,7 +356,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     const sendEta = skipEta ? undefined : (eta.trim() || undefined)
     setTransitModal(null)
     setSendingTransit(false)
-    if (!skipNotify) await sendInstallNotify(id, 'in_transit', sendEta)
+    if (!skipNotify) await sendInstallNotify(id, 'in_transit', { eta: sendEta })
+  }
+
+  async function submitSchedule(skipDetails?: boolean) {
+    if (!scheduleModal) return
+    setSendingSchedule(true)
+    const { id, date, time } = scheduleModal
+    await supabase.from('installations').update({ status: 'scheduled', updated_at: new Date().toISOString() }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'scheduled' } : i))
+    const scheduledDate = skipDetails ? undefined : (date.trim() || undefined)
+    const scheduledTime = skipDetails ? undefined : (time.trim() || undefined)
+    setScheduleModal(null)
+    setSendingSchedule(false)
+    if (!skipNotify) await sendInstallNotify(id, 'scheduled', { scheduledDate, scheduledTime })
   }
 
   async function submitReject() {
@@ -436,11 +466,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       const name = fa?.business_name || fa?.owner_name || '미입력'
 
       // 가맹접수 상태를 card_done으로 자동 업데이트 (이미 완료 상태가 아닌 경우)
+      // 이 자동갱신은 updated_at을 건드리지 않아서(RPC), "최근 수정순" 목록에서 맨 위로 튀지 않는다
       if (fa && fa.status !== 'card_done') {
-        await supabase.from('franchise_applications').update({
-          status: 'card_done',
-          updated_at: new Date().toISOString(),
-        }).eq('id', inst.franchise_application_id)
+        await supabase.rpc('set_franchise_status_silent', { p_id: inst.franchise_application_id, p_status: 'card_done' })
         // 이관 로그 기록
         await supabase.from('franchise_application_logs').insert({
           franchise_application_id: inst.franchise_application_id,
@@ -802,6 +830,49 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
               >{sendingTransit ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
               <button
                 onClick={() => setTransitModal(null)}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
+              >취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 설치 일정 확정 안내 모달 */}
+      {scheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <p className="text-sm font-bold text-slate-800">설치 일정을 확정하시나요?</p>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">설치 예정일</label>
+              <input
+                type="date"
+                value={scheduleModal.date}
+                onChange={e => setScheduleModal(prev => prev ? { ...prev, date: e.target.value } : prev)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">희망 시간대</label>
+              <input
+                type="time"
+                value={scheduleModal.time}
+                onChange={e => setScheduleModal(prev => prev ? { ...prev, time: e.target.value } : prev)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+            <p className="text-xs text-slate-400 -mt-2">※ 일정확정 알림톡 템플릿이 승인되기 전에는 입력한 날짜/시각이 고객 메시지에 반영되지 않고 내부 기록용으로만 남습니다.</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => submitSchedule(false)}
+                disabled={sendingSchedule}
+                className="w-full py-2 rounded-lg bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 disabled:opacity-50"
+              >{sendingSchedule ? '처리 중...' : '일정 기록하고 발송'}</button>
+              <button
+                onClick={() => submitSchedule(true)}
+                disabled={sendingSchedule}
+                className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+              >{sendingSchedule ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
+              <button
+                onClick={() => setScheduleModal(null)}
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
               >취소</button>
             </div>

@@ -366,10 +366,12 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
         <label className="text-xs font-medium text-slate-500">VAN사 (중복선택 가능)</label>
         <VanMultiSelect value={form.van_company} onChange={v => setForm({ ...form, van_company: v })} />
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-slate-500">오픈예정일</label>
-        <DateFormField value={form.open_date} onChange={v => setForm({ ...form, open_date: v })} />
-      </div>
+      {form.applicant_type !== 'giga_individual' && form.applicant_type !== 'giga_corporate' && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500">오픈예정일</label>
+          <DateFormField value={form.open_date} onChange={v => setForm({ ...form, open_date: v })} />
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-slate-500">설치 및 발송일</label>
         <DateFormField value={form.install_date} onChange={v => setForm({ ...form, install_date: v })} />
@@ -1519,10 +1521,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <label className="text-xs font-semibold text-slate-400">상세주소</label>
                           <EditableText row={row} field="address_detail" placeholder="-" onSave={saveField} />
                         </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">오픈예정일</label>
-                          <DateField row={row} field="open_date" onSave={saveField} />
-                        </div>
+                        {row.applicant_type !== 'giga_individual' && row.applicant_type !== 'giga_corporate' && (
+                          <div>
+                            <label className="text-xs font-semibold text-slate-400">오픈예정일</label>
+                            <DateField row={row} field="open_date" onSave={saveField} />
+                          </div>
+                        )}
                         <div>
                           <label className="text-xs font-semibold text-slate-400">설치 및 발송일</label>
                           <DateField row={row} field="install_date" onSave={saveField} />

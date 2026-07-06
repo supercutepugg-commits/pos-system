@@ -6,7 +6,7 @@ const service = new SolapiMessageService(
   process.env.SOLAPI_API_SECRET!
 )
 
-function kakaoOptions(templateEnvKey: string, variables: Record<string, string>) {
+function kakaoOptions(templateEnvKey: string, variables: Record<string, string>, buttons?: object[]) {
   const pfId = process.env.SOLAPI_KAKAO_PFID
   const templateId = process.env[templateEnvKey]
   if (!pfId || !templateId) {
@@ -15,7 +15,7 @@ function kakaoOptions(templateEnvKey: string, variables: Record<string, string>)
     throw new Error(msg)
   }
   console.log(`[solapi] sending pfId=${pfId} templateId=${templateId}`)
-  return { pfId, templateId, variables, disableSms: true }
+  return { pfId, templateId, variables, disableSms: true, ...(buttons ? { buttons } : {}) }
 }
 
 async function solapiSend(params: { to: string; from: string; text: string; kakaoOptions: object }) {
@@ -209,6 +209,7 @@ export async function sendFranchiseStatusUpdate({
 // 설치관리 상태 알림톡
 const INSTALL_STATUS_TEMPLATE: Record<string, string> = {
   preparing: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING',
+  scheduled: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_SCHEDULED',
   in_transit: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TRANSIT',
   completed: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_COMPLETED',
   delivery_sent: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_DELIVERY_SENT',
@@ -216,17 +217,57 @@ const INSTALL_STATUS_TEMPLATE: Record<string, string> = {
 
 const INSTALL_STATUS_TEXT: Record<string, string> = {
   preparing: '제품 준비가 시작되었습니다. 곧 배송 또는 설치 일정을 안내드리겠습니다.',
+  scheduled: '설치 일정이 확정되었습니다.',
   in_transit: '기사님이 이동 중입니다. 잠시 후 방문 예정입니다.',
   completed: '설치가 완료되었습니다. 이용해 주셔서 감사합니다.',
   delivery_sent: '제품이 발송되었습니다. 택배 도착 후 문의사항은 담당자에게 연락해 주세요.',
 }
 
+// 시각 변수(#{예정시각})가 포함된 승인 템플릿용. 승인 전에는 env가 비어있으므로 미사용.
+const INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TRANSIT_ETA'
+// 일정변경/희망시간대 요청 버튼(WL)이 포함된 승인 템플릿용. 승인 전에는 env가 비어있으므로 미사용.
+const INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING_SCHEDULE'
+
 export async function sendInstallStatusUpdate({
-  phone, customerName, status,
-}: { phone: string; customerName: string; status: string }) {
+  phone, customerName, status, eta, statusToken, scheduledDate, scheduledTime,
+}: {
+  phone: string; customerName: string; status: string; eta?: string; statusToken?: string
+  scheduledDate?: string; scheduledTime?: string
+}) {
   if (!phone || !INSTALL_STATUS_TEXT[status]) return
-  const text = `[설치/배송 안내]\n${customerName}님, ${INSTALL_STATUS_TEXT[status]}`
-  const ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
+  const etaNote = status === 'in_transit' && eta ? ` (도착 예정 시각: ${eta})` : ''
+  const scheduleNote = status === 'scheduled' && (scheduledDate || scheduledTime)
+    ? ` (${[scheduledDate, scheduledTime].filter(Boolean).join(' ')})`
+    : ''
+  const text = `[설치/배송 안내]\n${customerName}님, ${INSTALL_STATUS_TEXT[status]}${etaNote}${scheduleNote}`
+
+  // 시각 전용 템플릿이 승인되어 env에 등록돼 있으면 그 템플릿 + #{예정시각} 변수로 발송,
+  // 아니면 기존 템플릿 그대로 발송 (eta 무시) — 승인 전 오발송 방지.
+  const useEtaTemplate = status === 'in_transit' && !!eta && !!process.env[INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV]
+  // 일정 요청 버튼 템플릿이 승인되어 env에 등록돼 있으면 그 템플릿 + 공개 페이지 링크 버튼으로 발송,
+  // 아니면 기존 템플릿 그대로 발송 (버튼 없이) — 승인 전 오발송 방지.
+  const useScheduleTemplate = status === 'preparing' && !!statusToken && !!process.env[INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV]
+
+  let ko
+  if (useEtaTemplate) {
+    ko = kakaoOptions(INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV, { '#{고객명}': customerName, '#{예정시각}': eta! })
+  } else if (useScheduleTemplate) {
+    // 버튼(WL)은 템플릿에 "https://#{링크}" 형태로 등록되어 있으므로, 프로토콜을 뺀 나머지 주소만 변수로 전달한다
+    const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/install-status/${statusToken}`
+    ko = kakaoOptions(INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV, { '#{고객명}': customerName, '#{링크}': linkNoProtocol })
+  } else if (status === 'scheduled') {
+    // '일정확정' 템플릿은 아직 승인 신청 전이라 env가 비어있을 수 있음 — 그 경우 조용히 스킵 (오발송/에러 방지)
+    if (!process.env[INSTALL_STATUS_TEMPLATE.scheduled]) {
+      console.warn('[solapi] 설치 일정확정 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)')
+      return
+    }
+    const variables: Record<string, string> = { '#{고객명}': customerName }
+    if (scheduledDate) variables['#{예정일}'] = scheduledDate
+    if (scheduledTime) variables['#{예정시각}'] = scheduledTime
+    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.scheduled, variables)
+  } else {
+    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
+  }
   if (!ko) return
   await solapiSend({
     to: phone,

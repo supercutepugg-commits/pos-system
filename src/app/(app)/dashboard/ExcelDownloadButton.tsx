@@ -55,7 +55,7 @@ export default function ExcelDownloadButton() {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(franchiseData), '가맹접수')
 
       // 시트2: 설치관리
-      const STATUS_KO: Record<string, string> = { received: '접수', preparing: '제품준비', in_transit: '이동중', completed: '설치완료', rejected: '반려' }
+      const STATUS_KO: Record<string, string> = { received: '접수', preparing: '제품준비', scheduled: '일정확정', in_transit: '이동중', completed: '설치완료', rejected: '반려' }
       const installData = (installRows ?? []).map((i: any) => ({
         고객명: i.customer_name ?? '',
         전화번호: i.customer_phone ?? '',

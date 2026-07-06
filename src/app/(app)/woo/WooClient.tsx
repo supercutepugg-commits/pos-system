@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteWooRows } from './actions'
@@ -290,9 +289,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
 })
 
 export default function WooClient({ rows }: Props) {
-  const router = useRouter()
   const toast = useToast()
-  const [isPending, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -307,22 +304,28 @@ export default function WooClient({ rows }: Props) {
     setSelected(new Set())
   }, [rows])
 
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel('woo_customers-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'woo_customers' }, () => {
-        if (refreshTimer.current) clearTimeout(refreshTimer.current)
-        refreshTimer.current = setTimeout(() => startTransition(() => router.refresh()), 400)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'woo_customers' }, payload => {
+        // 서버 재조회 없이 실시간 페이로드로 화면만 바로 패치 (다른 사용자의 변경사항 포함)
+        if (payload.eventType === 'INSERT') {
+          const newRow = payload.new as WooCustomer
+          setLocalRows(prev => prev.some(r => r.id === newRow.id) ? prev : [...prev, newRow])
+        } else if (payload.eventType === 'UPDATE') {
+          const updated = payload.new as WooCustomer
+          setLocalRows(prev => prev.map(r => r.id === updated.id ? updated : r))
+        } else if (payload.eventType === 'DELETE') {
+          const oldId = (payload.old as WooCustomer).id
+          setLocalRows(prev => prev.filter(r => r.id !== oldId))
+        }
       })
       .subscribe()
     return () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current)
       supabase.removeChannel(channel)
     }
-  }, [router])
+  }, [])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -370,7 +373,6 @@ export default function WooClient({ rows }: Props) {
     if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
-    startTransition(() => router.refresh())
   }, [selected])
 
   const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
@@ -383,7 +385,7 @@ export default function WooClient({ rows }: Props) {
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
-    startTransition(() => router.refresh())
+    // 새 행은 실시간 구독의 INSERT 이벤트로 화면에 반영됨
   }, [])
 
   const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {

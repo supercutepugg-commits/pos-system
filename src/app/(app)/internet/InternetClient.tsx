@@ -385,7 +385,7 @@ export default function InternetClient({ rows }: Props) {
     const payload = Object.fromEntries(
       Object.entries(form).map(([k, v]) => [k, v || null])
     )
-    const { error } = await supabase.from('internet_management').insert(payload)
+    const { error } = await supabase.from('internet_management').insert({ ...payload, sort_order: Date.now() })
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)

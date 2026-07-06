@@ -289,6 +289,7 @@ const MAIN_COLUMNS = [
   { key: 'phone', label: '연락처' },
   { key: 'creator', label: '등록자' },
   { key: 'cs_id', label: '담당자' },
+  { key: 'internet_status', label: '인터넷' },
   { key: 'status', label: '상태' },
   { key: 'memo', label: '메모' },
 ] as const
@@ -301,6 +302,7 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   phone: 130,
   creator: 80,
   cs_id: 90,
+  internet_status: 110,
   status: 140,
   memo: 160,
 }
@@ -1067,6 +1069,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       owner_name: row.owner_name || null,
       phone: row.phone || null,
       franchise_application_id: row.id,
+      sort_order: Date.now(),
     }).select('id, status').single()
     setLinkingInternetId(null)
     if (error) { toast.error('인터넷관리 등록 실패: ' + error.message); return }
@@ -1493,6 +1496,27 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     </select>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    {localLinkedInternets[row.id] ? (
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
+                        localLinkedInternets[row.id].status === '개통완료'
+                          ? 'bg-green-50 text-green-600 border-green-200'
+                          : localLinkedInternets[row.id].status === '취소'
+                            ? 'bg-red-50 text-red-600 border-red-200'
+                            : 'bg-cyan-50 text-cyan-600 border-cyan-200'
+                      }`}>
+                        {localLinkedInternets[row.id].status || '등록됨'}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => linkToInternet(row)}
+                        disabled={linkingInternetId === row.id}
+                        className="text-xs font-semibold text-cyan-600 hover:text-cyan-800 border border-cyan-200 hover:border-cyan-400 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {linkingInternetId === row.id ? '처리 중...' : '+ 인터넷'}
+                      </button>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="flex flex-col gap-0.5">
                       <select
                         value={row.status}
@@ -1522,7 +1546,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={13} className="px-6 py-4">
+                    <td colSpan={14} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1692,7 +1716,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={13} className="text-center text-slate-400 py-10">
+              <tr><td colSpan={14} className="text-center text-slate-400 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <span>조건에 맞는 가맹 접수가 없습니다.</span>
                   {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (

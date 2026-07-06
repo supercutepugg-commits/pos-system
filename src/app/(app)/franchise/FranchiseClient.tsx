@@ -1525,7 +1525,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       {localLinkedInternets[row.id] ? 'O' : 'X'}
                     </span>
                     {localLinkedInternets[row.id]?.category && (
-                      <span className="ml-1 text-xs text-slate-500">{localLinkedInternets[row.id].category}</span>
+                      <span className="ml-1 text-sm font-bold text-black">{localLinkedInternets[row.id].category}</span>
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>

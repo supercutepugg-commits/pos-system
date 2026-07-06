@@ -82,7 +82,7 @@ function defaultCreateForm() {
 }
 
 // 인터넷 접수완료/가입완료 알림은 인터넷관리 탭 상태 변경 시 발송하므로, 가맹접수 상태 드롭다운에서는 숨긴다
-const STATUS_DROPDOWN_HIDDEN: FranchiseStatus[] = ['internet_apply_done', 'internet_done']
+const STATUS_DROPDOWN_HIDDEN: FranchiseStatus[] = ['internet_apply_done', 'internet_done', 'card_internet_apply_done']
 const SELECTABLE_FRANCHISE_STATUSES = (Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[])
   .filter(s => !STATUS_DROPDOWN_HIDDEN.includes(s))
 
@@ -1495,26 +1495,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    {localLinkedInternets[row.id] ? (
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
-                        localLinkedInternets[row.id].status === '개통완료'
-                          ? 'bg-green-50 text-green-600 border-green-200'
-                          : localLinkedInternets[row.id].status === '취소'
-                            ? 'bg-red-50 text-red-600 border-red-200'
-                            : 'bg-cyan-50 text-cyan-600 border-cyan-200'
-                      }`}>
-                        {localLinkedInternets[row.id].status || '등록됨'}
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => linkToInternet(row)}
-                        disabled={linkingInternetId === row.id}
-                        className="text-xs font-semibold text-cyan-600 hover:text-cyan-800 border border-cyan-200 hover:border-cyan-400 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {linkingInternetId === row.id ? '처리 중...' : '+ 인터넷'}
-                      </button>
-                    )}
+                  <td className="px-3 py-2 whitespace-nowrap text-center">
+                    <span className={`text-sm font-bold ${localLinkedInternets[row.id] ? 'text-green-600' : 'text-slate-300'}`}>
+                      {localLinkedInternets[row.id] ? 'O' : 'X'}
+                    </span>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="flex flex-col gap-0.5">

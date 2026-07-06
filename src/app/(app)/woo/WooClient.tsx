@@ -50,10 +50,10 @@ const EMPTY_FORM = {
 const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'category', label: '분류' },
   { key: 'received_date', label: '접수날짜' },
+  { key: 'open_date', label: '오픈일' },
   { key: 'business_name', label: '상호명' },
   { key: 'owner_name', label: '대표자명' },
   { key: 'phone', label: '연락처' },
-  { key: 'open_date', label: '오픈일' },
   { key: 'card_apply_status', label: '가맹여부' },
   { key: 'setting', label: '세팅' },
   { key: 'easy_payment', label: '간편결제' },

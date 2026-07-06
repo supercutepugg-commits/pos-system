@@ -14,10 +14,14 @@ interface Props {
 
 const STATUSES = ['진행중', '개통완료', '취소']
 const CATEGORIES = ['백메가', '3S']
+const CARRIERS = ['LG', 'KT', 'SKT']
+const SPEEDS = ['100M', '500M']
+const CUSTOM_SPEED = '__custom__'
 
 const SELECT_OPTIONS: Partial<Record<keyof InternetManagement, string[]>> = {
   status: STATUSES,
   category: CATEGORIES,
+  carrier: CARRIERS,
 }
 
 const EMPTY_FORM = {
@@ -119,6 +123,89 @@ const SelectField = memo(function SelectField({ row, field, options, onSave, pil
   )
 })
 
+// 속도: 100M/500M 드롭다운 + 직접입력
+interface SpeedFieldProps {
+  row: InternetManagement
+  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
+}
+const SpeedField = memo(function SpeedField({ row, onSave }: SpeedFieldProps) {
+  const currentIsCustom = !!row.speed && !SPEEDS.includes(row.speed)
+  const [customMode, setCustomMode] = useState(currentIsCustom)
+  const [customValue, setCustomValue] = useState(currentIsCustom ? (row.speed ?? '') : '')
+
+  function handleSelect(v: string) {
+    if (v === CUSTOM_SPEED) {
+      setCustomMode(true)
+      setCustomValue(currentIsCustom ? (row.speed ?? '') : '')
+    } else {
+      setCustomMode(false)
+      onSave(row, 'speed', v)
+    }
+  }
+
+  if (customMode) {
+    return (
+      <input
+        value={customValue}
+        onChange={e => setCustomValue(e.target.value)}
+        onBlur={() => onSave(row, 'speed', customValue)}
+        onClick={e => e.stopPropagation()}
+        placeholder="속도 직접입력"
+        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+      />
+    )
+  }
+
+  return (
+    <select
+      value={SPEEDS.includes(row.speed ?? '') ? row.speed! : ''}
+      onChange={e => handleSelect(e.target.value)}
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+    >
+      <option value="">-</option>
+      {SPEEDS.map(s => <option key={s} value={s}>{s}</option>)}
+      <option value={CUSTOM_SPEED}>직접입력</option>
+    </select>
+  )
+})
+
+// 속도 필드 - 등록 폼용 (row 없이 value/onChange만 받음)
+interface SpeedFormFieldProps {
+  value: string
+  onChange: (value: string) => void
+}
+const SpeedFormField = memo(function SpeedFormField({ value, onChange }: SpeedFormFieldProps) {
+  const valueIsCustom = !!value && !SPEEDS.includes(value)
+  const [customMode, setCustomMode] = useState(valueIsCustom)
+
+  function handleSelect(v: string) {
+    if (v === CUSTOM_SPEED) {
+      setCustomMode(true)
+      onChange('')
+    } else {
+      setCustomMode(false)
+      onChange(v)
+    }
+  }
+
+  if (customMode) {
+    return (
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder="속도 직접입력"
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    )
+  }
+
+  return (
+    <select value={SPEEDS.includes(value) ? value : ''} onChange={e => handleSelect(e.target.value)}
+      className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <option value="">선택 안함</option>
+      {SPEEDS.map(s => <option key={s} value={s}>{s}</option>)}
+      <option value={CUSTOM_SPEED}>직접입력</option>
+    </select>
+  )
+})
+
 // --- Separate form component ---
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
@@ -140,7 +227,9 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
         return (
           <div key={col.key} className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">{col.label}</label>
-            {options ? (
+            {col.key === 'speed' ? (
+              <SpeedFormField value={form.speed} onChange={v => setForm({ ...form, speed: v })} />
+            ) : options ? (
               <select value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
                 className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">선택 안함</option>
@@ -418,7 +507,9 @@ export default function InternetClient({ rows }: Props) {
                           return (
                             <div key={col.key} className={wide ? 'col-span-4' : ''}>
                               <label className="text-xs font-semibold text-slate-400">{col.label}</label>
-                              {options ? (
+                              {col.key === 'speed' ? (
+                                <SpeedField row={row} onSave={saveField} />
+                              ) : options ? (
                                 <SelectField row={row} field={col.key} options={options} onSave={saveField} />
                               ) : (
                                 <EditableText row={row} field={col.key} onSave={saveField} />

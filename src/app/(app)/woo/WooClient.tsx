@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteWooRows } from './actions'
 import type { WooCustomer } from '@/types'
@@ -22,6 +22,9 @@ const SELECT_OPTIONS: Partial<Record<keyof WooCustomer, string[]>> = {
 }
 
 const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['internet_note']
+
+// 달력 선택 + 직접 텍스트 입력 둘 다 되는 필드
+const DATE_FIELDS: (keyof WooCustomer)[] = ['received_date', 'open_date', 'internet_open_date', 'card_apply_date']
 
 const EMPTY_FORM = {
   received_date: '',
@@ -45,8 +48,8 @@ const EMPTY_FORM = {
 
 // 목록에 항상 보이는 핵심 컬럼
 const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
-  { key: 'received_date', label: '접수날짜' },
   { key: 'category', label: '분류' },
+  { key: 'received_date', label: '접수날짜' },
   { key: 'business_name', label: '상호명' },
   { key: 'owner_name', label: '대표자명' },
   { key: 'phone', label: '연락처' },
@@ -89,6 +92,58 @@ const EditableText = memo(function EditableText({ row, field, onSave }: Editable
   )
 })
 
+// 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드
+interface DateFieldProps {
+  row: WooCustomer
+  field: keyof WooCustomer
+  onSave: (row: WooCustomer, field: keyof WooCustomer, value: string) => void
+}
+const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
+
+  function openPicker(e: React.MouseEvent) {
+    e.stopPropagation()
+    const el = dateInputRef.current
+    if (!el) return
+    if ('showPicker' in el) (el as HTMLInputElement & { showPicker: () => void }).showPicker()
+    else el.focus()
+  }
+
+  function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value
+    setValue(next)
+    onSave(row, field, next)
+  }
+
+  return (
+    <div className="flex items-center gap-1 w-full">
+      <input
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+        onClick={e => e.stopPropagation()}
+        placeholder="날짜 또는 텍스트"
+        className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+      />
+      <button type="button" onClick={openPicker} tabIndex={-1}
+        className="shrink-0 text-slate-400 hover:text-blue-500">
+        <Calendar size={14} />
+      </button>
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={isoValue}
+        onChange={handlePick}
+        onClick={e => e.stopPropagation()}
+        tabIndex={-1}
+        className="w-0 h-0 opacity-0 absolute pointer-events-none"
+      />
+    </div>
+  )
+})
+
 interface SelectFieldProps {
   row: WooCustomer
   field: keyof WooCustomer
@@ -109,6 +164,40 @@ const SelectField = memo(function SelectField({ row, field, options, onSave, pil
       <option value="">-</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
+  )
+})
+
+// 달력 아이콘 + 직접 텍스트 입력 - 등록 폼용 (row 없이 value/onChange만 받음)
+interface DateFormFieldProps {
+  value: string
+  onChange: (value: string) => void
+}
+const DateFormField = memo(function DateFormField({ value, onChange }: DateFormFieldProps) {
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
+
+  function openPicker() {
+    const el = dateInputRef.current
+    if (!el) return
+    if ('showPicker' in el) (el as HTMLInputElement & { showPicker: () => void }).showPicker()
+    else el.focus()
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder="날짜 또는 텍스트"
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <button type="button" onClick={openPicker} className="shrink-0 text-slate-400 hover:text-blue-500">
+        <Calendar size={14} />
+      </button>
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={isoValue}
+        onChange={e => onChange(e.target.value)}
+        className="w-0 h-0 opacity-0 absolute pointer-events-none"
+      />
+    </div>
   )
 })
 
@@ -149,6 +238,8 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
                 <option value="">선택 안함</option>
                 {options.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
+            ) : DATE_FIELDS.includes(col.key) ? (
+              <DateFormField value={form[col.key as keyof typeof form]} onChange={v => setForm({ ...form, [col.key]: v })} />
             ) : (
               <input value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
                 className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -352,6 +443,8 @@ export default function WooClient({ rows }: Props) {
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
                         ) : col.key === 'business_name' ? (
                           <span className="font-medium text-slate-900">{row.business_name || '-'}</span>
+                        ) : DATE_FIELDS.includes(col.key) ? (
+                          <DateField row={row} field={col.key} onSave={saveField} />
                         ) : (
                           <EditableText row={row} field={col.key} onSave={saveField} />
                         )}
@@ -374,6 +467,8 @@ export default function WooClient({ rows }: Props) {
                               </label>
                               {options ? (
                                 <SelectField row={row} field={col.key} options={options} onSave={saveField} />
+                              ) : DATE_FIELDS.includes(col.key) ? (
+                                <DateField row={row} field={col.key} onSave={saveField} />
                               ) : (
                                 <EditableText row={row} field={col.key} onSave={saveField} />
                               )}

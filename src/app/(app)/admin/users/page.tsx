@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ROLE_LABEL_KR } from './constants'
+import CreateUserForm from './CreateUserForm'
 
 const ROLE_COLOR: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-700',
@@ -41,6 +42,8 @@ export default async function UsersPage() {
         <h1 className="text-2xl font-bold text-slate-900">직원 관리</h1>
         <p className="text-slate-500 text-sm mt-1">총 {users?.length ?? 0}명</p>
       </div>
+
+      <CreateUserForm />
 
       <div className="space-y-6">
         {roleOrder.map(role => {

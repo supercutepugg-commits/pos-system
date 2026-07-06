@@ -1521,7 +1521,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     </select>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-center">
-                    <span className={`text-sm font-bold ${localLinkedInternets[row.id] ? 'text-green-600' : 'text-slate-300'}`}>
+                    <span className={`text-lg font-extrabold ${localLinkedInternets[row.id] ? 'text-green-700' : 'text-slate-500'}`}>
                       {localLinkedInternets[row.id] ? 'O' : 'X'}
                     </span>
                     {localLinkedInternets[row.id]?.category && (

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo, Fragment } fro
 import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
+import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { deleteWooRows } from './actions'
 import type { WooCustomer } from '@/types'
 import { useToast } from '@/components/ui/Toast'
@@ -77,6 +78,21 @@ const DETAIL_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
 ]
 
 const COLUMNS = [...MAIN_COLUMNS, ...DETAIL_COLUMNS]
+
+const DEFAULT_WIDTHS: Partial<Record<keyof WooCustomer, number>> = {
+  category: 90,
+  received_date: 100,
+  open_date: 100,
+  business_name: 160,
+  owner_name: 100,
+  phone: 130,
+  card_apply_status: 100,
+  setting: 90,
+  easy_payment: 140,
+  internet_note: 160,
+}
+const COL_WIDTHS_STORAGE_KEY = 'woo_customers_col_widths'
+const PAGE_SIZE = 50
 
 // --- EditableText moved outside main component ---
 interface EditableTextProps {
@@ -279,6 +295,8 @@ export default function WooClient({ rows }: Props) {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -319,6 +337,10 @@ export default function WooClient({ rows }: Props) {
       return true
     })
   }, [localRows, search, categoryFilter])
+
+  useEffect(() => { setPage(1) }, [search, categoryFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const canReorder = !search.trim() && !categoryFilter
 
@@ -446,23 +468,35 @@ export default function WooClient({ rows }: Props) {
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: 24 }} />
+            <col style={{ width: 32 }} />
+            <col style={{ width: 24 }} />
+            {MAIN_COLUMNS.map(col => (
+              <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
-              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+              <th className="px-1 py-2.5 border-b border-slate-200" />
+              <th className="px-3 py-2.5 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
+              <th className="px-3 py-2.5 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (
-                <th key={col.key} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
+                <th key={col.key} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {col.label}
+                  <div
+                    onMouseDown={e => startResize(e, col.key)}
+                    className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
+                  />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map(row => (
+            {pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
@@ -489,7 +523,7 @@ export default function WooClient({ rows }: Props) {
                   {MAIN_COLUMNS.map(col => {
                     const options = SELECT_OPTIONS[col.key]
                     return (
-                      <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+                      <td key={col.key} className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis">
                         {options ? (
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
                         ) : col.key === 'business_name' ? (
@@ -538,6 +572,15 @@ export default function WooClient({ rows }: Props) {
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
+          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+        </div>
+      )}
     </div>
   )
 }

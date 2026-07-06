@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone } from '@/lib/format'
+import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { Plus, Search, RefreshCw, Download, GripVertical } from 'lucide-react'
@@ -53,6 +54,30 @@ interface Props {
 }
 
 const PAGE_SIZE = 10
+
+const MAIN_COLUMNS = [
+  { key: 'name', label: '고객명' },
+  { key: 'phone', label: '전화번호' },
+  { key: 'address', label: '주소' },
+  { key: 'items', label: '제품' },
+  { key: 'status', label: '상태' },
+  { key: 'tech', label: '담당기사' },
+  { key: 'notes', label: '비고' },
+  { key: 'date', label: '등록일' },
+  { key: 'actions', label: '' },
+] as const
+const DEFAULT_WIDTHS: Record<string, number> = {
+  name: 140,
+  phone: 120,
+  address: 200,
+  items: 160,
+  status: 110,
+  tech: 90,
+  notes: 150,
+  date: 100,
+  actions: 80,
+}
+const COL_WIDTHS_STORAGE_KEY = 'installs_col_widths'
 
 const STATUS_ICONS: Record<string, string> = {
   received: '📋',
@@ -196,6 +221,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [completing, setCompleting] = useState(false)
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null)
   const [rejecting, setRejecting] = useState(false)
+  const [transitModal, setTransitModal] = useState<{ id: string; eta: string } | null>(null)
+  const [sendingTransit, setSendingTransit] = useState(false)
   const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
   const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
   const [statusFilter, setStatusFilter] = useState('')
@@ -210,6 +237,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [showMonthlyStats, setShowMonthlyStats] = useState(false)
   const [skipNotify, setSkipNotify] = useState(false)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
 
   const supabase = createClient()
 
@@ -263,7 +291,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     fetchInstalls()
   }
 
-  async function sendInstallNotify(id: string, status: string) {
+  async function sendInstallNotify(id: string, status: string, eta?: string) {
     const inst = installs.find(i => i.id === id)
     if (!inst?.customer_phone) return
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
@@ -272,7 +300,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       await fetch('/api/installs/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: inst.customer_phone, customerName: inst.customer_name, status: notifyStatus }),
+        body: JSON.stringify({ phone: inst.customer_phone, customerName: inst.customer_name, status: notifyStatus, eta }),
       })
     } catch { /* 알림톡 실패 무시 */ }
   }
@@ -291,9 +319,25 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       setCompletePhotos([])
       return
     }
+    if (status === 'in_transit') {
+      setTransitModal({ id, eta: '' })
+      return
+    }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
     if (!skipNotify) await sendInstallNotify(id, status)
+  }
+
+  async function submitTransit(skipEta?: boolean) {
+    if (!transitModal) return
+    setSendingTransit(true)
+    const { id, eta } = transitModal
+    await supabase.from('installations').update({ status: 'in_transit', updated_at: new Date().toISOString() }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'in_transit' } : i))
+    const sendEta = skipEta ? undefined : (eta.trim() || undefined)
+    setTransitModal(null)
+    setSendingTransit(false)
+    if (!skipNotify) await sendInstallNotify(id, 'in_transit', sendEta)
   }
 
   async function submitReject() {
@@ -699,6 +743,37 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           </div>
         </div>
       )}
+      {/* 이동 예정 시각 입력 모달 */}
+      {transitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <p className="text-sm font-bold text-slate-800">몇 시 방문 예정인가요?</p>
+            <input
+              type="time"
+              value={transitModal.eta}
+              onChange={e => setTransitModal(prev => prev ? { ...prev, eta: e.target.value } : prev)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <p className="text-xs text-slate-400 -mt-2">※ 시각 알림톡 템플릿이 승인되기 전에는 입력한 시각이 고객 메시지에 반영되지 않고 내부 기록용으로만 남습니다.</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => submitTransit(false)}
+                disabled={sendingTransit}
+                className="w-full py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
+              >{sendingTransit ? '처리 중...' : '시각 기록하고 발송'}</button>
+              <button
+                onClick={() => submitTransit(true)}
+                disabled={sendingTransit}
+                className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+              >{sendingTransit ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
+              <button
+                onClick={() => setTransitModal(null)}
+                className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
+              >취소</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">설치 관리</h1>
@@ -845,12 +920,24 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <div className="py-16 text-center text-slate-400 text-sm">설치건이 없습니다</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: 24 }} />
+                {MAIN_COLUMNS.map(col => (
+                  <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="px-1 py-3 w-6" />
-                  {['고객명', '전화번호', '주소', '제품', '상태', '담당기사', '비고', '등록일', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
+                  <th className="px-1 py-3" />
+                  {MAIN_COLUMNS.map(col => (
+                    <th key={col.key} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                      {col.label}
+                      <div
+                        onMouseDown={e => startResize(e, col.key)}
+                        className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
+                      />
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -871,7 +958,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                     >
                       <GripVertical size={14} />
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
+                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
                       <div className="flex items-center gap-1.5">
                         <span>{inst.customer_name}</span>
                         {inst.franchise_application_id && (
@@ -879,13 +966,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{inst.customer_phone || '-'}</td>
-                    <td className="px-4 py-3 text-slate-500 max-w-[160px]">
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
+                    <td className="px-4 py-3 text-slate-500 overflow-hidden">
                       {inst.address ? (
                         <span className="text-xs truncate block" title={inst.address}>{inst.address}</span>
                       ) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">

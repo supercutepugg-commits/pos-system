@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatDateText } from '@/lib/format'
+import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { deleteFranchiseRows } from '../franchise/actions'
 import type { FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
@@ -41,6 +42,16 @@ const MAIN_LABELS: Record<typeof MAIN_FIELDS[number], string> = {
   status: '상태',
   tech_id: '담당자',
 }
+const DEFAULT_WIDTHS: Partial<Record<typeof MAIN_FIELDS[number], number>> = {
+  owner_name: 100,
+  business_name: 140,
+  phone: 130,
+  program: 100,
+  status: 110,
+  tech_id: 100,
+}
+const COL_WIDTHS_STORAGE_KEY = 'transfers_col_widths'
+const PAGE_SIZE = 50
 
 interface EditableTextProps {
   row: FranchiseApplication
@@ -249,6 +260,8 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
   const [manualSort, setManualSort] = useState(false)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -287,6 +300,10 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
       (b.sort_order ?? new Date(b.updated_at).getTime()) - (a.sort_order ?? new Date(a.updated_at).getTime())
     )
   }, [localRows, search, statusFilter, manualSort])
+
+  useEffect(() => { setPage(1) }, [search, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const canReorder = manualSort && !search.trim() && !statusFilter
 
@@ -451,23 +468,35 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
       {showForm && <CreateForm techProfiles={techProfiles} onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: 24 }} />
+            <col style={{ width: 32 }} />
+            <col style={{ width: 24 }} />
+            {MAIN_FIELDS.map(f => (
+              <col key={f} style={{ width: colWidths[f] ?? DEFAULT_WIDTHS[f] ?? 140 }} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
-              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+              <th className="px-1 py-2.5 border-b border-slate-200" />
+              <th className="px-3 py-2.5 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
+              <th className="px-3 py-2.5 border-b border-slate-200" />
               {MAIN_FIELDS.map(f => (
-                <th key={f} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
+                <th key={f} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {MAIN_LABELS[f]}
+                  <div
+                    onMouseDown={e => startResize(e, f)}
+                    className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
+                  />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map(row => (
+            {pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
@@ -491,9 +520,9 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
                   <td className="px-3 py-2 text-slate-400">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-900">{row.business_name || '-'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis font-medium text-slate-900">{row.business_name || '-'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                     {row.phone ? (
                       <button
                         onClick={() => { navigator.clipboard.writeText(row.phone!); toast.success(`복사됨: ${row.phone}`) }}
@@ -584,6 +613,15 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
+          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+        </div>
+      )}
     </div>
   )
 }

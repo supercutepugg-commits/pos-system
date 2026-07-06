@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
+import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { deleteFranchiseRows } from './actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
@@ -267,6 +268,29 @@ const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   toss_review_done: 'card_done',
 }
 
+const MAIN_COLUMNS = [
+  { key: 'reception_channel', label: '접수채널' },
+  { key: 'applicant_type', label: '사업자유형' },
+  { key: 'business_name', label: '상호명' },
+  { key: 'owner_name', label: '대표자' },
+  { key: 'phone', label: '연락처' },
+  { key: 'creator', label: '등록자' },
+  { key: 'status', label: '상태' },
+  { key: 'memo', label: '메모' },
+] as const
+const DEFAULT_WIDTHS: Record<string, number> = {
+  reception_channel: 90,
+  applicant_type: 110,
+  business_name: 160,
+  owner_name: 90,
+  phone: 130,
+  creator: 80,
+  status: 140,
+  memo: 160,
+}
+const COL_WIDTHS_STORAGE_KEY = 'franchise_col_widths'
+const PAGE_SIZE = 50
+
 // --- 신규 접수 폼: 별도 컴포넌트로 분리해서 타이핑할 때 전체 목록이 다시 렌더링되지 않도록 함 ---
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<boolean>
@@ -402,6 +426,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [csFilter, setCsFilter] = useState('')
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status' | 'manual'>('updated_at')
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
   const [vanFilter, setVanFilter] = useState('')
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
@@ -542,6 +568,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
   }, [localRows, search, statusFilter, applicantTypeFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, dateFrom, dateTo, pinnedIds])
+
+  useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const canReorder = sortBy === 'manual' && !search.trim() && !statusFilter && !applicantTypeFilter
     && !vanFilter && !dateFrom && !dateTo && transferTab === 'all'
@@ -1299,23 +1329,35 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse min-w-[1250px]">
+        <table className="w-full text-sm border-collapse min-w-[1250px]" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: 24 }} />
+            <col style={{ width: 32 }} />
+            <col style={{ width: 24 }} />
+            {MAIN_COLUMNS.map(col => (
+              <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
-              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+              <th className="px-1 py-2.5 border-b border-slate-200" />
+              <th className="px-3 py-2.5 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 border-b border-slate-200 w-6" />
-              {['접수채널', '사업자유형', '상호명', '대표자', '연락처', '등록자', '상태', '메모'].map(label => (
-                <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
-                  {label}
+              <th className="px-3 py-2.5 border-b border-slate-200" />
+              {MAIN_COLUMNS.map(col => (
+                <th key={col.key} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                  {col.label}
+                  <div
+                    onMouseDown={e => startResize(e, col.key)}
+                    className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
+                  />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map(row => (
+            {pagedRows.map(row => (
               <>
                 <tr key={row.id}
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
@@ -1367,7 +1409,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">
+                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
                     <div className="flex items-center gap-1.5">
                       <span>{row.business_name || '-'}</span>
                       {(() => { const pct = completeness(row); return pct < 100 ? (
@@ -1375,8 +1417,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ) : null })()}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
                     {row.phone ? (
                       <button
                         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.phone!); toast.success(`복사됨: ${row.phone}`) }}
@@ -1385,7 +1427,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       >{row.phone}</button>
                     ) : '-'}
                   </td>
-                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
+                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis text-xs">{row.creator?.name ?? '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="flex flex-col gap-0.5">
                       <select
@@ -1580,6 +1622,15 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
+          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+        </div>
+      )}
     </div>
   )
 }

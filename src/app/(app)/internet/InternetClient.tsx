@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatDateText } from '@/lib/format'
+import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
 import { useToast } from '@/components/ui/Toast'
@@ -78,6 +79,7 @@ const DEFAULT_WIDTHS: Partial<Record<keyof InternetManagement, number>> = {
 }
 
 const COL_WIDTHS_STORAGE_KEY = 'internet_management_col_widths'
+const PAGE_SIZE = 50
 
 const AUTO_FORMAT: Partial<Record<keyof InternetManagement, (raw: string) => string>> = {
   phone: formatPhone,
@@ -271,47 +273,10 @@ export default function InternetClient({ rows }: Props) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
-  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
-    if (typeof window === 'undefined') return {}
-    try { return JSON.parse(localStorage.getItem(COL_WIDTHS_STORAGE_KEY) ?? '{}') } catch { return {} }
-  })
-  const dragState = useRef<{ key: string; startX: number; startWidth: number } | null>(null)
-
-  useEffect(() => {
-    function onMove(e: MouseEvent) {
-      if (!dragState.current) return
-      const { key, startX, startWidth } = dragState.current
-      const newWidth = Math.max(60, startWidth + (e.clientX - startX))
-      setColWidths(prev => {
-        const next = { ...prev, [key]: newWidth }
-        localStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(next))
-        return next
-      })
-    }
-    function onUp() {
-      dragState.current = null
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('blur', onUp)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('blur', onUp)
-    }
-  }, [])
-
-  const startResize = useCallback((e: React.MouseEvent, key: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    dragState.current = {
-      key,
-      startX: e.clientX,
-      startWidth: colWidths[key] ?? DEFAULT_WIDTHS[key as keyof InternetManagement] ?? 140,
-    }
-  }, [colWidths])
+  const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
     setLocalRows(rows)
@@ -347,6 +312,10 @@ export default function InternetClient({ rows }: Props) {
       return true
     })
   }, [localRows, search, statusFilter, categoryFilter])
+
+  useEffect(() => { setPage(1) }, [search, statusFilter, categoryFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
 
@@ -503,7 +472,7 @@ export default function InternetClient({ rows }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map(row => (
+            {pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
@@ -574,6 +543,15 @@ export default function InternetClient({ rows }: Props) {
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
+          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+        </div>
+      )}
     </div>
   )
 }

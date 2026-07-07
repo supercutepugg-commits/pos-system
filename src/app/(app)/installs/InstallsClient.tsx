@@ -59,6 +59,7 @@ interface Installation {
   delivery_type?: string
   scheduled_date?: string
   scheduled_time?: string
+  tracking_number?: string
   sort_order?: number | null
 }
 
@@ -75,7 +76,7 @@ const MAIN_COLUMNS = [
   { key: 'name', label: '고객명' },
   { key: 'delivery_type', label: '구분' },
   { key: 'phone', label: '전화번호' },
-  { key: 'address', label: '주소' },
+  { key: 'tracking_number', label: '송장번호' },
   { key: 'items', label: '제품' },
   { key: 'status', label: '상태' },
   { key: 'tech', label: '담당기사' },
@@ -87,7 +88,7 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   name: 140,
   delivery_type: 90,
   phone: 120,
-  address: 200,
+  tracking_number: 140,
   items: 160,
   status: 110,
   tech: 90,
@@ -377,6 +378,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           scheduledDate: extra?.scheduledDate,
           scheduledTime: extra?.scheduledTime,
           statusToken: inst.status_token,
+          trackingNumber: inst.tracking_number,
         }),
       })
       const data = await res.json()
@@ -576,7 +578,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setEditingNotes(null)
   }
 
-  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time', value: string) {
+  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number', value: string) {
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
     const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
@@ -1196,10 +1198,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
-                    <td className="px-4 py-3 text-slate-700 overflow-hidden">
-                      {inst.address ? (
-                        <span className="text-xs truncate block" title={inst.address}>{inst.address}</span>
-                      ) : '-'}
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
+                      {canEdit ? (
+                        <EditableInstallText value={inst.tracking_number ?? ''} onSave={v => saveInstallField(inst.id, 'tracking_number', v)} />
+                      ) : (
+                        inst.tracking_number || '-'
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}

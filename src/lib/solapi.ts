@@ -228,10 +228,10 @@ const INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TR
 const INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING_SCHEDULE'
 
 export async function sendInstallStatusUpdate({
-  phone, customerName, status, eta, statusToken, scheduledDate, scheduledTime,
+  phone, customerName, status, eta, statusToken, scheduledDate, scheduledTime, trackingNumber,
 }: {
   phone: string; customerName: string; status: string; eta?: string; statusToken?: string
-  scheduledDate?: string; scheduledTime?: string
+  scheduledDate?: string; scheduledTime?: string; trackingNumber?: string
 }) {
   if (!phone || !INSTALL_STATUS_TEXT[status]) return
   const etaNote = status === 'in_transit' && eta ? ` (도착 예정 시각: ${eta})` : ''
@@ -264,6 +264,11 @@ export async function sendInstallStatusUpdate({
       '#{예정일}': scheduledDate || '',
       '#{예정시각}': scheduledTime || '',
     })
+  } else if (status === 'delivery_sent') {
+    // 송장번호 변수가 포함된 새 템플릿 승인 전이라면 env에 등록된 기존 템플릿에는
+    // #{송장번호} 변수가 없을 수 있음 — kakaoOptions는 넘겨받은 변수만 그대로 전달하므로
+    // 템플릿이 그 변수를 쓰지 않으면 무시되고, 쓰는데 안 보내면 카카오 쪽에서 오류가 날 수 있다.
+    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.delivery_sent, { '#{고객명}': customerName, '#{송장번호}': trackingNumber || '' })
   } else {
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
   }

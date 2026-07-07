@@ -46,6 +46,8 @@ interface Installation {
   franchise_application_id?: string
   address?: string
   delivery_type?: string
+  scheduled_date?: string
+  scheduled_time?: string
   sort_order?: number | null
 }
 
@@ -388,7 +390,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       return
     }
     if (status === 'scheduled') {
-      setScheduleModal({ id, date: '', time: '' })
+      const inst = installs.find(i => i.id === id)
+      setScheduleModal({ id, date: inst?.scheduled_date ?? '', time: inst?.scheduled_time ?? '' })
       return
     }
     await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
@@ -408,17 +411,21 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if (!skipNotify && !skipSend) await sendInstallNotify(id, 'in_transit', { eta: sendEta })
   }
 
-  async function submitSchedule(skipDetails?: boolean, skipSend?: boolean) {
+  async function submitSchedule() {
     if (!scheduleModal) return
-    setSendingSchedule(true)
     const { id, date, time } = scheduleModal
-    await supabase.from('installations').update({ status: 'scheduled', updated_at: new Date().toISOString() }).eq('id', id)
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'scheduled' } : i))
-    const scheduledDate = skipDetails ? undefined : (date.trim() || undefined)
-    const scheduledTime = skipDetails ? undefined : (time.trim() || undefined)
+    if (!date.trim() || !time.trim()) return
+    setSendingSchedule(true)
+    await supabase.from('installations').update({
+      status: 'scheduled',
+      scheduled_date: date,
+      scheduled_time: time,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'scheduled', scheduled_date: date, scheduled_time: time } : i))
     setScheduleModal(null)
     setSendingSchedule(false)
-    if (!skipNotify && !skipSend) await sendInstallNotify(id, 'scheduled', { scheduledDate, scheduledTime })
+    if (!skipNotify) await sendInstallNotify(id, 'scheduled', { scheduledDate: date, scheduledTime: time })
   }
 
   async function submitReject() {
@@ -554,7 +561,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setEditingNotes(null)
   }
 
-  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type', value: string) {
+  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time', value: string) {
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
     const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
@@ -921,23 +928,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
               />
             </div>
-            <p className="text-xs text-slate-400 -mt-2">※ 일정확정 알림톡 템플릿이 승인되기 전에는 입력한 날짜/시각이 고객 메시지에 반영되지 않고 내부 기록용으로만 남습니다.</p>
+            <p className="text-xs text-slate-400 -mt-2">※ 설치 예정일과 희망 시간대를 모두 입력해야 확정/발송할 수 있습니다.</p>
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => submitSchedule(false)}
-                disabled={sendingSchedule}
+                onClick={() => submitSchedule()}
+                disabled={sendingSchedule || !scheduleModal.date.trim() || !scheduleModal.time.trim()}
                 className="w-full py-2 rounded-lg bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 disabled:opacity-50"
-              >{sendingSchedule ? '처리 중...' : '일정 기록하고 발송'}</button>
-              <button
-                onClick={() => submitSchedule(true)}
-                disabled={sendingSchedule}
-                className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-              >{sendingSchedule ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
-              <button
-                onClick={() => submitSchedule(true, true)}
-                disabled={sendingSchedule}
-                className="w-full py-2 rounded-lg border border-slate-200 text-slate-400 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-              >{sendingSchedule ? '처리 중...' : '템플릿 안보내고 변경'}</button>
+              >{sendingSchedule ? '처리 중...' : '일정 확정하고 발송'}</button>
               <button
                 onClick={() => setScheduleModal(null)}
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
@@ -1301,6 +1298,26 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400">등록자</p>
                             <p className="text-slate-800">{inst.creator?.name ?? '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">설치 예정일</p>
+                            {canEdit ? (
+                              <input type="date" value={inst.scheduled_date ?? ''} onClick={e => e.stopPropagation()}
+                                onChange={e => saveInstallField(inst.id, 'scheduled_date', e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            ) : (
+                              <p className="text-slate-800">{inst.scheduled_date || '-'}</p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">희망 시간대</p>
+                            {canEdit ? (
+                              <input type="time" value={inst.scheduled_time ?? ''} onClick={e => e.stopPropagation()}
+                                onChange={e => saveInstallField(inst.id, 'scheduled_time', e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            ) : (
+                              <p className="text-slate-800">{inst.scheduled_time || '-'}</p>
+                            )}
                           </div>
                           <div className="col-span-2">
                             <p className="text-xs font-semibold text-slate-400 mb-1">제품</p>

@@ -1016,6 +1016,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         notes: row.memo || null,
         franchise_application_id: row.id,
         address: row.address || null,
+        scheduled_date: row.install_date || null,
         created_by: currentUserId,
       }).select('id').single()
       if (error) return
@@ -1062,6 +1063,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         notes: row.memo || null,
         franchise_application_id: row.id,
         address: row.address || null,
+        scheduled_date: row.install_date || null,
         created_by: currentUserId,
       }).select('id').single()
       if (error) { toast.error('이관 실패: ' + error.message); setTransferringId(null); return }

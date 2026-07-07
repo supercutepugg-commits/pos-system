@@ -47,6 +47,7 @@ interface CalendarEvent {
   type?: TicketType
   techName?: string
   salesName?: string
+  glow?: boolean
 }
 
 const EVENT_TYPES = [
@@ -63,7 +64,7 @@ const FRANCHISE_EVENT_TYPES = [
 
 const WOO_EVENT_LEGEND = [
   { key: 'open_date',    label: '우국상 오픈',       color: 'bg-cyan-500' },
-  { key: 'install_date', label: '우국상 설치(월요일)', color: 'bg-lime-600' },
+  { key: 'install_date', label: '우국상 설치(월요일)', color: 'bg-amber-500' },
 ] as const
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -149,11 +150,12 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       map[installDate].push({
         date: installDate,
         label: '설치',
-        color: 'bg-lime-600',
+        color: 'bg-amber-500',
         href: '/woo',
         businessName,
         subtitle: '우국상 설치 (오픈 주 월요일)',
         salesName: row.manager ?? undefined,
+        glow: true,
       })
     }
     return map
@@ -257,7 +259,9 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {events.slice(0, 3).map((ev, i) => (
-                    <div key={i} className={`text-white text-[10px] font-medium px-1.5 py-0.5 rounded truncate ${ev.color}`}>
+                    <div key={i} className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded truncate ${ev.color} ${
+                      ev.glow ? 'ring-2 ring-amber-300 shadow-[0_0_8px_2px_rgba(245,158,11,0.75)] animate-pulse' : ''
+                    }`}>
                       {ev.label} {ev.businessName}
                     </div>
                   ))}
@@ -301,7 +305,9 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                   <Link key={i} href={ev.href}
                     className="block px-4 py-3 hover:bg-slate-50 transition-colors">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded ${ev.color}`}>
+                      <span className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded ${ev.color} ${
+                        ev.glow ? 'ring-2 ring-amber-300 shadow-[0_0_8px_2px_rgba(245,158,11,0.75)] animate-pulse' : ''
+                      }`}>
                         {ev.label}
                       </span>
                       {ev.statusLabel && ev.statusColor && (

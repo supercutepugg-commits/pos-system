@@ -1047,7 +1047,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                   )}
                   <th className="px-1 py-3" />
                   {MAIN_COLUMNS.map(col => (
-                    <th key={col.key} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                    <th key={col.key} title={col.label} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                       {col.label}
                       <div
                         onMouseDown={e => startResize(e, col.key)}

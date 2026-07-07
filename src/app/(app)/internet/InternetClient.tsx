@@ -488,7 +488,7 @@ export default function InternetClient({ rows }: Props) {
               </th>
               <th className="px-3 py-3 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (
-                <th key={col.key} className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                <th key={col.key} title={col.label} className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {col.label}
                   <div
                     onMouseDown={e => startResize(e, col.key)}

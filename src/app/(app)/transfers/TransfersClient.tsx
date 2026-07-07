@@ -486,7 +486,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
               </th>
               <th className="px-3 py-3 border-b border-slate-200" />
               {MAIN_FIELDS.map(f => (
-                <th key={f} className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                <th key={f} title={MAIN_LABELS[f]} className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {MAIN_LABELS[f]}
                   <div
                     onMouseDown={e => startResize(e, f)}

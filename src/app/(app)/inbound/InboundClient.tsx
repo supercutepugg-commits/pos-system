@@ -345,6 +345,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
               ] as [string, string, number | null][]).map(([key, label, w]) => (
                 <th
                   key={key}
+                  title={label}
                   onClick={() => toggleSort(key)}
                   className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap"
                   style={w ? { width: w, minWidth: w } : { minWidth: 150 }}

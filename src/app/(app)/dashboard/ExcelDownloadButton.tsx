@@ -7,8 +7,50 @@ import { ko } from 'date-fns/locale'
 import { FRANCHISE_STATUS_LABEL, APPLICANT_TYPE_LABEL, type FranchiseStatus, type ApplicantType } from '@/types'
 import { useState } from 'react'
 
+// 백업 대상 테이블 (탭 이름 → 테이블명)
+const BACKUP_TABLES: { label: string; table: string }[] = [
+  { label: '가맹접수', table: 'franchise_applications' },
+  { label: '설치관리', table: 'installations' },
+  { label: '인터넷관리', table: 'internet_management' },
+  { label: '입고관리', table: 'crm_inbound' },
+  { label: '용지요청', table: 'paper_orders' },
+  { label: '우체국관리', table: 'woo_customers' },
+  { label: 'AS티켓', table: 'tickets' },
+  { label: '가맹점', table: 'merchants' },
+]
+
+// 테이블 전체 행을 페이지 단위로 끝까지 가져온다 (기본 응답 제한 대응)
+async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string) {
+  const pageSize = 1000
+  let from = 0
+  const all: Record<string, unknown>[] = []
+  while (true) {
+    const { data, error } = await supabase.from(table).select('*').range(from, from + pageSize - 1)
+    if (error || !data) break
+    all.push(...data)
+    if (data.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
+function downloadCsv(XLSX: typeof import('xlsx'), rows: Record<string, unknown>[], filename: string) {
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const csv = XLSX.utils.sheet_to_csv(ws)
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export default function ExcelDownloadButton() {
   const [loading, setLoading] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
 
   async function handleDownload() {
     setLoading(true)
@@ -100,14 +142,44 @@ export default function ExcelDownloadButton() {
     }
   }
 
+  // 전체 탭을 원본 컬럼 그대로 탭별 CSV 파일로 백업 (복구 목적 — 라벨 가공 없이 원본 데이터)
+  async function handleBackup() {
+    setBackingUp(true)
+    try {
+      const supabase = createClient()
+      const XLSX = await import('xlsx')
+      const stamp = format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })
+      for (const { label, table } of BACKUP_TABLES) {
+        const rows = await fetchAllRows(supabase, table)
+        if (rows.length === 0) continue
+        downloadCsv(XLSX, rows, `${label}_${table}_${stamp}.csv`)
+        // 브라우저가 연속 다운로드를 차단하지 않도록 약간의 간격을 둔다
+        await new Promise(r => setTimeout(r, 300))
+      }
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
   return (
-    <button
-      onClick={handleDownload}
-      disabled={loading}
-      className="flex items-center gap-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-4 py-2 rounded-xl transition-colors"
-    >
-      <Download size={15} />
-      {loading ? '다운로드 중...' : '전체 데이터 엑셀'}
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleDownload}
+        disabled={loading}
+        className="flex items-center gap-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-4 py-2 rounded-xl transition-colors"
+      >
+        <Download size={15} />
+        {loading ? '다운로드 중...' : '전체 데이터 엑셀'}
+      </button>
+      <button
+        onClick={handleBackup}
+        disabled={backingUp}
+        title="전체 탭을 원본 데이터 그대로 탭별 CSV 파일로 저장합니다"
+        className="flex items-center gap-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 px-4 py-2 rounded-xl transition-colors"
+      >
+        <Download size={15} />
+        {backingUp ? '백업 중...' : '전체 백업 (CSV)'}
+      </button>
+    </div>
   )
 }

@@ -361,6 +361,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function sendInstallNotify(id: string, status: string, extra?: { eta?: string; scheduledDate?: string; scheduledTime?: string }) {
     const inst = installs.find(i => i.id === id)
     if (!inst?.customer_phone) return
+    // 택배발송 건은 방문 일정을 잡을 일이 없으므로 제품준비 단계의 "일정확인 버튼" 알림은 보내지 않는다
+    if (inst.delivery_type === 'delivery' && status === 'preparing') return
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
     if (!['preparing', 'scheduled', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
     try {

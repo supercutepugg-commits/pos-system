@@ -172,13 +172,13 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
         ) : (
           <div className="divide-y divide-slate-50">
             {contracts.map(c => (
-              <div key={c.id} className="px-5 py-4 flex items-center gap-4">
+              <div key={c.id} className="px-5 py-5 flex items-center gap-4">
                 <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                   <FileText size={18} className="text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-900 text-sm truncate">{c.title}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                     <span>{c.signer_name}</span>
                     {c.signer_phone && <span>{c.signer_phone}</span>}
                     <span>{format(new Date(c.created_at), 'M/d', { locale: ko })}</span>

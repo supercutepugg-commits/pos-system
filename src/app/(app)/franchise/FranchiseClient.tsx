@@ -93,6 +93,7 @@ const ALIMTALK_LOG_LABEL: Record<string, string> = {
   card_done: '카드가맹완료',
   internet_apply_done: '인터넷접수완료',
   internet_done: '인터넷개통완료',
+  toss_review_apply_done: '토스심사접수완료',
   toss_review_done: '토스심사완료',
 }
 
@@ -301,7 +302,8 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
 const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   doc_waiting: 'card_apply_done',
   doc_incomplete: 'card_apply_done',
-  card_apply_done: 'toss_review_done',
+  card_apply_done: 'toss_review_apply_done',
+  toss_review_apply_done: 'toss_review_done',
   toss_review_done: 'card_done',
 }
 
@@ -1599,6 +1601,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                             <DateField row={row} field="open_date" onSave={saveField} />
                           </div>
                         )}
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">카드가맹접수일</label>
+                          <DateField row={row} field="card_apply_date" onSave={saveField} />
+                        </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">설치 및 발송일</label>
                           <DateField row={row} field="install_date" onSave={saveField} />

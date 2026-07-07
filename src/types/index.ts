@@ -22,6 +22,7 @@ export type FranchiseStatus =
   | 'card_internet_apply_done'
   | 'card_done'
   | 'internet_done'
+  | 'toss_review_apply_done'
   | 'toss_review_done'
 export type ApplicantType = 'corporate' | 'individual' | 'giga_corporate' | 'giga_individual'
 
@@ -124,6 +125,7 @@ export interface FranchiseApplication {
   title?: string
   reception_channel?: string
   reception_date?: string
+  card_apply_date?: string
   open_date?: string
   install_date?: string
   van_company?: string
@@ -273,6 +275,7 @@ export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
   card_internet_apply_done: '카드,인터넷접수완료',
   card_done: '카드가맹완료',
   internet_done: '인터넷 가입완료',
+  toss_review_apply_done: '토스심사접수완료',
   toss_review_done: '토스심사완료',
 }
 
@@ -285,6 +288,7 @@ export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
   card_internet_apply_done: 'bg-teal-100 text-teal-700 border-teal-200',
   card_done: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   internet_done: 'bg-blue-100 text-blue-700 border-blue-200',
+  toss_review_apply_done: 'bg-lime-100 text-lime-700 border-lime-200',
   toss_review_done: 'bg-green-100 text-green-700 border-green-200',
 }
 

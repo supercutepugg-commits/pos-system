@@ -113,8 +113,23 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
   // 같은 href가 여러 폴더에 들어있을 때, 마지막으로 클릭한 폴더 쪽만 강조하기 위한 힌트
   const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null)
 
+  const allHrefs = [
+    ...COMMON_NAV.map(n => n.href),
+    ...ROLE_FOLDERS.flatMap(f => f.items.map(i => i.href)),
+    ...ADMIN_NAV.map(n => n.href),
+    ...BOTTOM_NAV.map(n => n.href),
+  ]
+
+  // pathname과 매칭되는 href들 중 가장 구체적인(긴) 것만 활성화 처리
+  // (예: /installs/mine 방문 시 /installs 까지 같이 강조되는 것 방지)
   function isActive(href: string) {
-    return pathname === href || (pathname.startsWith(href + '/') && !href.includes('?'))
+    if (href.includes('?')) return false
+    if (pathname === href) return true
+    if (!pathname.startsWith(href + '/')) return false
+    const moreSpecific = allHrefs.some(
+      other => other !== href && other.startsWith(href + '/') && (pathname === other || pathname.startsWith(other + '/'))
+    )
+    return !moreSpecific
   }
 
   function foldersContaining(href: string) {

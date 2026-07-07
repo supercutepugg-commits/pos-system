@@ -1523,12 +1523,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     </select>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
-                    {localLinkedInternets[row.id] ? (
+                    {localLinkedInternets[row.id] && (
                       <span className="text-sm font-extrabold text-green-700">
                         {localLinkedInternets[row.id].category || 'O'}
                       </span>
-                    ) : (
-                      <span className="text-lg font-extrabold text-slate-500">X</span>
                     )}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>

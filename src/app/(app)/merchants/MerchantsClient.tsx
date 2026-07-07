@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { MapPin, Phone, Trash2 } from 'lucide-react'
+import { MapPin, Phone } from 'lucide-react'
 import { deleteMerchants } from './actions'
 import EmptyState from '@/components/ui/EmptyState'
+import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
 
 interface Merchant {
   id: string
@@ -64,21 +65,7 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
           <span className="text-xs text-slate-400 font-medium">전체 선택</span>
           {selected.size > 0 && (
             <div className="flex items-center gap-3 ml-2">
-              <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <Trash2 size={14} />
-                {deleting ? '삭제 중...' : '선택 삭제'}
-              </button>
-              <button
-                onClick={() => setSelected(new Set())}
-                className="text-sm text-slate-500 hover:text-slate-700"
-              >
-                취소
-              </button>
+              <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
             </div>
           )}
         </div>

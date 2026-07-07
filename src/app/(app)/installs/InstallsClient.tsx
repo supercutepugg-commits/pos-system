@@ -304,7 +304,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
     if (!['preparing', 'scheduled', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
     try {
-      await fetch('/api/installs/notify', {
+      const res = await fetch('/api/installs/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -317,7 +317,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           statusToken: inst.status_token,
         }),
       })
-    } catch { /* 알림톡 실패 무시 */ }
+      const data = await res.json()
+      if (!data.ok) toast.error('알림톡 발송 실패: ' + data.error)
+    } catch (e: any) {
+      toast.error('알림톡 발송 실패: ' + (e?.message ?? '알 수 없는 오류'))
+    }
   }
 
   async function handleStatusChange(id: string, status: string) {

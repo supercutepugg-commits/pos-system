@@ -207,10 +207,9 @@ export async function sendFranchiseStatusUpdate({
 }
 
 // 설치관리 상태 알림톡
+// preparing/in_transit은 기본 템플릿 없이 아래 버튼/시각 포함 버전만 사용한다.
 const INSTALL_STATUS_TEMPLATE: Record<string, string> = {
-  preparing: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING',
   scheduled: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_SCHEDULED',
-  in_transit: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TRANSIT',
   completed: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_COMPLETED',
   delivery_sent: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_DELIVERY_SENT',
 }
@@ -223,9 +222,9 @@ const INSTALL_STATUS_TEXT: Record<string, string> = {
   delivery_sent: '제품이 발송되었습니다. 택배 도착 후 문의사항은 담당자에게 연락해 주세요.',
 }
 
-// 시각 변수(#{예정시각})가 포함된 승인 템플릿용. 승인 전에는 env가 비어있으므로 미사용.
+// 시각 변수(#{예정시각})가 포함된 템플릿. preparing에서는 아래 버튼 포함 버전만 사용한다.
 const INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TRANSIT_ETA'
-// 일정변경/희망시간대 요청 버튼(WL)이 포함된 승인 템플릿용. 승인 전에는 env가 비어있으므로 미사용.
+// 일정변경/희망시간대 요청 버튼(WL)이 포함된 템플릿. in_transit에서는 위 시각 포함 버전만 사용한다.
 const INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING_SCHEDULE'
 
 export async function sendInstallStatusUpdate({
@@ -241,17 +240,14 @@ export async function sendInstallStatusUpdate({
     : ''
   const text = `[설치/배송 안내]\n${customerName}님, ${INSTALL_STATUS_TEXT[status]}${etaNote}${scheduleNote}`
 
-  // 시각 전용 템플릿이 승인되어 env에 등록돼 있으면 그 템플릿 + #{예정시각} 변수로 발송,
-  // 아니면 기존 템플릿 그대로 발송 (eta 무시) — 승인 전 오발송 방지.
-  const useEtaTemplate = status === 'in_transit' && !!eta && !!process.env[INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV]
-  // 일정 요청 버튼 템플릿이 승인되어 env에 등록돼 있으면 그 템플릿 + 공개 페이지 링크 버튼으로 발송,
-  // 아니면 기존 템플릿 그대로 발송 (버튼 없이) — 승인 전 오발송 방지.
-  const useScheduleTemplate = status === 'preparing' && !!statusToken && !!process.env[INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV]
-
   let ko
-  if (useEtaTemplate) {
-    ko = kakaoOptions(INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV, { '#{고객명}': customerName, '#{예정시각}': eta! })
-  } else if (useScheduleTemplate) {
+  if (status === 'in_transit') {
+    // 예정시각 포함 버전만 사용 — 시각이 없으면 발송하지 않는다.
+    if (!eta) { console.warn('[solapi] 이동중 알림톡: 예정시각 없이는 발송하지 않음'); return }
+    ko = kakaoOptions(INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV, { '#{고객명}': customerName, '#{예정시각}': eta })
+  } else if (status === 'preparing') {
+    // 일정변경 버튼 포함 버전만 사용 — statusToken이 없으면 발송하지 않는다.
+    if (!statusToken) { console.warn('[solapi] 제품준비 알림톡: statusToken 없이는 발송하지 않음'); return }
     // 버튼(WL)은 템플릿에 "https://#{링크}" 형태로 등록되어 있으므로, 프로토콜을 뺀 나머지 주소만 변수로 전달한다
     const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/install-status/${statusToken}`
     ko = kakaoOptions(INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV, { '#{고객명}': customerName, '#{링크}': linkNoProtocol })

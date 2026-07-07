@@ -878,18 +878,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               onChange={e => setTransitModal(prev => prev ? { ...prev, eta: e.target.value } : prev)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-            <p className="text-xs text-slate-400 -mt-2">※ 시각 알림톡 템플릿이 승인되기 전에는 입력한 시각이 고객 메시지에 반영되지 않고 내부 기록용으로만 남습니다.</p>
+            <p className="text-xs text-slate-400 -mt-2">※ 예정시각을 입력해야 알림톡이 발송됩니다.</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => submitTransit(false)}
                 disabled={sendingTransit}
                 className="w-full py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
               >{sendingTransit ? '처리 중...' : '시각 기록하고 발송'}</button>
-              <button
-                onClick={() => submitTransit(true)}
-                disabled={sendingTransit}
-                className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-              >{sendingTransit ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
               <button
                 onClick={() => submitTransit(true, true)}
                 disabled={sendingTransit}

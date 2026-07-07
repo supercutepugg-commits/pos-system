@@ -466,6 +466,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [busyId, setBusyId] = useState<string | null>(null)
   const [transferringId, setTransferringId] = useState<string | null>(null)
   const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
+  // saveField가 이 값이 바뀔 때마다 새 함수로 재생성되면 memo(EditableText 등)의 재렌더 방지 효과가
+  // 전체 행에 대해 무효화되므로, ref로 최신값만 읽고 saveField 자체의 참조는 안정적으로 유지한다
+  const localLinkedInstallsRef = useRef(localLinkedInstalls)
+  useEffect(() => { localLinkedInstallsRef.current = localLinkedInstalls }, [localLinkedInstalls])
   const [localLinkedInternets, setLocalLinkedInternets] = useState<Record<string, { id: string; status: string | null; category: string | null }>>(linkedInternets)
   const [linkingInternetId, setLinkingInternetId] = useState<string | null>(null)
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
@@ -911,7 +915,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const { error } = await supabase.from('franchise_applications').update({ [field]: saveValue }).eq('id', row.id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
     // 이미 기술지원으로 이관된 건이면 설치관리 쪽 대응 필드도 함께 동기화
-    const linked = localLinkedInstalls[row.id]
+    const linked = localLinkedInstallsRef.current[row.id]
     if (linked && (field === 'business_name' || field === 'owner_name' || field === 'phone' || field === 'address')) {
       const patch: Record<string, string | null> = {}
       if (field === 'business_name' || field === 'owner_name') {
@@ -927,7 +931,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (syncError) toast.error('설치관리 동기화 실패: ' + syncError.message)
     }
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: saveValue ?? undefined, updated_at: new Date().toISOString() } : r))
-  }, [currentUserName, localLinkedInstalls])
+  }, [currentUserName])
 
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()

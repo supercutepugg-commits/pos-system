@@ -1426,7 +1426,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (
-                <th key={col.key} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                <th key={col.key} className="relative text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {col.label}
                   <div
                     onMouseDown={e => startResize(e, col.key)}
@@ -1446,7 +1446,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
@@ -1455,10 +1455,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   >
                     <GripVertical size={14} />
                   </td>
-                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
-                  <td className="px-3 py-2 text-slate-400">
+                  <td className="px-3 py-3 text-slate-500">
                     <div className="flex items-center gap-1">
                       {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       <button onClick={e => { e.stopPropagation(); togglePin(row.id) }}
@@ -1468,31 +1468,31 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       </button>
                     </div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm" onClick={e => e.stopPropagation()}>
                     <DateField row={row} field="reception_date" onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.reception_channel ?? ''}
                       onChange={e => saveField(row, 'reception_channel', e.target.value)}
-                      className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
+                      className="text-sm font-medium text-slate-700 border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
                     >
                       <option value="">미지정</option>
                       {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.applicant_type}
                       onChange={e => updateApplicantType(row, e.target.value as ApplicantType)}
-                      className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
                     >
                       {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
                         <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
                     <div className="flex items-center gap-1.5">
                       <span>{row.business_name || '-'}</span>
                       {(() => { const pct = completeness(row); return pct < 100 ? (
@@ -1500,8 +1500,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ) : null })()}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">
                     {row.phone ? (
                       <button
                         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.phone!); toast.success(`복사됨: ${row.phone}`) }}
@@ -1510,18 +1510,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       >{row.phone}</button>
                     ) : '-'}
                   </td>
-                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis text-xs">{row.creator?.name ?? '-'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis text-xs">{row.creator?.name ?? '-'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.cs_id ?? ''}
                       onChange={e => updateCs(row, e.target.value)}
-                      className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
+                      className="text-sm font-medium text-slate-700 border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
                     >
                       <option value="">미배정</option>
                       {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-center">
+                  <td className="px-3 py-3 whitespace-nowrap text-center">
                     {localLinkedInternets[row.id] ? (
                       <span className="text-sm font-extrabold text-green-700">
                         {localLinkedInternets[row.id].category || 'O'}
@@ -1530,13 +1530,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       <span className="text-lg font-extrabold text-slate-500">X</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    <div className="flex flex-col gap-0.5">
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <div className="flex flex-col gap-1">
                       <select
                         value={row.status}
                         disabled={busyId === row.id}
                         onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
-                        className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
+                        className={`text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
                       >
                         {SELECTABLE_FRANCHISE_STATUSES.map(s => (
                           <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
@@ -1556,7 +1556,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">{row.memo || '-'}</td>
+                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate">{row.memo || '-'}</td>
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">

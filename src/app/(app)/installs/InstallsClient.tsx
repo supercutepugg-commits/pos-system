@@ -1208,7 +1208,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                       {mineOnly ? (
-                        canEdit && !['in_transit', 'completed'].includes(inst.status) ? (
+                        canEdit && inst.status !== 'completed' ? (
                           <button onClick={() => handleStatusChange(inst.id, 'in_transit')}
                             className="text-xs font-semibold px-2 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap">
                             이동중 톡

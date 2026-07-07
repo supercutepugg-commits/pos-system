@@ -775,6 +775,66 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       )}
 
+      {/* 설치건 상세 모달 */}
+      {detailInst && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailInst(null)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-800">설치건 상세 정보</h3>
+              <button onClick={() => setDetailInst(null)} aria-label="닫기" className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              {[
+                ['고객명', detailInst.customer_name],
+                ['전화번호', detailInst.customer_phone ? formatPhone(detailInst.customer_phone) : ''],
+                ['주소', detailInst.address],
+                ['구분', detailInst.delivery_type === 'delivery' ? '택배발송' : '설치'],
+                ['상태', STATUS_LABELS[detailInst.status] ?? detailInst.status],
+                ['담당기사', detailInst.assignee?.name ?? '미배정'],
+                ['등록자', detailInst.creator?.name],
+                ['등록일', format(new Date(detailInst.created_at), 'yyyy-M-d HH:mm', { locale: ko })],
+              ].map(([label, value]) => value ? (
+                <div key={label as string}>
+                  <p className="text-xs text-slate-400 font-medium">{label}</p>
+                  <p className="text-slate-800 break-words">{value as string}</p>
+                </div>
+              ) : null)}
+              {detailInst.items?.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400 font-medium">제품</p>
+                  <p className="text-slate-800">{detailInst.items.map(i => `${i.name} x${i.quantity}`).join(', ')}</p>
+                </div>
+              )}
+              {detailInst.notes && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400 font-medium">비고</p>
+                  <p className="text-slate-800 whitespace-pre-wrap">{detailInst.notes}</p>
+                </div>
+              )}
+              {detailInst.completion_photo_urls && detailInst.completion_photo_urls.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400 font-medium mb-1">설치완료 사진</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {detailInst.completion_photo_urls.map(url => (
+                      <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt="설치완료사진" className="w-20 h-20 object-cover rounded border border-slate-200" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {detailInst.franchise_application_id && (
+              <button
+                onClick={() => { openFranchiseDetail(detailInst.franchise_application_id!); setDetailInst(null) }}
+                className="mt-4 text-xs text-purple-600 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50">
+                가맹접수 원본 보기
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 반려 사유 모달 */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -1068,7 +1128,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 {pagedInstalls.map(inst => (
                   <tr
                     key={inst.id}
-                    className={`border-b border-slate-50 hover:bg-slate-50 transition ${rowDragId === inst.id ? 'opacity-40' : ''}`}
+                    className={`border-b border-slate-50 hover:bg-slate-50 transition cursor-pointer ${rowDragId === inst.id ? 'opacity-40' : ''}`}
+                    onClick={() => setDetailInst(inst)}
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
                   >
@@ -1081,6 +1142,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td
                       className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                       draggable={canReorder}
+                      onClick={e => e.stopPropagation()}
                       onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(inst.id) }}
                       onDragEnd={() => setRowDragId(null)}
                       title={canReorder ? '드래그해서 순서 변경' : '검색/필터 중에는 순서를 변경할 수 없습니다'}
@@ -1104,7 +1166,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
@@ -1116,7 +1178,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}
                           className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none">
@@ -1127,7 +1189,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         <span className="text-xs text-slate-700">{inst.assignee?.name ?? '미배정'}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 max-w-[160px]">
+                    <td className="px-4 py-3 text-slate-700 max-w-[160px]" onClick={e => e.stopPropagation()}>
                       {canEdit && editingNotes?.id === inst.id ? (
                         <input autoFocus value={editingNotes.value}
                           onChange={e => setEditingNotes({ ...editingNotes, value: e.target.value })}
@@ -1154,7 +1216,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
                       {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1.5">
                         {inst.franchise_application_id && (
                           <button onClick={() => openFranchiseDetail(inst.franchise_application_id!)}

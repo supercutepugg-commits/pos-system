@@ -212,13 +212,10 @@ const INSTALL_STATUS_TEMPLATE: Record<string, string> = {
   scheduled: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_SCHEDULED',
   completed: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_COMPLETED',
   delivery_sent: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_DELIVERY_SENT',
-  // 택배발송 건이 제품준비 단계로 바뀔 때 사용 — 설치 건(preparing)과 달리 일정확인 버튼/링크가 없는 단순 안내 템플릿
-  preparing_delivery: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING_DELIVERY',
 }
 
 const INSTALL_STATUS_TEXT: Record<string, string> = {
   preparing: '제품 준비가 시작되었습니다. 곧 배송 또는 설치 일정을 안내드리겠습니다.',
-  preparing_delivery: '제품 준비가 시작되었습니다. 준비가 완료되면 택배로 발송해 드리겠습니다.',
   scheduled: '설치 일정이 확정되었습니다.',
   in_transit: '기사님이 이동 중입니다. 잠시 후 방문 예정입니다.',
   completed: '설치가 완료되었습니다. 이용해 주셔서 감사합니다.',

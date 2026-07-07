@@ -26,36 +26,36 @@ export interface InboundRow {
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
-  '유선': 'bg-blue-100 text-blue-700',
-  '채널톡': 'bg-emerald-100 text-emerald-700',
-  '채널': 'bg-emerald-100 text-emerald-700',
-  '슬랙': 'bg-purple-100 text-purple-700',
-  '기타': 'bg-slate-100 text-slate-600',
+  '유선': 'bg-blue-100 text-blue-700 border border-blue-200',
+  '채널톡': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  '채널': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  '슬랙': 'bg-purple-100 text-purple-700 border border-purple-200',
+  '기타': 'bg-slate-100 text-slate-600 border border-slate-200',
 }
 const STATUS_COLORS: Record<string, string> = {
-  '처리완료': 'bg-emerald-100 text-emerald-700',
-  '단순문의': 'bg-emerald-50 text-emerald-600',
-  '처리중': 'bg-blue-100 text-blue-700',
-  '원격 진행중': 'bg-blue-100 text-blue-700',
-  '처리대기': 'bg-yellow-100 text-yellow-700',
-  '미처리': 'bg-red-100 text-red-700',
-  '보류': 'bg-slate-100 text-slate-600',
-  '발송대기': 'bg-orange-100 text-orange-700',
-  '포스기 일정': 'bg-indigo-100 text-indigo-700',
-  '인터넷 일정': 'bg-indigo-100 text-indigo-700',
-  '카드가맹 일정': 'bg-indigo-100 text-indigo-700',
-  '신규': 'bg-pink-100 text-pink-700',
-  '기존': 'bg-slate-100 text-slate-600',
-  '기타': 'bg-slate-100 text-slate-600',
+  '처리완료': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  '단순문의': 'bg-emerald-50 text-emerald-600 border border-emerald-200',
+  '처리중': 'bg-blue-100 text-blue-700 border border-blue-200',
+  '원격 진행중': 'bg-blue-100 text-blue-700 border border-blue-200',
+  '처리대기': 'bg-yellow-100 text-yellow-700 border border-yellow-200',
+  '미처리': 'bg-red-100 text-red-700 border border-red-200',
+  '보류': 'bg-slate-100 text-slate-600 border border-slate-200',
+  '발송대기': 'bg-orange-100 text-orange-700 border border-orange-200',
+  '포스기 일정': 'bg-indigo-100 text-indigo-700 border border-indigo-200',
+  '인터넷 일정': 'bg-indigo-100 text-indigo-700 border border-indigo-200',
+  '카드가맹 일정': 'bg-indigo-100 text-indigo-700 border border-indigo-200',
+  '신규': 'bg-pink-100 text-pink-700 border border-pink-200',
+  '기존': 'bg-slate-100 text-slate-600 border border-slate-200',
+  '기타': 'bg-slate-100 text-slate-600 border border-slate-200',
 }
 const CATEGORY_COLORS: Record<string, string> = {
-  'A/S': 'bg-red-100 text-red-700',
-  '가입문의': 'bg-blue-100 text-blue-700',
-  '일정문의': 'bg-indigo-100 text-indigo-700',
-  '메뉴수정': 'bg-amber-100 text-amber-700',
-  '매뉴수정': 'bg-amber-100 text-amber-700',
-  '용지요청': 'bg-teal-100 text-teal-700',
-  '기타문의': 'bg-slate-100 text-slate-600',
+  'A/S': 'bg-red-100 text-red-700 border border-red-200',
+  '가입문의': 'bg-blue-100 text-blue-700 border border-blue-200',
+  '일정문의': 'bg-indigo-100 text-indigo-700 border border-indigo-200',
+  '메뉴수정': 'bg-amber-100 text-amber-700 border border-amber-200',
+  '매뉴수정': 'bg-amber-100 text-amber-700 border border-amber-200',
+  '용지요청': 'bg-teal-100 text-teal-700 border border-teal-200',
+  '기타문의': 'bg-slate-100 text-slate-600 border border-slate-200',
 }
 
 interface FilterOptions {
@@ -106,13 +106,13 @@ interface EditableSelectProps {
 }
 const EditableSelect = memo(function EditableSelect({ row, field, options, colorMap, onSave }: EditableSelectProps) {
   const value = row[field] ?? ''
-  const cls = value ? (colorMap[value as string] || 'bg-slate-100 text-slate-600') : ''
+  const cls = value ? (colorMap[value as string] || 'bg-slate-100 text-slate-600 border border-slate-200') : 'border border-slate-200'
   return (
     <select
       value={value as string}
       onChange={e => onSave(row.id, field, e.target.value)}
       onClick={e => e.stopPropagation()}
-      className={`text-xs font-medium rounded-full px-2 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${cls}`}
+      className={`text-xs font-medium rounded-full px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${cls}`}
     >
       <option value="">-</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -327,8 +327,8 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
         <table className="w-full text-sm border-collapse min-w-[1200px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
-              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+              <th className="px-1 py-3 border-b border-slate-200 w-6" />
+              <th className="px-3 py-3 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
               {([
@@ -346,7 +346,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                 <th
                   key={key}
                   onClick={() => toggleSort(key)}
-                  className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap"
+                  className="text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap"
                   style={w ? { width: w, minWidth: w } : { minWidth: 150 }}
                 >
                   <span className="flex items-center gap-1">
@@ -365,7 +365,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
@@ -374,7 +374,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                   >
                     <GripVertical size={14} />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-3">
                     <input
                       type="checkbox"
                       checked={selected.has(row.id)}
@@ -383,34 +383,34 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </td>
-                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                  <td className="px-3 py-3 text-slate-700 whitespace-nowrap" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
                     {row.date ? row.date.slice(0, 10) : '-'}
                   </td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                  <td className="px-3 py-3 text-slate-700 whitespace-nowrap">
                     <EditableText row={row} field="staff" onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-3">
                     <EditableSelect row={row} field="channel" options={Object.keys(CHANNEL_COLORS)} colorMap={CHANNEL_COLORS} onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-3">
                     <EditableSelect row={row} field="category" options={Object.keys(CATEGORY_COLORS)} colorMap={CATEGORY_COLORS} onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-3">
                     <EditableSelect row={row} field="status" options={Object.keys(STATUS_COLORS)} colorMap={STATUS_COLORS} onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                  <td className="px-3 py-3 text-slate-700 whitespace-nowrap">
                     <EditableText row={row} field="owner_name" onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">
+                  <td className="px-3 py-3 font-medium text-slate-900 whitespace-nowrap">
                     <EditableText row={row} field="business_name" onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
+                  <td className="px-3 py-3 text-slate-700 whitespace-nowrap">
                     <EditableText row={row} field="phone" onSave={saveField} />
                   </td>
-                  <td className="px-3 py-2 text-slate-700 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                  <td className="px-3 py-3 text-slate-700 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
                     <div className="truncate cursor-pointer">{row.inquiry || '-'}</div>
                   </td>
-                  <td className="px-3 py-2 text-slate-600 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                  <td className="px-3 py-3 text-slate-700 max-w-[250px]" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
                     <div className="truncate cursor-pointer">{row.answer || '-'}</div>
                   </td>
                 </tr>

@@ -123,8 +123,8 @@ interface SelectFieldProps {
 }
 const SelectField = memo(function SelectField({ row, field, options, onSave, pill }: SelectFieldProps) {
   const statusColor = field === 'status'
-    ? (row.status === '개통완료' ? 'bg-green-100 text-green-700' : row.status === '취소' ? 'bg-red-100 text-red-700' : row.status === '접수완료' ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-700')
-    : 'bg-slate-100 text-slate-700'
+    ? (row.status === '개통완료' ? 'bg-green-100 text-green-700 border border-green-200' : row.status === '취소' ? 'bg-red-100 text-red-700 border border-red-200' : row.status === '접수완료' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' : 'bg-slate-100 text-slate-700 border border-slate-200')
+    : 'bg-slate-100 text-slate-700 border border-slate-200'
   return (
     <select
       value={(row[field] as string) ?? ''}
@@ -482,13 +482,13 @@ export default function InternetClient({ rows }: Props) {
           </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200" />
-              <th className="px-3 py-2.5 border-b border-slate-200">
+              <th className="px-1 py-3 border-b border-slate-200" />
+              <th className="px-3 py-3 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 border-b border-slate-200" />
+              <th className="px-3 py-3 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (
-                <th key={col.key} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                <th key={col.key} className="relative text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {col.label}
                   <div
                     onMouseDown={e => startResize(e, col.key)}
@@ -508,7 +508,7 @@ export default function InternetClient({ rows }: Props) {
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
@@ -517,16 +517,16 @@ export default function InternetClient({ rows }: Props) {
                   >
                     <GripVertical size={14} />
                   </td>
-                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
-                  <td className="px-3 py-2 text-slate-400">
+                  <td className="px-3 py-3 text-slate-500">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
                   {MAIN_COLUMNS.map(col => {
                     const options = SELECT_OPTIONS[col.key]
                     return (
-                      <td key={col.key} className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis">
+                      <td key={col.key} className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
                         {options ? (
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
                         ) : col.key === 'business_name' ? (
@@ -565,7 +565,7 @@ export default function InternetClient({ rows }: Props) {
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={MAIN_COLUMNS.length + 3} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr><td colSpan={MAIN_COLUMNS.length + 3} className="text-center text-slate-500 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

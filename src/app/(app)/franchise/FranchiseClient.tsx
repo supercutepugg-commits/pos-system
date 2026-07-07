@@ -1462,7 +1462,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     <select
                       value={row.applicant_type}
                       onChange={e => updateApplicantType(row, e.target.value as ApplicantType)}
-                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border border-slate-200 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
                     >
                       {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
                         <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
@@ -1513,7 +1513,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         value={row.status}
                         disabled={busyId === row.id}
                         onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
-                        className={`text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
+                        className={`text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
                       >
                         {SELECTABLE_FRANCHISE_STATUSES.map(s => (
                           <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>

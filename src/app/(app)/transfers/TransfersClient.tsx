@@ -480,13 +480,13 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
           </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200" />
-              <th className="px-3 py-2.5 border-b border-slate-200">
+              <th className="px-1 py-3 border-b border-slate-200" />
+              <th className="px-3 py-3 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 border-b border-slate-200" />
+              <th className="px-3 py-3 border-b border-slate-200" />
               {MAIN_FIELDS.map(f => (
-                <th key={f} className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                <th key={f} className="relative text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {MAIN_LABELS[f]}
                   <div
                     onMouseDown={e => startResize(e, f)}
@@ -506,7 +506,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
@@ -515,15 +515,15 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
                   >
                     <GripVertical size={14} />
                   </td>
-                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
-                  <td className="px-3 py-2 text-slate-400">
+                  <td className="px-3 py-3 text-slate-500">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis font-medium text-slate-900">{row.business_name || '-'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis font-medium text-slate-900">{row.business_name || '-'}</td>
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                     {row.phone ? (
                       <button
                         onClick={() => { navigator.clipboard.writeText(row.phone!); toast.success(`복사됨: ${row.phone}`) }}
@@ -532,32 +532,32 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
                       >{row.phone}</button>
                     ) : '-'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.program ?? ''}
                       onChange={e => saveField(row, 'program', e.target.value)}
-                      className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                      className="text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border border-slate-200 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
                     >
                       <option value="">-</option>
                       {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.status}
                       onChange={e => changeStatus(row, e.target.value as FranchiseStatus)}
-                      className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${FRANCHISE_STATUS_COLOR[row.status]}`}
+                      className={`text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${FRANCHISE_STATUS_COLOR[row.status]}`}
                     >
                       {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
                         <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.tech_id ?? ''}
                       onChange={e => saveField(row, 'tech_id', e.target.value)}
-                      className="text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
+                      className="text-sm font-medium text-slate-700 border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
                     >
                       <option value="">미배정</option>
                       {techProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

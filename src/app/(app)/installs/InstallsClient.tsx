@@ -1047,7 +1047,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                   )}
                   <th className="px-1 py-3" />
                   {MAIN_COLUMNS.map(col => (
-                    <th key={col.key} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                    <th key={col.key} className="relative px-4 py-3 text-left text-xs font-bold text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                       {col.label}
                       <div
                         onMouseDown={e => startResize(e, col.key)}
@@ -1088,13 +1088,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
-                    <td className="px-4 py-3 text-slate-500 overflow-hidden">
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
+                    <td className="px-4 py-3 text-slate-700 overflow-hidden">
                       {inst.address ? (
                         <span className="text-xs truncate block" title={inst.address}>{inst.address}</span>
                       ) : '-'}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis">
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -1117,10 +1117,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                           {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                       ) : (
-                        <span className="text-xs text-slate-500">{inst.assignee?.name ?? '미배정'}</span>
+                        <span className="text-xs text-slate-700">{inst.assignee?.name ?? '미배정'}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 max-w-[160px]">
+                    <td className="px-4 py-3 text-slate-700 max-w-[160px]">
                       {canEdit && editingNotes?.id === inst.id ? (
                         <input autoFocus value={editingNotes.value}
                           onChange={e => setEditingNotes({ ...editingNotes, value: e.target.value })}
@@ -1131,7 +1131,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                         <span className={`text-xs line-clamp-1 ${canEdit ? 'cursor-pointer hover:text-blue-500' : ''}`}
                           onClick={() => canEdit && setEditingNotes({ id: inst.id, value: inst.notes ?? '' })}
                           title={canEdit ? '클릭하여 수정' : undefined}>
-                          {inst.notes || (canEdit ? <span className="text-slate-300">비고 추가...</span> : '-')}
+                          {inst.notes || (canEdit ? <span className="text-slate-500">비고 추가...</span> : '-')}
                         </span>
                       )}
                       {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
@@ -1144,7 +1144,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
                       {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">

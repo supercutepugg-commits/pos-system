@@ -94,7 +94,7 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
       onDrop={e => { e.preventDefault(); onDropOn(row.id) }}
     >
       <td
-        className={`px-1 py-2 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+        className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
         draggable={canReorder}
         onDragStart={e => { if (!canReorder) { e.preventDefault(); return } onDragStart(row.id) }}
         onDragEnd={onDragEnd}
@@ -102,10 +102,10 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
       >
         <GripVertical size={14} />
       </td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-3">
         <input type="checkbox" checked={isSelected} onChange={() => onToggle(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-3 text-center">
         <input
           type="checkbox"
           checked={row.shipped}
@@ -114,19 +114,19 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
           title={row.shipped ? '발송완료' : '미발송'}
         />
       </td>
-      <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="business_name" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="owner_name" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="phone" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-500 max-w-[200px]"><EditableCell row={row} field="address" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="delivery_note" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="requested_at" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="shipped_at" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[60px]"><EditableCell row={row} field="count" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[70px]"><EditableCell row={row} field="revenue" onSave={onSave} /></td>
-      <td className="px-3 py-2 text-slate-700 whitespace-nowrap min-w-[100px]">
+      <td className="px-3 py-3 font-medium text-slate-900 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="business_name" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="owner_name" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="phone" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 max-w-[200px]"><EditableCell row={row} field="address" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="delivery_note" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="requested_at" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="shipped_at" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[60px]"><EditableCell row={row} field="count" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[70px]"><EditableCell row={row} field="revenue" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[100px]">
         <span className="text-sm px-1">{row.unit_standard || calcUnitStandard(row.count, row.revenue)}</span>
       </td>
-      <td className="px-3 py-2 text-slate-500 max-w-[150px]"><EditableCell row={row} field="memo" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 max-w-[150px]"><EditableCell row={row} field="memo" onSave={onSave} /></td>
     </tr>
   )
 })
@@ -359,13 +359,13 @@ export default function PaperOrdersClient({ rows }: Props) {
         <table className="w-full text-sm border-collapse min-w-[1400px]">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200 w-6" />
-              <th className="px-3 py-2.5 border-b border-slate-200 w-8">
+              <th className="px-1 py-3 border-b border-slate-200 w-6" />
+              <th className="px-3 py-3 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 border-b border-slate-200 text-left font-semibold text-slate-600 whitespace-nowrap">상태</th>
+              <th className="px-3 py-3 border-b border-slate-200 text-left font-bold text-slate-700 whitespace-nowrap">상태</th>
               {['상호명', '성함', '연락처', '주소', '택배', '요청일', '발송일', '건수', '매출', '낱개기준(빨강)', '메모'].map(label => (
-                <th key={label} className="text-left px-3 py-2.5 font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">
+                <th key={label} className="text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
               ))}

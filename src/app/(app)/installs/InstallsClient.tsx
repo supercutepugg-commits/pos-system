@@ -53,6 +53,7 @@ interface Props {
   profile: Profile
   techUsers: { id: string; name: string }[]
   initialInstalls: Installation[]
+  mineOnly?: boolean
 }
 
 const PAGE_SIZE = 10
@@ -200,7 +201,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
   )
 })
 
-export default function InstallsClient({ profile, techUsers, initialInstalls }: Props) {
+export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly }: Props) {
   const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
   const toast = useToast()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
@@ -224,7 +225,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
   const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
   const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
   const [statusFilter, setStatusFilter] = useState('')
-  const [techFilter, setTechFilter] = useState('')
+  const [techFilter, setTechFilter] = useState(mineOnly ? profile.id : '')
   const [showRejected, setShowRejected] = useState(false)
   const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -705,7 +706,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       )}
 
       {/* 기사별 배정 현황 — 클릭 시 해당 기사 필터 적용 */}
-      {techUsers.length > 0 && (
+      {!mineOnly && techUsers.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {techUsers.map(t => (
             <button
@@ -876,8 +877,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       )}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">설치 관리</h1>
-          <p className="text-slate-500 text-sm mt-1">이번달 {thisMonth}건 / 전체 {installs.length}건</p>
+          <h1 className="text-2xl font-bold text-slate-900">{mineOnly ? '기사 페이지' : '설치 관리'}</h1>
+          <p className="text-slate-500 text-sm mt-1">
+            {mineOnly ? `내 담당 건 ${installs.length}건` : `이번달 ${thisMonth}건 / 전체 ${installs.length}건`}
+          </p>
         </div>
         <div className="flex gap-2">
           {profile.role === 'admin' && selected.size > 0 && (
@@ -887,13 +890,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
               {deletingSelected ? '삭제 중...' : `선택 삭제 (${selected.size})`}
             </button>
           )}
-          <button onClick={handleExcel} className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
-            <Download size={15} />엑셀
-          </button>
+          {!mineOnly && (
+            <button onClick={handleExcel} className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
+              <Download size={15} />엑셀
+            </button>
+          )}
           <button onClick={fetchInstalls} aria-label="새로고침" className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
             <RefreshCw size={15} />
           </button>
-          {canEdit && (
+          {canEdit && !mineOnly && (
             <button onClick={() => setShowForm(v => !v)}
               className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-xl hover:bg-blue-700 font-semibold">
               <Plus size={16} />새 설치건
@@ -903,7 +908,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       </div>
 
       {/* 등록 폼 */}
-      {canEdit && showForm && (
+      {canEdit && !mineOnly && showForm && (
         <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} />
       )}
 
@@ -1004,13 +1009,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         ].map(({ label, fn }) => (
           <button key={label} onClick={fn} className="text-xs text-slate-500 border border-slate-200 rounded-xl px-2.5 py-2.5 hover:bg-slate-50 whitespace-nowrap">{label}</button>
         ))}
-        <select value={techFilter} onChange={e => { setTechFilter(e.target.value); setPage(1) }}
-          className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="">기사 전체</option>
-          {techProfiles.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        {(statusFilter || techFilter || search || dateFrom || dateTo) && (
-          <button onClick={() => { setStatusFilter(''); setTechFilter(''); setSearch(''); setDateFrom(''); setDateTo(''); setPage(1) }}
+        {!mineOnly && (
+          <select value={techFilter} onChange={e => { setTechFilter(e.target.value); setPage(1) }}
+            className="text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="">기사 전체</option>
+            {techProfiles.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        )}
+        {(statusFilter || (!mineOnly && techFilter) || search || dateFrom || dateTo) && (
+          <button onClick={() => { setStatusFilter(''); if (!mineOnly) setTechFilter(''); setSearch(''); setDateFrom(''); setDateTo(''); setPage(1) }}
             className="text-sm text-slate-400 hover:text-red-500 px-2 transition-colors">초기화</button>
         )}
         <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer ml-auto whitespace-nowrap border border-slate-200 rounded-xl px-3 py-2.5 bg-white hover:bg-slate-50">

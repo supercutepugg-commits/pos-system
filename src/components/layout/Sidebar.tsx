@@ -52,6 +52,7 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
     icon: HardHat,
     items: [
       { href: '/installs', label: '설치 관리', icon: Package },
+      { href: '/installs/mine', label: '기사 페이지', icon: HardHat },
       { href: '/external-techs', label: '외부 기사 관리', icon: Users },
       { href: '/inventory', label: '재고 실사', icon: ClipboardList },
       { href: '/transfers', label: '전환건', icon: RefreshCw },

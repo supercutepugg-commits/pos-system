@@ -15,7 +15,6 @@ export default async function MyInstallsPage() {
   const { data: installs } = await supabase
     .from('installations')
     .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
-    .eq('assigned_to', profile.id)
     .order('sort_order', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(300)

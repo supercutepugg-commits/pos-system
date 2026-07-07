@@ -1228,7 +1228,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <td className={`px-4 py-3 whitespace-nowrap ${inst.assigned_to === profile.id ? 'animate-pulse bg-yellow-100' : ''}`} onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}
                           className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none">

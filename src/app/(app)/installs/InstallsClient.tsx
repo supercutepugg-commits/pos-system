@@ -15,11 +15,16 @@ const STATUS_LABELS: Record<string, string> = {
   preparing: '제품준비',
   scheduled: '일정확정',
   in_transit: '이동중',
+  delivery_sent: '택배발송',
   completed: '설치완료',
   rejected: '반려',
 }
-const STATUS_ORDER = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
-// 택배발송 건은 상태값 자체는 in_transit을 그대로 쓰되(알림톡 템플릿만 다름), 화면 표시는 "택배발송"으로 보여준다
+const STATUS_ORDER_INSTALL = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
+const STATUS_ORDER_DELIVERY = ['received', 'preparing', 'delivery_sent', 'completed']
+function statusOrderFor(deliveryType?: string) {
+  return deliveryType === 'delivery' ? STATUS_ORDER_DELIVERY : STATUS_ORDER_INSTALL
+}
+// 예전에 만들어진 택배발송 건은 실제 status 값이 in_transit으로 저장돼 있으므로, 표시할 때만 보정한다
 function statusLabel(status: string, deliveryType?: string) {
   if (status === 'in_transit' && deliveryType === 'delivery') return '택배발송'
   return STATUS_LABELS[status] ?? status
@@ -29,6 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
   preparing: 'bg-blue-50 text-blue-600 border-blue-200',
   scheduled: 'bg-purple-50 text-purple-600 border-purple-200',
   in_transit: 'bg-amber-50 text-amber-600 border-amber-200',
+  delivery_sent: 'bg-amber-50 text-amber-600 border-amber-200',
   completed: 'bg-green-50 text-green-600 border-green-200',
   rejected: 'bg-red-50 text-red-600 border-red-200',
 }
@@ -1183,7 +1189,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_ORDER.map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
+                          {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
                         </select>
                       ) : (
                         <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${STATUS_COLORS[inst.status]}`}>

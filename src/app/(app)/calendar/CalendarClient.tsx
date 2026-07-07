@@ -28,6 +28,13 @@ interface CalendarFranchiseRow {
   sales?: { name: string } | null
 }
 
+interface CalendarWooRow {
+  id: string
+  business_name?: string | null
+  manager?: string | null
+  open_date?: string | null
+}
+
 interface CalendarEvent {
   date: string    // YYYY-MM-DD
   label: string   // 어떤 날짜인지
@@ -54,14 +61,31 @@ const FRANCHISE_EVENT_TYPES = [
   { key: 'install_date', label: '설치예정일', color: 'bg-teal-500' },
 ] as const
 
+const WOO_EVENT_LEGEND = [
+  { key: 'open_date',    label: '우국상 오픈',       color: 'bg-cyan-500' },
+  { key: 'install_date', label: '우국상 설치(월요일)', color: 'bg-lime-600' },
+] as const
+
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function toYMD(s: string | null | undefined): string | null {
   if (!s) return null
   return s.slice(0, 10)
 }
 
-export default function CalendarClient({ tickets, franchiseRows = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[] }) {
+// 오픈일이 속한 주의 월요일 (설치는 오픈 주 월요일에 진행)
+function mondayOfWeek(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const dow = date.getDay() // 0=일 ~ 6=토
+  const diff = dow === 0 ? -6 : 1 - dow
+  date.setDate(date.getDate() + diff)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[] }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth()) // 0-indexed
@@ -106,8 +130,34 @@ export default function CalendarClient({ tickets, franchiseRows = [] }: { ticket
         })
       }
     }
+    for (const row of wooRows) {
+      const openDate = row.open_date && ISO_DATE_RE.test(row.open_date) ? row.open_date : null
+      if (!openDate) continue
+      const businessName = row.business_name || '상호명 미입력'
+      if (!map[openDate]) map[openDate] = []
+      map[openDate].push({
+        date: openDate,
+        label: '오픈',
+        color: 'bg-cyan-500',
+        href: '/woo',
+        businessName,
+        subtitle: '우국상 오픈',
+        salesName: row.manager ?? undefined,
+      })
+      const installDate = mondayOfWeek(openDate)
+      if (!map[installDate]) map[installDate] = []
+      map[installDate].push({
+        date: installDate,
+        label: '설치',
+        color: 'bg-lime-600',
+        href: '/woo',
+        businessName,
+        subtitle: '우국상 설치 (오픈 주 월요일)',
+        salesName: row.manager ?? undefined,
+      })
+    }
     return map
-  }, [tickets, franchiseRows])
+  }, [tickets, franchiseRows, wooRows])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -222,7 +272,7 @@ export default function CalendarClient({ tickets, franchiseRows = [] }: { ticket
 
         {/* 범례 */}
         <div className="flex flex-wrap gap-3 mt-3">
-          {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES].map(et => (
+          {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES, ...WOO_EVENT_LEGEND].map(et => (
             <div key={et.key + et.label} className="flex items-center gap-1.5 text-xs text-slate-500">
               <span className={`w-2.5 h-2.5 rounded-sm ${et.color}`} />
               {et.label}

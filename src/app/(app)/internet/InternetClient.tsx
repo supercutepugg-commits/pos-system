@@ -376,7 +376,6 @@ export default function InternetClient({ rows }: Props) {
     if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
-    startTransition(() => router.refresh())
   }, [selected])
 
   const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
@@ -385,11 +384,11 @@ export default function InternetClient({ rows }: Props) {
     const payload = Object.fromEntries(
       Object.entries(form).map(([k, v]) => [k, v || null])
     )
-    const { error } = await supabase.from('internet_management').insert({ ...payload, sort_order: Date.now() })
+    const { data, error } = await supabase.from('internet_management').insert({ ...payload, sort_order: Date.now() }).select().single()
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
-    startTransition(() => router.refresh())
+    setLocalRows(prev => [data, ...prev])
   }, [])
 
   const saveField = useCallback(async (row: InternetManagement, field: keyof InternetManagement, value: string) => {
@@ -416,7 +415,7 @@ export default function InternetClient({ rows }: Props) {
       }
     }
 
-    startTransition(() => router.refresh())
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() } : r))
   }, [])
 
   return (

@@ -368,13 +368,12 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
     if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
-    startTransition(() => router.refresh())
   }, [selected])
 
   const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
     setSubmitting(true)
     const supabase = createClient()
-    const { error } = await supabase.from('franchise_applications').insert({
+    const { data, error } = await supabase.from('franchise_applications').insert({
       owner_name: form.owner_name || null,
       business_name: form.business_name || null,
       phone: form.phone ? formatPhone(form.phone) : null,
@@ -387,19 +386,19 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
       install_date: form.install_date ? formatDateText(form.install_date) : null,
       reception_channel: '전환',
       created_by: currentUserId,
-    })
+    }).select().single()
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
-    startTransition(() => router.refresh())
-  }, [currentUserId, startTransition, router, toast])
+    setLocalRows(prev => [data, ...prev])
+  }, [currentUserId, toast])
 
   const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ [field]: value || null }).eq('id', row.id)
-    if (error) toast.error('수정 실패: ' + error.message)
-    startTransition(() => router.refresh())
-  }, [])
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() } : r))
+  }, [toast])
 
   const changeStatus = useCallback(async (row: FranchiseApplication, status: FranchiseStatus) => {
     if (status === row.status) return
@@ -413,8 +412,8 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
       to_status: status,
     })
     setLogsByRow(prev => { const next = { ...prev }; delete next[row.id]; return next })
-    startTransition(() => router.refresh())
-  }, [currentUserId])
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, status, updated_at: new Date().toISOString() } : r))
+  }, [currentUserId, toast])
 
   return (
     <div className="flex flex-col h-full">

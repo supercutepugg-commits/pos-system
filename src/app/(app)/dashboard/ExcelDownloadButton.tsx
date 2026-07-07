@@ -13,7 +13,7 @@ const BACKUP_TABLES: { label: string; table: string }[] = [
   { label: '설치관리', table: 'installations' },
   { label: '인터넷관리', table: 'internet_management' },
   { label: '용지요청', table: 'paper_orders' },
-  { label: '우체국관리', table: 'woo_customers' },
+  { label: '우국상 관리', table: 'woo_customers' },
   { label: 'AS티켓', table: 'tickets' },
   { label: '가맹점', table: 'merchants' },
 ]
@@ -191,7 +191,7 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paperOrderData), '용지요청')
 
-      // 시트8: 우체국관리
+      // 시트8: 우국상 관리
       const wooData = (wooRows ?? []).map((w: any) => ({
         상호명: w.business_name ?? '',
         대표자: w.owner_name ?? '',
@@ -217,7 +217,7 @@ export default function ExcelDownloadButton() {
         비고: w.memo ?? '',
         등록일: w.created_at ? format(new Date(w.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) : '',
       }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wooData), '우체국관리')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wooData), '우국상 관리')
 
       XLSX.writeFile(wb, `전체현황_${format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })}.xlsx`)
     } finally {

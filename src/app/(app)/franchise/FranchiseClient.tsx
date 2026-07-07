@@ -682,11 +682,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const { error } = await supabase.from('franchise_applications').update(patch).in('id', ids)
     setBulkAssigning(false)
     if (error) { toast.error('일괄 배정 실패: ' + error.message); return }
+    const cs = bulkAssignCs ? csProfiles.find(p => p.id === bulkAssignCs) ?? null : undefined
+    const sales = bulkAssignSales ? salesProfiles.find(p => p.id === bulkAssignSales) ?? null : undefined
+    const idSet = new Set(ids)
+    setLocalRows(prev => prev.map(r => idSet.has(r.id) ? {
+      ...r,
+      ...(bulkAssignCs ? { cs_id: bulkAssignCs, cs: cs as FranchiseApplication['cs'] } : {}),
+      ...(bulkAssignSales ? { sales_id: bulkAssignSales, sales: sales as FranchiseApplication['sales'] } : {}),
+    } : r))
     setBulkAssignModal(false)
     setBulkAssignCs('')
     setBulkAssignSales('')
     setSelected(new Set())
-    startTransition(() => router.refresh())
   }
 
   function statusAgeDays(row: FranchiseApplication) {
@@ -730,7 +737,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
-    startTransition(() => router.refresh())
   }, [selected])
 
   async function handleCreate(form: typeof EMPTY_FORM): Promise<boolean> {
@@ -748,7 +754,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
     setSubmitting(true)
     const supabase = createClient()
-    const { error } = await supabase.from('franchise_applications').insert({
+    const { data, error } = await supabase.from('franchise_applications').insert({
       business_name: form.business_name || null,
       owner_name: form.owner_name || null,
       phone: form.phone ? formatPhone(form.phone) : null,
@@ -769,7 +775,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       internet: form.internet || null,
       memo: form.memo || null,
       created_by: currentUserId,
-    })
+    }).select().single()
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return false }
     // 서류안내 즉시 발송 (체크된 경우)
@@ -784,7 +790,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       } catch { /* 알림톡 실패해도 등록은 완료 */ }
     }
     setShowForm(false)
-    startTransition(() => router.refresh())
+    const sales = form.sales_id ? salesProfiles.find(p => p.id === form.sales_id) ?? null : null
+    const cs = form.cs_id ? csProfiles.find(p => p.id === form.cs_id) ?? null : null
+    setLocalRows(prev => [{ ...data, sales: sales as FranchiseApplication['sales'], cs: cs as FranchiseApplication['cs'], creator: { name: currentUserName } as FranchiseApplication['creator'] }, ...prev])
     return true
   }
 
@@ -861,7 +869,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (status === 'toss_review_done') await createLinkedInstallTicket(row)
     if (status === 'card_done') await autoTransferToTech(row)
     setBusyId(null)
-    startTransition(() => router.refresh())
+    setLocalRows(prev => prev.map(r => r.id === row.id
+      ? { ...r, status, doc_template: status === 'doc_waiting' ? APPLICANT_TYPE_LABEL[row.applicant_type] : r.doc_template, updated_at: new Date().toISOString() }
+      : r))
   }
 
   async function updateApplicantType(row: FranchiseApplication, applicantType: ApplicantType) {
@@ -869,7 +879,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ applicant_type: applicantType }).eq('id', row.id)
     if (error) { toast.error('사업자 유형 변경 실패: ' + error.message); return }
-    startTransition(() => router.refresh())
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, applicant_type: applicantType, updated_at: new Date().toISOString() } : r))
   }
 
   async function updateCs(row: FranchiseApplication, csId: string) {
@@ -877,7 +887,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ cs_id: csId || null }).eq('id', row.id)
     if (error) { toast.error('담당 CS 변경 실패: ' + error.message); return }
-    startTransition(() => router.refresh())
+    const cs = csId ? csProfiles.find(p => p.id === csId) ?? null : null
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, cs_id: csId || undefined, cs: cs as FranchiseApplication['cs'], updated_at: new Date().toISOString() } : r))
   }
 
   async function updateSales(row: FranchiseApplication, salesId: string) {
@@ -885,7 +896,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ sales_id: salesId || null }).eq('id', row.id)
     if (error) { toast.error('담당 영업 변경 실패: ' + error.message); return }
-    startTransition(() => router.refresh())
+    const sales = salesId ? salesProfiles.find(p => p.id === salesId) ?? null : null
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, sales_id: salesId || undefined, sales: sales as FranchiseApplication['sales'], updated_at: new Date().toISOString() } : r))
   }
 
   const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
@@ -914,7 +926,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       const { error: syncError } = await supabase.from('installations').update(patch).eq('id', linked.id)
       if (syncError) toast.error('설치관리 동기화 실패: ' + syncError.message)
     }
-    startTransition(() => router.refresh())
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: saveValue ?? undefined, updated_at: new Date().toISOString() } : r))
   }, [currentUserName, localLinkedInstalls])
 
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
@@ -927,7 +939,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       const { error: syncError } = await supabase.from('installations').update({ items }).eq('id', linked.id)
       if (syncError) toast.error('설치관리 동기화 실패: ' + syncError.message)
     }
-    startTransition(() => router.refresh())
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, equipment_items: items, updated_at: new Date().toISOString() } : r))
   }
 
   async function notifyAndLog(franchiseId: string, logKey: string, payload: Record<string, unknown>) {
@@ -992,10 +1004,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const { error } = await supabase.from('franchise_applications').update({ status: bulkStatus }).in('id', ids)
     setBulkChanging(false)
     if (error) { toast.error('일괄 변경 실패: ' + error.message); return }
+    const idSet = new Set(ids)
+    const status = bulkStatus
+    setLocalRows(prev => prev.map(r => idSet.has(r.id) ? { ...r, status, updated_at: new Date().toISOString() } : r))
     setBulkStatusModal(false)
     setBulkStatus('')
     setSelected(new Set())
-    startTransition(() => router.refresh())
   }
 
   async function autoTransferToTech(row: FranchiseApplication) {

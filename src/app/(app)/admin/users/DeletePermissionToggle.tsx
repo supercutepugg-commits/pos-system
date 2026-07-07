@@ -27,7 +27,7 @@ export default function DeletePermissionToggle({ userId, initialCanDelete }: Pro
     <button
       onClick={handleToggle}
       disabled={isPending}
-      title="가맹접수/입고관리/가맹점/인터넷관리/AS티켓/우체국관리 탭에서 삭제 권한"
+      title="가맹접수/입고관리/가맹점/인터넷관리/AS티켓/우국상 관리 탭에서 삭제 권한"
       className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
         canDelete
           ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'

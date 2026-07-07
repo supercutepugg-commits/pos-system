@@ -475,7 +475,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
   const [salesFilter, setSalesFilter] = useState('')
   const [csFilter, setCsFilter] = useState('')
-  const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status' | 'manual'>('updated_at')
+  // 기본 정렬을 등록순(created_at)으로 해서, 상태/메모 등을 수정해도(updated_at 변경) 목록 순서가 튀지 않게 함
+  const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status' | 'manual'>('created_at')
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)

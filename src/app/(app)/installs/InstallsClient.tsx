@@ -294,7 +294,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
   const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
   const [statusFilter, setStatusFilter] = useState('')
-  const [techFilter, setTechFilter] = useState(mineOnly ? profile.id : '')
+  const [techFilter, setTechFilter] = useState('')
   const [showRejected, setShowRejected] = useState(false)
   const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)

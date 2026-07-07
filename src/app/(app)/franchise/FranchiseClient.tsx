@@ -902,7 +902,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
-    if (error) toast.error('수정 실패: ' + error.message)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    // 이미 기술지원으로 이관된 건이면 설치관리의 제품 목록도 함께 동기화
+    const linked = localLinkedInstalls[row.id]
+    if (linked) {
+      await supabase.from('installations').update({ items }).eq('id', linked.id)
+    }
     startTransition(() => router.refresh())
   }
 

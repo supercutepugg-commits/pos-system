@@ -56,7 +56,16 @@ export default function ExcelDownloadButton() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const [{ data: franchiseRows }, { data: installRows }, { data: ticketRows }, { data: merchantRows }] = await Promise.all([
+      const [
+        { data: franchiseRows },
+        { data: installRows },
+        { data: ticketRows },
+        { data: merchantRows },
+        { data: internetRows },
+        { data: inboundRows },
+        { data: paperOrderRows },
+        { data: wooRows },
+      ] = await Promise.all([
         supabase.from('franchise_applications')
           .select('*, sales:profiles!franchise_applications_sales_id_fkey(name), cs:profiles!franchise_applications_cs_id_fkey(name)')
           .order('created_at', { ascending: false }),
@@ -68,6 +77,18 @@ export default function ExcelDownloadButton() {
           .order('created_at', { ascending: false }),
         supabase.from('merchants')
           .select('*, sales:profiles!merchants_sales_id_fkey(name)')
+          .order('created_at', { ascending: false }),
+        supabase.from('internet_management')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        supabase.from('crm_inbound')
+          .select('*')
+          .order('date', { ascending: false }),
+        supabase.from('paper_orders')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        supabase.from('woo_customers')
+          .select('*')
           .order('created_at', { ascending: false }),
       ])
 
@@ -135,6 +156,92 @@ export default function ExcelDownloadButton() {
         등록일: m.created_at ? format(new Date(m.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) : '',
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(merchantData), '가맹점')
+
+      // 시트5: 인터넷관리
+      const internetData = (internetRows ?? []).map((n: any) => ({
+        상호명: n.business_name ?? '',
+        대표자: n.owner_name ?? '',
+        연락처: n.phone ?? '',
+        구분: n.category ?? '',
+        통신사: n.carrier ?? '',
+        속도: n.speed ?? '',
+        추가가입상품: n.addon ?? '',
+        사은품: n.gift ?? '',
+        지역: n.region ?? '',
+        상태: n.status ?? '',
+        월요금: n.monthly_fee ?? '',
+        설치비: n.install_fee ?? '',
+        접수신청일: n.apply_date ?? '',
+        개통완료일: n.open_date ?? '',
+        비고: n.memo ?? '',
+        등록일: n.created_at ? format(new Date(n.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) : '',
+      }))
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internetData), '인터넷관리')
+
+      // 시트6: 입고관리 (CS/기술지원 문의)
+      const inboundData = (inboundRows ?? []).map((c: any) => ({
+        일자: c.date ?? '',
+        담당자: c.staff ?? '',
+        채널: c.channel ?? '',
+        구분: c.category ?? '',
+        상태: c.status ?? '',
+        상호명: c.business_name ?? '',
+        대표자: c.owner_name ?? '',
+        연락처: c.phone ?? '',
+        문의내용: c.inquiry ?? '',
+        답변내용: c.answer ?? '',
+        채팅로그: c.chat_log ?? '',
+        AI요약: c.ai_summary ?? '',
+        기술노트: c.tech_note ?? '',
+        비고: c.note ?? '',
+      }))
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(inboundData), '입고관리')
+
+      // 시트7: 용지요청
+      const paperOrderData = (paperOrderRows ?? []).map((p: any) => ({
+        상호명: p.business_name ?? '',
+        대표자: p.owner_name ?? '',
+        연락처: p.phone ?? '',
+        주소: p.address ?? '',
+        수량: p.count ?? '',
+        규격: p.unit_standard ?? '',
+        매출: p.revenue ?? '',
+        발송여부: p.shipped ? '발송완료' : '미발송',
+        요청일: p.requested_at ?? '',
+        발송일: p.shipped_at ?? '',
+        배송메모: p.delivery_note ?? '',
+        비고: p.memo ?? '',
+        등록일: p.created_at ? format(new Date(p.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) : '',
+      }))
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paperOrderData), '용지요청')
+
+      // 시트8: 우체국관리
+      const wooData = (wooRows ?? []).map((w: any) => ({
+        상호명: w.business_name ?? '',
+        대표자: w.owner_name ?? '',
+        사업자번호: w.business_number ?? '',
+        연락처: w.phone ?? '',
+        담당자: w.manager ?? '',
+        구분: w.category ?? '',
+        접수일: w.received_date ?? '',
+        인터넷종류: w.internet_type ?? '',
+        인터넷비고: w.internet_note ?? '',
+        인터넷개통일: w.internet_open_date ?? '',
+        카드가맹신청일: w.card_apply_date ?? '',
+        카드가맹여부: w.card_apply_status ?? '',
+        간편결제: w.easy_payment ?? '',
+        포스설치일: w.pos_install_date ?? '',
+        설치일정메모: w.install_schedule_note ?? '',
+        세팅: w.setting ?? '',
+        개통일: w.open_date ?? '',
+        VAN사: w.van_company ?? '',
+        POS프로그램: w.pos_program ?? '',
+        제품: w.product ?? '',
+        주소: w.address ?? '',
+        비고: w.memo ?? '',
+        등록일: w.created_at ? format(new Date(w.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) : '',
+      }))
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wooData), '우체국관리')
 
       XLSX.writeFile(wb, `전체현황_${format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })}.xlsx`)
     } finally {

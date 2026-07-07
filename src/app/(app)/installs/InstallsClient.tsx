@@ -343,7 +343,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if (!skipNotify) await sendInstallNotify(id, status)
   }
 
-  async function submitTransit(skipEta?: boolean) {
+  async function submitTransit(skipEta?: boolean, skipSend?: boolean) {
     if (!transitModal) return
     setSendingTransit(true)
     const { id, eta } = transitModal
@@ -352,10 +352,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const sendEta = skipEta ? undefined : (eta.trim() || undefined)
     setTransitModal(null)
     setSendingTransit(false)
-    if (!skipNotify) await sendInstallNotify(id, 'in_transit', { eta: sendEta })
+    if (!skipNotify && !skipSend) await sendInstallNotify(id, 'in_transit', { eta: sendEta })
   }
 
-  async function submitSchedule(skipDetails?: boolean) {
+  async function submitSchedule(skipDetails?: boolean, skipSend?: boolean) {
     if (!scheduleModal) return
     setSendingSchedule(true)
     const { id, date, time } = scheduleModal
@@ -365,7 +365,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const scheduledTime = skipDetails ? undefined : (time.trim() || undefined)
     setScheduleModal(null)
     setSendingSchedule(false)
-    if (!skipNotify) await sendInstallNotify(id, 'scheduled', { scheduledDate, scheduledTime })
+    if (!skipNotify && !skipSend) await sendInstallNotify(id, 'scheduled', { scheduledDate, scheduledTime })
   }
 
   async function submitReject() {
@@ -421,7 +421,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     }
   }
 
-  async function submitCompletion() {
+  async function submitCompletion(skipCompleteSend?: boolean) {
     if (!completeModal) return
     if (completePhotos.length === 0) { toast.warning('설치완료사진을 최소 1장 첨부해주세요.'); return }
     setCompleting(true)
@@ -449,7 +449,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
-    await sendInstallNotify(id, 'completed')
+    if (!skipNotify && !skipCompleteSend) await sendInstallNotify(id, 'completed')
 
     // 가맹이관 건이면 CS/영업에게 완료 알림 + 가맹접수 상태 업데이트 + 이관 로그
     const inst = installs.find(i => i.id === id)
@@ -885,6 +885,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
               >{sendingTransit ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
               <button
+                onClick={() => submitTransit(true, true)}
+                disabled={sendingTransit}
+                className="w-full py-2 rounded-lg border border-slate-200 text-slate-400 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+              >{sendingTransit ? '처리 중...' : '템플릿 안보내고 변경'}</button>
+              <button
                 onClick={() => setTransitModal(null)}
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
               >취소</button>
@@ -927,6 +932,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 disabled={sendingSchedule}
                 className="w-full py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
               >{sendingSchedule ? '처리 중...' : '기존 템플릿 그대로 바로 발송'}</button>
+              <button
+                onClick={() => submitSchedule(true, true)}
+                disabled={sendingSchedule}
+                className="w-full py-2 rounded-lg border border-slate-200 text-slate-400 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+              >{sendingSchedule ? '처리 중...' : '템플릿 안보내고 변경'}</button>
               <button
                 onClick={() => setScheduleModal(null)}
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"
@@ -1294,10 +1304,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             </div>
             <div className="flex flex-col gap-2">
               <button
-                onClick={submitCompletion}
+                onClick={() => submitCompletion(false)}
                 disabled={completing || completePhotos.length === 0}
                 className="w-full py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >{completing ? '처리 중...' : '완료 처리'}</button>
+              <button
+                onClick={() => submitCompletion(true)}
+                disabled={completing || completePhotos.length === 0}
+                className="w-full py-2 rounded-lg border border-slate-200 text-slate-400 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+              >{completing ? '처리 중...' : '템플릿 안보내고 완료 처리'}</button>
               <button
                 onClick={() => { setCompleteModal(null); setCompletePhotos([]) }}
                 disabled={completing}

@@ -219,7 +219,7 @@ const INSTALL_STATUS_TEXT: Record<string, string> = {
   scheduled: '설치 일정이 확정되었습니다.',
   in_transit: '기사님이 이동 중입니다. 잠시 후 방문 예정입니다.',
   completed: '설치가 완료되었습니다. 이용해 주셔서 감사합니다.',
-  delivery_sent: '제품이 발송되었습니다. 택배 도착 후 문의사항은 담당자에게 연락해 주세요.',
+  delivery_sent: '제품이 발송되었습니다. 영업일 기준 1~3일 내 도착 예정이며, 도착 후 문의사항은 담당자에게 연락해 주세요.',
 }
 
 // 시각 변수(#{예정시각})가 포함된 템플릿. preparing에서는 아래 버튼 포함 버전만 사용한다.

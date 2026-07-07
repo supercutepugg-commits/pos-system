@@ -768,6 +768,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected
 
+  const columns = mineOnly ? MAIN_COLUMNS.filter(col => col.key !== 'status') : MAIN_COLUMNS
+
   const reorderInstalls = useCallback((dragId: string, dropId: string) => {
     if (dragId === dropId) return
     const from = installs.findIndex(i => i.id === dragId)
@@ -1131,7 +1133,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               <colgroup>
                 {profile.role === 'admin' && <col style={{ width: 32 }} />}
                 <col style={{ width: 24 }} />
-                {MAIN_COLUMNS.map(col => (
+                {columns.map(col => (
                   <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
                 ))}
               </colgroup>
@@ -1146,7 +1148,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     </th>
                   )}
                   <th className="px-1 py-3" />
-                  {MAIN_COLUMNS.map(col => {
+                  {columns.map(col => {
                     const label = mineOnly && col.key === 'tracking_number' ? '이동중 알림' : col.label
                     return (
                     <th key={col.key} title={label} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis select-none">
@@ -1225,6 +1227,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
+                    {!mineOnly && (
                     <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
@@ -1237,6 +1240,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </span>
                       )}
                     </td>
+                    )}
                     <td className={`px-4 py-3 whitespace-nowrap ${inst.assigned_to === profile.id ? 'animate-pulse bg-yellow-100' : ''}`} onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}
@@ -1296,7 +1300,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                   </tr>
                   {detailInst?.id === inst.id && (
                     <tr className="bg-blue-50/50 border-b border-slate-100">
-                      <td colSpan={(profile.role === 'admin' ? 1 : 0) + 1 + MAIN_COLUMNS.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                      <td colSpan={(profile.role === 'admin' ? 1 : 0) + 1 + columns.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
                         <div className="grid grid-cols-4 gap-4 mb-3 text-sm">
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>

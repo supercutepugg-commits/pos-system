@@ -257,10 +257,13 @@ export async function sendInstallStatusUpdate({
       console.warn('[solapi] 설치 일정확정 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)')
       return
     }
-    const variables: Record<string, string> = { '#{고객명}': customerName }
-    if (scheduledDate) variables['#{예정일}'] = scheduledDate
-    if (scheduledTime) variables['#{예정시각}'] = scheduledTime
-    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.scheduled, variables)
+    // 템플릿에 #{예정일} #{예정시각}이 항상 함께 노출되므로, 하나만 입력된 경우에도
+    // 두 변수 모두 값을 채워 보낸다 (누락 시 카카오 쪽에서 변수 미치환 오류가 날 수 있음)
+    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.scheduled, {
+      '#{고객명}': customerName,
+      '#{예정일}': scheduledDate || '',
+      '#{예정시각}': scheduledTime || '',
+    })
   } else {
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
   }

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
-  PhoneIncoming, CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, RefreshCw, FileText
+  CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, RefreshCw, FileText
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Role } from '@/types'
@@ -30,7 +30,6 @@ const COMMON_NAV: NavItem[] = [
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
   { href: '/merchants', label: '가맹점', icon: Store },
   { href: '/chat', label: '채팅', icon: MessageCircle },
-  { href: '/inbound', label: '인입 내역', icon: PhoneIncoming },
   { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
 ]
 

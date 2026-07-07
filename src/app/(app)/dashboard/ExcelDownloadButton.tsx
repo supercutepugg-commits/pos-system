@@ -12,7 +12,6 @@ const BACKUP_TABLES: { label: string; table: string }[] = [
   { label: '가맹접수', table: 'franchise_applications' },
   { label: '설치관리', table: 'installations' },
   { label: '인터넷관리', table: 'internet_management' },
-  { label: '입고관리', table: 'crm_inbound' },
   { label: '용지요청', table: 'paper_orders' },
   { label: '우체국관리', table: 'woo_customers' },
   { label: 'AS티켓', table: 'tickets' },
@@ -62,7 +61,6 @@ export default function ExcelDownloadButton() {
         { data: ticketRows },
         { data: merchantRows },
         { data: internetRows },
-        { data: inboundRows },
         { data: paperOrderRows },
         { data: wooRows },
       ] = await Promise.all([
@@ -81,9 +79,6 @@ export default function ExcelDownloadButton() {
         supabase.from('internet_management')
           .select('*')
           .order('created_at', { ascending: false }),
-        supabase.from('crm_inbound')
-          .select('*')
-          .order('date', { ascending: false }),
         supabase.from('paper_orders')
           .select('*')
           .order('created_at', { ascending: false }),
@@ -177,25 +172,6 @@ export default function ExcelDownloadButton() {
         등록일: n.created_at ? format(new Date(n.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }) : '',
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internetData), '인터넷관리')
-
-      // 시트6: 입고관리 (CS/기술지원 문의)
-      const inboundData = (inboundRows ?? []).map((c: any) => ({
-        일자: c.date ?? '',
-        담당자: c.staff ?? '',
-        채널: c.channel ?? '',
-        구분: c.category ?? '',
-        상태: c.status ?? '',
-        상호명: c.business_name ?? '',
-        대표자: c.owner_name ?? '',
-        연락처: c.phone ?? '',
-        문의내용: c.inquiry ?? '',
-        답변내용: c.answer ?? '',
-        채팅로그: c.chat_log ?? '',
-        AI요약: c.ai_summary ?? '',
-        기술노트: c.tech_note ?? '',
-        비고: c.note ?? '',
-      }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(inboundData), '입고관리')
 
       // 시트7: 용지요청
       const paperOrderData = (paperOrderRows ?? []).map((p: any) => ({

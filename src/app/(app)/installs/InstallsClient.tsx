@@ -1146,15 +1146,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     </th>
                   )}
                   <th className="px-1 py-3" />
-                  {MAIN_COLUMNS.map(col => (
-                    <th key={col.key} title={col.label} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis select-none">
-                      {col.label}
+                  {MAIN_COLUMNS.map(col => {
+                    const label = mineOnly && col.key === 'tracking_number' ? '이동중 알림' : col.label
+                    return (
+                    <th key={col.key} title={label} className="relative px-4 py-3 text-left text-xs font-semibold text-slate-600 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                      {label}
                       <div
                         onMouseDown={e => startResize(e, col.key)}
                         className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
                       />
                     </th>
-                  ))}
+                  )})}
                 </tr>
               </thead>
               <tbody>

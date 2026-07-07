@@ -895,9 +895,24 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
     }
     const { error } = await supabase.from('franchise_applications').update({ [field]: saveValue }).eq('id', row.id)
-    if (error) toast.error('수정 실패: ' + error.message)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    // 이미 기술지원으로 이관된 건이면 설치관리 쪽 대응 필드도 함께 동기화
+    const linked = localLinkedInstalls[row.id]
+    if (linked && (field === 'business_name' || field === 'owner_name' || field === 'phone' || field === 'address')) {
+      const patch: Record<string, string | null> = {}
+      if (field === 'business_name' || field === 'owner_name') {
+        const businessName = field === 'business_name' ? saveValue : row.business_name
+        const ownerName = field === 'owner_name' ? saveValue : row.owner_name
+        patch.customer_name = businessName || ownerName || '미입력'
+      } else if (field === 'phone') {
+        patch.customer_phone = saveValue
+      } else if (field === 'address') {
+        patch.address = saveValue
+      }
+      await supabase.from('installations').update(patch).eq('id', linked.id)
+    }
     startTransition(() => router.refresh())
-  }, [currentUserName])
+  }, [currentUserName, localLinkedInstalls])
 
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()

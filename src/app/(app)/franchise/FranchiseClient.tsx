@@ -488,9 +488,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [transferTab, setTransferTab] = useState<'all' | 'internet' | 'transferred' | 'rejected'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('franchise_pinned') ?? '[]')) } catch { return new Set() }
-  })
   const [bulkAssignModal, setBulkAssignModal] = useState(false)
   const [bulkAssignCs, setBulkAssignCs] = useState('')
   const [bulkAssignSales, setBulkAssignSales] = useState('')
@@ -612,10 +609,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       return true
     })
     return [...filtered].sort((a, b) => {
-      // 핀 고정 우선
-      const pa = pinnedIds.has(a.id) ? 0 : 1
-      const pb = pinnedIds.has(b.id) ? 0 : 1
-      if (pa !== pb) return pa - pb
       if (sortBy === 'status') return a.status.localeCompare(b.status)
       if (sortBy === 'open_date') return (a.open_date ?? '').localeCompare(b.open_date ?? '')
       if (sortBy === 'install_date') return (a.install_date ?? '').localeCompare(b.install_date ?? '')
@@ -623,7 +616,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'manual') return (b.sort_order ?? new Date(b.created_at).getTime()) - (a.sort_order ?? new Date(a.created_at).getTime())
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, internetIds, dateFrom, dateTo, pinnedIds])
+  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, internetIds, dateFrom, dateTo])
 
   useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
@@ -647,15 +640,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       supabase.from('franchise_applications').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
     )).catch(() => toast.error('순서 저장에 실패했습니다.'))
   }, [localRows, toast])
-
-  function togglePin(id: string) {
-    setPinnedIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      localStorage.setItem('franchise_pinned', JSON.stringify([...next]))
-      return next
-    })
-  }
 
   function shareLink(id: string) {
     const url = `${window.location.origin}/franchise?id=${id}`
@@ -1459,14 +1443,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
                   <td className="px-3 py-3 text-slate-500">
-                    <div className="flex items-center gap-1">
-                      {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      <button onClick={e => { e.stopPropagation(); togglePin(row.id) }}
-                        title={pinnedIds.has(row.id) ? '핀 해제' : '핀 고정'}
-                        className={`text-xs transition-colors ${pinnedIds.has(row.id) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}>
-                        📌
-                      </button>
-                    </div>
+                    {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm" onClick={e => e.stopPropagation()}>
                     <DateField row={row} field="reception_date" onSave={saveField} />

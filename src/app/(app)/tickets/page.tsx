@@ -100,7 +100,7 @@ export default async function TicketsPage({ searchParams }: Props) {
         {TABS.map(t => (
           <Link key={t.key} href={`/tickets?tab=${t.key}`}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              tab === t.key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'
             }`}>
             {t.label}
           </Link>
@@ -109,14 +109,14 @@ export default async function TicketsPage({ searchParams }: Props) {
 
       {/* 상태 필터 */}
       {statusFilters.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-5">
+        <div className="flex gap-1 overflow-x-auto pb-2 mb-5">
           <Link href={`/tickets?tab=${tab}`}
-            className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${!params.status ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${!params.status ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}>
             전체
           </Link>
           {statusFilters.map(s => (
             <Link key={s} href={`/tickets?tab=${tab}&status=${s}`}
-              className={`whitespace-nowrap text-xs px-3.5 py-2 rounded-full font-semibold transition-all ${params.status === s ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+              className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${params.status === s ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}>
               {STATUS_LABEL[s]}
             </Link>
           ))}

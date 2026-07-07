@@ -1241,7 +1241,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
       {/* 이관 탭 */}
-      <div className="flex gap-1 mb-2">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
         {([
           ['all', '전체', localRows.length],
           ['internet', '인터넷', internetIds.size],
@@ -1249,7 +1249,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           ['rejected', '반려됨', rejectedIds.size],
         ] as const).map(([tab, label, count]) => (
           <button key={tab} onClick={() => setTransferTab(tab)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${transferTab === tab ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${transferTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
             {label} {count > 0 && <span className="ml-0.5 opacity-70">({count})</span>}
           </button>
         ))}

@@ -909,10 +909,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
 
       {/* 설치/택배 탭 */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
           {([['all', '전체'], ['install', '설치'], ['delivery', '택배발송']] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${deliveryTab === tab ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${deliveryTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
               {label}
             </button>
           ))}

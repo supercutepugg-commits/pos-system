@@ -265,11 +265,8 @@ export async function sendInstallStatusUpdate({
       '#{예정시각}': scheduledTime || '',
     })
   } else if (status === 'delivery_sent') {
-    // 송장번호 변수가 포함된 새 템플릿 승인 전이라면 env에 등록된 기존 템플릿에는
-    // #{송장번호} 변수가 없을 수 있음 — kakaoOptions는 넘겨받은 변수만 그대로 전달하므로
-    // 템플릿이 그 변수를 쓰지 않으면 무시되고, 쓰는데 안 보내면 카카오 쪽에서 오류가 날 수 있다.
-    const trackingLabel = trackingNumber ? `로젠택배 ${trackingNumber}` : ''
-    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.delivery_sent, { '#{고객명}': customerName, '#{송장번호}': trackingLabel })
+    // "로젠택배"는 템플릿 안에 고정 문구로 들어가 있고, #{송장번호}에는 순수 번호만 채운다
+    ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.delivery_sent, { '#{고객명}': customerName, '#{송장번호}': trackingNumber || '' })
   } else {
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
   }

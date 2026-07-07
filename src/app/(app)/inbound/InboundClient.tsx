@@ -346,7 +346,7 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
                 <th
                   key={key}
                   onClick={() => toggleSort(key)}
-                  className="text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap"
+                  className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap"
                   style={w ? { width: w, minWidth: w } : { minWidth: 150 }}
                 >
                   <span className="flex items-center gap-1">

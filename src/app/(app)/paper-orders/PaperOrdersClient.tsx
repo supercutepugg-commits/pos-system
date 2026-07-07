@@ -363,9 +363,9 @@ export default function PaperOrdersClient({ rows }: Props) {
               <th className="px-3 py-3 border-b border-slate-200 w-8">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
-              <th className="px-3 py-3 border-b border-slate-200 text-left font-bold text-slate-700 whitespace-nowrap">상태</th>
+              <th className="px-3 py-3 border-b border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap">상태</th>
               {['상호명', '성함', '연락처', '주소', '택배', '요청일', '발송일', '건수', '매출', '낱개기준(빨강)', '메모'].map(label => (
-                <th key={label} className="text-left px-3 py-3 font-bold text-slate-700 border-b border-slate-200 whitespace-nowrap">
+                <th key={label} className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">
                   {label}
                 </th>
               ))}

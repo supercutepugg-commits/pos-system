@@ -34,7 +34,7 @@ export default function DeletePermissionToggle({ userId, initialCanDelete }: Pro
           : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
       }`}
     >
-      🗑 삭제 권한 {canDelete ? 'ON' : 'OFF'}
+      삭제 권한 {canDelete ? 'ON' : 'OFF'}
     </button>
   )
 }

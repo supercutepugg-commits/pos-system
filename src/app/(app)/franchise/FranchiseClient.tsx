@@ -97,10 +97,10 @@ const ALIMTALK_LOG_LABEL: Record<string, string> = {
 }
 
 const INSTALL_LOG_LABEL: Record<string, string> = {
-  install_transfer: '🔧 기술지원 이관',
-  install_retransfer: '🔧 기술지원 재이관',
-  install_rejected: '❌ 기술지원 반려',
-  card_done: '✅ 설치완료 (가맹접수 자동갱신)',
+  install_transfer: '기술지원 이관',
+  install_retransfer: '기술지원 재이관',
+  install_rejected: '기술지원 반려',
+  card_done: '설치완료 (가맹접수 자동갱신)',
 }
 
 function EquipmentCart({ items, onChange }: { items: EquipmentItem[]; onChange: (items: EquipmentItem[]) => void }) {
@@ -1244,9 +1244,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       <div className="flex gap-1 mb-2">
         {([
           ['all', '전체', localRows.length],
-          ['internet', '🌐 인터넷', internetIds.size],
-          ['transferred', '🔧 기술지원 이관', transferredIds.size],
-          ['rejected', '❌ 반려됨', rejectedIds.size],
+          ['internet', '인터넷', internetIds.size],
+          ['transferred', '기술지원 이관', transferredIds.size],
+          ['rejected', '반려됨', rejectedIds.size],
         ] as const).map(([tab, label, count]) => (
           <button key={tab} onClick={() => setTransferTab(tab)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${transferTab === tab ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
@@ -1340,7 +1340,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         )}
         <button onClick={saveFilterPreset} title="현재 필터 저장"
           className="text-sm text-slate-500 border border-slate-200 hover:bg-slate-50 px-2 py-2 rounded-lg transition-colors">
-          💾 저장
+          저장
         </button>
         {savedFilters.length > 0 && (
           <select defaultValue="" onChange={e => { const p = savedFilters.find(f => f.name === e.target.value); if (p) loadFilterPreset(p) }}
@@ -1604,7 +1604,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <button onClick={() => shareLink(row.id)}
                           className="text-xs text-slate-400 hover:text-blue-500 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-colors">
-                          🔗 링크 복사
+                          링크 복사
                         </button>
                         {row.phone && (
                           <button
@@ -1614,7 +1614,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                             }}
                             className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2 py-1 rounded-lg transition-colors"
                           >
-                            📄 서류안내 재발송
+                            서류안내 재발송
                           </button>
                         )}
                         {localLinkedInstalls[row.id] && localLinkedInstalls[row.id].status !== 'rejected' ? (
@@ -1652,7 +1652,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                                 ? 'bg-red-50 text-red-600 border-red-200'
                                 : 'bg-cyan-50 text-cyan-600 border-cyan-200'
                           }`}>
-                            🌐 인터넷 {localLinkedInternets[row.id].status || '등록됨'} →
+                            인터넷 {localLinkedInternets[row.id].status || '등록됨'} →
                           </button>
                         ) : (
                           <button
@@ -1660,7 +1660,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                             disabled={linkingInternetId === row.id}
                             className="text-xs font-semibold bg-cyan-600 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-700 disabled:opacity-50"
                           >
-                            {linkingInternetId === row.id ? '처리 중...' : '🌐 인터넷 등록'}
+                            {linkingInternetId === row.id ? '처리 중...' : '인터넷 등록'}
                           </button>
                         )}
                       </div>
@@ -1679,7 +1679,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                                 const key = log.to_status!.replace('alimtalk:', '')
                                 return (
                                   <li key={log.id} className="text-xs text-blue-500">
-                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 📨 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
+                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
                                   </li>
                                 )
                               }

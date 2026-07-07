@@ -292,15 +292,15 @@ export default function InboundClient({ rows, totalCount, page, totalPages, filt
           <button
             onClick={() => pushParams({ status: '미처리', page: undefined, q: undefined, staff: undefined, channel: undefined, category: undefined, from: undefined, to: undefined })}
             className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${currentParams.status === '미처리' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200 hover:border-red-300 hover:text-red-600'}`}
-          >🚨 미처리</button>
+          >미처리</button>
           <button
             onClick={() => { const today = new Date().toISOString().slice(0,10); pushParams({ from: today, to: today, page: undefined, q: undefined, staff: undefined, channel: undefined, category: undefined, status: undefined }) }}
             className="text-xs font-medium px-2.5 py-1.5 rounded-lg border bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600 transition-colors"
-          >📅 오늘 접수</button>
+          >오늘 접수</button>
           <button
             onClick={() => pushParams({ category: 'A/S', page: undefined, q: undefined, staff: undefined, channel: undefined, status: undefined, from: undefined, to: undefined })}
             className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${currentParams.category === 'A/S' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-slate-600 border-slate-200 hover:border-red-300 hover:text-red-600'}`}
-          >🔧 A/S 건</button>
+          >A/S 건</button>
         </div>
         <div className="ml-auto flex items-center gap-3">
           {selected.size > 0 && (

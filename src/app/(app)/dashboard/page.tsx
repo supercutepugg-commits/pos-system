@@ -148,7 +148,7 @@ export default async function DashboardPage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {p.name}님 👋</h1>
+          <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {p.name}님</h1>
           <p className="text-slate-500 mt-1">
             {format(new Date(), 'yyyy년 M월 d일 (EEE)', { locale: ko })}
           </p>

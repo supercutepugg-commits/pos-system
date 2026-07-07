@@ -81,15 +81,6 @@ const DEFAULT_WIDTHS: Record<string, number> = {
 }
 const COL_WIDTHS_STORAGE_KEY = 'installs_col_widths'
 
-const STATUS_ICONS: Record<string, string> = {
-  received: '📋',
-  preparing: '📦',
-  scheduled: '📅',
-  in_transit: '🚚',
-  completed: '✅',
-  rejected: '❌',
-}
-
 // --- Separate form component so typing here doesn't re-render the whole list ---
 interface CreateFormProps {
   techUsers: { id: string; name: string }[]
@@ -144,7 +135,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
           {(['install', 'delivery'] as const).map(t => (
             <button key={t} type="button" onClick={() => setDeliveryType(t)}
               className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : 'bg-orange-500 text-white border-orange-500') : 'bg-white text-slate-500 border-slate-200'}`}>
-              {t === 'install' ? '🔧 설치' : '📦 택배발송'}
+              {t === 'install' ? '설치' : '택배발송'}
             </button>
           ))}
         </div>
@@ -707,7 +698,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       {/* 당일 설치 예정 배너 */}
       {todayScheduled.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
-          <span className="text-amber-600 font-bold text-sm">📅 오늘 설치 예정 {todayScheduled.length}건</span>
+          <span className="text-amber-600 font-bold text-sm">오늘 설치 예정 {todayScheduled.length}건</span>
           <span className="text-amber-500 text-xs">{todayScheduled.map(f => f.business_name || f.owner_name || '미입력').join(' · ')}</span>
           <button onClick={() => setTodayScheduled([])} className="ml-auto text-amber-400 hover:text-amber-600 text-xs">닫기</button>
         </div>
@@ -919,7 +910,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       {/* 설치/택배 탭 */}
       <div className="flex items-center justify-between">
         <div className="flex gap-1">
-          {([['all', '전체'], ['install', '🔧 설치'], ['delivery', '📦 택배발송']] as const).map(([tab, label]) => (
+          {([['all', '전체'], ['install', '설치'], ['delivery', '택배발송']] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${deliveryTab === tab ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
               {label}
@@ -928,7 +919,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
         </div>
         <button onClick={() => setShowMonthlyStats(v => !v)}
           className="text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50">
-          {showMonthlyStats ? '실적 숨기기' : '📊 기사별 월간 실적'}
+          {showMonthlyStats ? '실적 숨기기' : '기사별 월간 실적'}
         </button>
       </div>
 
@@ -936,7 +927,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
       {showMonthlyStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-500 mb-3">🏆 기사별 완료 실적 (누적)</p>
+            <p className="text-xs font-semibold text-slate-500 mb-3">기사별 완료 실적 (누적)</p>
             <div className="space-y-2">
               {techStats.slice(0, 8).map((t, idx) => (
                 <div key={t.name} className="flex items-center gap-2">
@@ -952,7 +943,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-500 mb-3">📊 월별 실적 (최근 6개월)</p>
+            <p className="text-xs font-semibold text-slate-500 mb-3">월별 실적 (최근 6개월)</p>
             <table className="text-xs w-full">
               <thead>
                 <tr className="border-b border-slate-100">
@@ -1110,11 +1101,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_ICONS[s]} {STATUS_LABELS[s]}</option>)}
+                          {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                         </select>
                       ) : (
                         <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_ICONS[inst.status]} {STATUS_LABELS[inst.status] ?? inst.status}
+                          {STATUS_LABELS[inst.status] ?? inst.status}
                         </span>
                       )}
                     </td>

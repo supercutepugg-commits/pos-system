@@ -213,7 +213,7 @@ export default function ExternalTechsClient({
                     {tech.available ? '활성' : '비활성'}
                   </span>
                 </div>
-                {tech.area && <p className="text-xs text-slate-400 mt-0.5">📍 {tech.area}</p>}
+                {tech.area && <p className="text-xs text-slate-400 mt-0.5">{tech.area}</p>}
               </div>
               <div className="flex items-center gap-1">
                 {canEdit && (
@@ -231,7 +231,7 @@ export default function ExternalTechsClient({
               </div>
             </div>
             {tech.phone && (
-              <button onClick={() => { navigator.clipboard.writeText(tech.phone); alert(`📋 복사됨: ${tech.phone}`) }}
+              <button onClick={() => { navigator.clipboard.writeText(tech.phone); alert(`복사됨: ${tech.phone}`) }}
                 className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline mb-2">
                 <Phone size={13} />{tech.phone}
               </button>

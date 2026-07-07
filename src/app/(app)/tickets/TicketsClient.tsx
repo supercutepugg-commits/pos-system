@@ -117,7 +117,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
                 <div className="flex items-center gap-3 text-xs text-slate-400">
                   <span className="font-medium">{ticket.merchant?.business_name}</span>
                   {ticket.scheduled_at && (
-                    <span>📅 {format(new Date(ticket.scheduled_at), 'M/d HH:mm', { locale: ko })}</span>
+                    <span>{format(new Date(ticket.scheduled_at), 'M/d HH:mm', { locale: ko })}</span>
                   )}
                 </div>
               </div>

@@ -379,7 +379,7 @@ export default function InventoryClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">
-              {adjustModal.delta > 0 ? '📦 입고' : '📤 출고'}: {adjustModal.item.name}
+              {adjustModal.delta > 0 ? '입고' : '출고'}: {adjustModal.item.name}
             </p>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">수량</label>

@@ -105,17 +105,17 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
             <Link href={`/tickets/${ticket.id}`} className="flex items-center gap-4 flex-1 min-w-0">
               <div className="flex flex-col gap-2 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border border-black/5 ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
                     {STATUS_LABEL[ticket.status as TicketStatus]}
                   </span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${PRIORITY_COLOR[ticket.priority as Priority]}`}>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border border-black/5 ${PRIORITY_COLOR[ticket.priority as Priority]}`}>
                     {PRIORITY_LABEL[ticket.priority as Priority]}
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">{TYPE_LABEL[ticket.type as TicketType]}</span>
+                  <span className="text-xs text-slate-600 font-medium">{TYPE_LABEL[ticket.type as TicketType]}</span>
                 </div>
                 <p className="text-sm font-semibold text-slate-900 truncate">{ticket.title}</p>
-                <div className="flex items-center gap-3 text-xs text-slate-400">
-                  <span className="font-medium">{ticket.merchant?.business_name}</span>
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  <span className="font-medium">{ticket.merchant?.business_name || <span className="text-slate-400">-</span>}</span>
                   {ticket.scheduled_at && (
                     <span>{format(new Date(ticket.scheduled_at), 'M/d HH:mm', { locale: ko })}</span>
                   )}
@@ -123,9 +123,9 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
               </div>
               <div className="text-right flex-shrink-0 flex items-center gap-2">
                 <div>
-                  <p className="text-xs text-slate-400">{format(new Date(ticket.created_at), 'M/d', { locale: ko })}</p>
+                  <p className="text-xs text-slate-500">{format(new Date(ticket.created_at), 'M/d', { locale: ko })}</p>
                   {ticket.tech?.name && (
-                    <p className="text-xs text-slate-500 mt-1 font-medium">{ticket.tech.name}</p>
+                    <p className="text-xs text-slate-600 mt-1 font-medium">{ticket.tech.name}</p>
                   )}
                 </div>
                 <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-400 transition-colors" />

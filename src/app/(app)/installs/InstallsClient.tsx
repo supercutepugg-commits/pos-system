@@ -343,7 +343,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }) {
     if (!newInstall.customerName) return
     setSubmitting(true)
-    const { error } = await supabase.from('installations').insert({
+    const { data, error } = await supabase.from('installations').insert({
       customer_name: newInstall.customerName,
       customer_phone: newInstall.customerPhone ? formatPhone(newInstall.customerPhone) : null,
       items: newInstall.items,
@@ -353,12 +353,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       status: 'received',
       delivery_type: newInstall.deliveryType,
       sort_order: Date.now(),
-    })
+    }).select().single()
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
     setPage(1)
-    fetchInstalls()
+    const assignee = newInstall.assignedTo ? techUsers.find(t => t.id === newInstall.assignedTo) ?? null : null
+    setInstalls(prev => [{ ...data, assignee, creator: { name: profile.name } }, ...prev])
   }
 
   async function sendInstallNotify(id: string, status: string, extra?: { eta?: string; scheduledDate?: string; scheduledTime?: string }) {
@@ -488,14 +489,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         const { data: csProfiles } = await supabase.from('profiles').select('id').eq('role', 'cs')
         csProfiles?.forEach(u => notifyTargets.push(u.id))
       }
-      for (const uid of notifyTargets) {
-        await supabase.from('notifications').insert({
+      if (notifyTargets.length) {
+        const { error: notifyError } = await supabase.from('notifications').insert(notifyTargets.map(uid => ({
           user_id: uid,
           franchise_application_id: inst.franchise_application_id,
           type: 'install_rejected',
           title: `[${name}] 기술지원 반려`,
           body: reason ? `반려 사유: ${reason}` : '기술지원팀에서 설치건을 반려했습니다. 가맹접수를 확인해주세요.',
-        })
+        })))
+        if (notifyError) console.error('반려 알림 발송 실패:', notifyError.message)
       }
     }
   }
@@ -555,14 +557,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
       // CS/영업 완료 알림
       const notifyTargets = [...new Set([fa?.cs_id, fa?.sales_id].filter(Boolean) as string[])]
-      for (const uid of notifyTargets) {
-        await supabase.from('notifications').insert({
+      if (notifyTargets.length) {
+        const { error: notifyError } = await supabase.from('notifications').insert(notifyTargets.map(uid => ({
           user_id: uid,
           franchise_application_id: inst.franchise_application_id,
           type: 'install_completed',
           title: `[${name}] 설치완료`,
           body: '기술지원팀에서 설치를 완료했습니다. 가맹접수 상태가 카드가맹완료로 변경되었습니다.',
-        })
+        })))
+        if (notifyError) console.error('완료 알림 발송 실패:', notifyError.message)
       }
     }
   }
@@ -595,16 +598,19 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function handleAssign(id: string, assignedTo: string) {
     const prev = installs.find(i => i.id === id)
-    await supabase.from('installations').update({ assigned_to: assignedTo || null }).eq('id', id)
+    const { error } = await supabase.from('installations').update({ assigned_to: assignedTo || null }).eq('id', id)
+    if (error) { toast.error('배정 실패: ' + error.message); return }
+    const assignee = assignedTo ? techUsers.find(t => t.id === assignedTo) ?? null : null
+    setInstalls(prevList => prevList.map(i => i.id === id ? { ...i, assigned_to: assignedTo || undefined, assignee } : i))
     if (assignedTo && assignedTo !== prev?.assigned_to) {
-      await supabase.from('notifications').insert({
+      const { error: notifyError } = await supabase.from('notifications').insert({
         user_id: assignedTo,
         type: 'install_assigned',
         title: '설치 배정',
         body: `${prev?.customer_name ?? '고객'} 설치건이 배정되었습니다.`,
       })
+      if (notifyError) console.error('배정 알림 발송 실패:', notifyError.message)
     }
-    fetchInstalls()
   }
 
   async function handleDelete(id: string) {

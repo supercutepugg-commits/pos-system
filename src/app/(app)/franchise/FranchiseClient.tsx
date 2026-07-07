@@ -1023,16 +1023,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       installId = data.id
     }
     setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
-    // 기술팀 전원 알림
+    // 기술팀 전원 알림 (한 번에 일괄 insert)
     const { data: techUsers } = await supabase.from('profiles').select('id').eq('role', 'tech')
-    for (const t of techUsers ?? []) {
-      await supabase.from('notifications').insert({
+    if (techUsers?.length) {
+      const { error: notifyError } = await supabase.from('notifications').insert(techUsers.map(t => ({
         user_id: t.id,
         franchise_application_id: row.id,
         type: 'install_transfer',
         title: `[${row.business_name || row.owner_name || '미입력'}] 설치 자동 이관`,
         body: '카드가맹완료로 설치건이 자동 생성되었습니다.',
-      })
+      })))
+      if (notifyError) console.error('기술팀 알림 발송 실패:', notifyError.message)
     }
   }
 
@@ -1070,17 +1071,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       installId = data.id
     }
 
-    // 기술지원 전체에게 알림
+    // 기술지원 전체에게 알림 (한 번에 일괄 insert)
     const name = row.business_name || row.owner_name || '미입력'
     const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
-    for (const u of techProfiles ?? []) {
-      await supabase.from('notifications').insert({
+    if (techProfiles?.length) {
+      const { error: notifyError } = await supabase.from('notifications').insert(techProfiles.map(u => ({
         user_id: u.id,
         franchise_application_id: row.id,
         type: 'install_transfer',
         title: `[${name}] 기술지원 ${label}`,
         body: `CS팀에서 설치건을 ${label}했습니다. 설치관리를 확인해주세요.`,
-      })
+      })))
+      if (notifyError) console.error('기술지원 알림 발송 실패:', notifyError.message)
     }
 
     // 이관 로그 기록

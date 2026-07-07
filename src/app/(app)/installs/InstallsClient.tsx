@@ -73,6 +73,7 @@ const PAGE_SIZE = 10
 
 const MAIN_COLUMNS = [
   { key: 'name', label: '고객명' },
+  { key: 'delivery_type', label: '구분' },
   { key: 'phone', label: '전화번호' },
   { key: 'address', label: '주소' },
   { key: 'items', label: '제품' },
@@ -84,6 +85,7 @@ const MAIN_COLUMNS = [
 ] as const
 const DEFAULT_WIDTHS: Record<string, number> = {
   name: 140,
+  delivery_type: 90,
   phone: 120,
   address: 200,
   items: 160,
@@ -1176,6 +1178,21 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         )}
                       </div>
                     </td>
+                    <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      {canEdit ? (
+                        <select
+                          value={inst.delivery_type === 'delivery' ? 'delivery' : 'install'}
+                          onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
+                          className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                          <option value="install">설치</option>
+                          <option value="delivery">택배발송</option>
+                        </select>
+                      ) : (
+                        <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                          {inst.delivery_type === 'delivery' ? '택배발송' : '설치'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
                     <td className="px-4 py-3 text-slate-700 overflow-hidden">
                       {inst.address ? (
@@ -1272,22 +1289,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                               <EditableInstallText value={inst.customer_phone ?? ''} onSave={v => saveInstallField(inst.id, 'customer_phone', v)} />
                             ) : (
                               <p className="text-slate-800">{inst.customer_phone ? formatPhone(inst.customer_phone) : '-'}</p>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">구분</p>
-                            {canEdit ? (
-                              <select
-                                value={inst.delivery_type === 'delivery' ? 'delivery' : 'install'}
-                                onClick={e => e.stopPropagation()}
-                                onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                              >
-                                <option value="install">설치</option>
-                                <option value="delivery">택배발송</option>
-                              </select>
-                            ) : (
-                              <p className="text-slate-800">{inst.delivery_type === 'delivery' ? '택배발송' : '설치'}</p>
                             )}
                           </div>
                           <div>

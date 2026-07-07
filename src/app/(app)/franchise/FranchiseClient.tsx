@@ -909,7 +909,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       } else if (field === 'address') {
         patch.address = saveValue
       }
-      await supabase.from('installations').update(patch).eq('id', linked.id)
+      const { error: syncError } = await supabase.from('installations').update(patch).eq('id', linked.id)
+      if (syncError) toast.error('설치관리 동기화 실패: ' + syncError.message)
     }
     startTransition(() => router.refresh())
   }, [currentUserName, localLinkedInstalls])
@@ -921,7 +922,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     // 이미 기술지원으로 이관된 건이면 설치관리의 제품 목록도 함께 동기화
     const linked = localLinkedInstalls[row.id]
     if (linked) {
-      await supabase.from('installations').update({ items }).eq('id', linked.id)
+      const { error: syncError } = await supabase.from('installations').update({ items }).eq('id', linked.id)
+      if (syncError) toast.error('설치관리 동기화 실패: ' + syncError.message)
     }
     startTransition(() => router.refresh())
   }

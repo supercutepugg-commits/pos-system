@@ -29,7 +29,7 @@ export default async function MerchantsPage({ searchParams }: Props) {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">가맹점 ({totalCount})</h1>
+        <h1 className="text-xl font-bold text-slate-900">가맹점 ({totalCount})</h1>
       </div>
 
       <MerchantsClient merchants={(merchants ?? []) as any} />
@@ -38,13 +38,13 @@ export default async function MerchantsPage({ searchParams }: Props) {
         <div className="flex items-center justify-center gap-2 mt-6">
           <Link
             href={`/merchants?page=${Math.max(1, page - 1)}`}
-            className={`text-sm px-3 py-1.5 rounded-lg border border-gray-200 font-medium ${page <= 1 ? 'text-gray-300 pointer-events-none' : 'text-gray-600 hover:bg-gray-50'}`}>
+            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page <= 1 ? 'text-slate-300 pointer-events-none' : 'text-slate-600 hover:bg-slate-50'}`}>
             이전
           </Link>
-          <span className="text-sm text-gray-500 font-medium">{page} / {totalPages}</span>
+          <span className="text-sm text-slate-500 font-medium">{page} / {totalPages}</span>
           <Link
             href={`/merchants?page=${Math.min(totalPages, page + 1)}`}
-            className={`text-sm px-3 py-1.5 rounded-lg border border-gray-200 font-medium ${page >= totalPages ? 'text-gray-300 pointer-events-none' : 'text-gray-600 hover:bg-gray-50'}`}>
+            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page >= totalPages ? 'text-slate-300 pointer-events-none' : 'text-slate-600 hover:bg-slate-50'}`}>
             다음
           </Link>
         </div>

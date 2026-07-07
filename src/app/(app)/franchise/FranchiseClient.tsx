@@ -247,7 +247,7 @@ const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps
         placeholder="-"
         className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
       />
-      <button type="button" onClick={openPicker} tabIndex={-1} className="shrink-0 text-slate-400 hover:text-blue-500">
+      <button type="button" onClick={openPicker} tabIndex={-1} aria-label="날짜 선택" className="shrink-0 text-slate-400 hover:text-blue-500">
         <Calendar size={14} />
       </button>
       <input
@@ -283,7 +283,7 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
     <div className="flex items-center gap-1">
       <input value={value} onChange={e => onChange(formatDateText(e.target.value))}
         className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <button type="button" onClick={openPicker} className="shrink-0 text-slate-400 hover:text-blue-500">
+      <button type="button" onClick={openPicker} aria-label="날짜 선택" className="shrink-0 text-slate-400 hover:text-blue-500">
         <Calendar size={14} />
       </button>
       <input

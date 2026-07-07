@@ -729,7 +729,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <div className="bg-white rounded-2xl shadow-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-slate-800">가맹접수 원본 정보</h3>
-              <button onClick={() => setFranchiseDetail(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+              <button onClick={() => setFranchiseDetail(null)} aria-label="닫기" className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
             </div>
             {loadingDetail ? (
               <p className="text-sm text-slate-400 text-center py-8">불러오는 중...</p>
@@ -890,7 +890,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls }: 
           <button onClick={handleExcel} className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
             <Download size={15} />엑셀
           </button>
-          <button onClick={fetchInstalls} className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
+          <button onClick={fetchInstalls} aria-label="새로고침" className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
             <RefreshCw size={15} />
           </button>
           {canEdit && (

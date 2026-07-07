@@ -6,6 +6,8 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { FileEdit, Clock4, CheckCircle2, Flag, AlertTriangle, UserX, CalendarClock, ArrowRight } from 'lucide-react'
 import ExcelDownloadButton from './ExcelDownloadButton'
+import Badge from '@/components/ui/Badge'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -295,20 +297,16 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-slate-50">
-            {applications?.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-slate-400 text-sm">등록된 가맹 접수가 없습니다</p>
-              </div>
-            )}
+            {applications?.length === 0 && <EmptyState message="등록된 가맹 접수가 없습니다" />}
             {applications?.map(app => (
               <Link
                 key={app.id}
                 href="/franchise"
                 className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors"
               >
-                <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${FRANCHISE_STATUS_COLOR[app.status as FranchiseStatus]}`}>
+                <Badge colorClass={FRANCHISE_STATUS_COLOR[app.status as FranchiseStatus]}>
                   {FRANCHISE_STATUS_LABEL[app.status as FranchiseStatus]}
-                </span>
+                </Badge>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-900 truncate">{app.business_name || '상호명 미입력'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">{(app as any).cs?.name ?? (app as any).sales?.name ?? ''}</p>

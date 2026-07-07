@@ -81,9 +81,11 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
 
   // 폴더는 역할 상관없이 전부 보이고, 실제 접근 권한은 각 페이지에서 따로 체크함
   const visibleFolders = ROLE_FOLDERS
+  const storageKey = `sidebar_open_folders_${profile.id}`
+
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('sidebar_open_folders')
+      const saved = localStorage.getItem(storageKey)
       if (saved) return new Set(JSON.parse(saved) as string[])
     } catch {}
     return new Set(visibleFolders.filter(f => f.key === profile.role || profile.role === 'admin').map(f => f.key))
@@ -93,7 +95,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
     setOpenFolders(prev => {
       const next = new Set(prev)
       next.has(key) ? next.delete(key) : next.add(key)
-      try { localStorage.setItem('sidebar_open_folders', JSON.stringify([...next])) } catch {}
+      try { localStorage.setItem(storageKey, JSON.stringify([...next])) } catch {}
       return next
     })
   }

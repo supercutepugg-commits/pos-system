@@ -21,13 +21,13 @@ export default async function NotificationsPage() {
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold text-gray-900">알림</h1>
+        <h1 className="text-xl font-bold text-slate-900">알림</h1>
         <MarkAllRead userId={user.id} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
+      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-50">
         {notifications?.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-12">알림이 없습니다</p>
+          <p className="text-center text-sm text-slate-400 py-12">알림이 없습니다</p>
         )}
         {notifications?.map(n => (
           <NotificationRow

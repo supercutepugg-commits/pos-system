@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MapPin, Phone, Trash2 } from 'lucide-react'
 import { deleteMerchants } from './actions'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface Merchant {
   id: string
@@ -60,7 +61,7 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
             onChange={toggleAll}
             className="w-4 h-4 accent-blue-600 cursor-pointer"
           />
-          <span className="text-xs text-gray-400 font-medium">전체 선택</span>
+          <span className="text-xs text-slate-400 font-medium">전체 선택</span>
           {selected.size > 0 && (
             <div className="flex items-center gap-3 ml-2">
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
@@ -74,7 +75,7 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
               </button>
               <button
                 onClick={() => setSelected(new Set())}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-sm text-slate-500 hover:text-slate-700"
               >
                 취소
               </button>
@@ -83,11 +84,13 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
         </div>
       )}
 
+      {merchants.length === 0 && <EmptyState message="등록된 가맹점이 없습니다" />}
+
       <div className="grid gap-3 md:grid-cols-2">
         {merchants.map(m => (
           <div
             key={m.id}
-            className="relative bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow"
+            className="relative bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow"
           >
             <input
               type="checkbox"
@@ -98,18 +101,18 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
             <Link href={`/merchants/${m.id}`} className="block pr-6">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-gray-900">{m.business_name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{m.owner_name}</p>
+                  <p className="font-semibold text-slate-900">{m.business_name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{m.owner_name}</p>
                 </div>
                 {m.pos_model && (
-                  <span className="text-xs bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">{m.pos_model}</span>
+                  <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full">{m.pos_model}</span>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-xs text-gray-700">
+              <div className="flex items-center gap-4 text-xs text-slate-700">
                 <span className="flex items-center gap-1"><Phone size={11} />{m.phone}</span>
                 <span className="flex items-center gap-1 truncate"><MapPin size={11} />{m.address}</span>
               </div>
-              <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+              <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
                 <span>영업: <span className={m.sales?.name ? '' : 'text-slate-400'}>{m.sales?.name ?? '-'}</span></span>
                 <span>{format(new Date(m.created_at), 'M/d', { locale: ko })}</span>
               </div>

@@ -8,6 +8,8 @@ import { ko } from 'date-fns/locale'
 import { ChevronRight, Trash2 } from 'lucide-react'
 import { deleteTickets } from './actions'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority } from '@/types'
+import Badge from '@/components/ui/Badge'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface Ticket {
   id: string
@@ -75,11 +77,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
         </div>
       )}
 
-      {tickets.length === 0 && (
-        <div className="text-center py-16">
-          <p className="text-slate-400 text-sm">작업이 없습니다</p>
-        </div>
-      )}
+      {tickets.length === 0 && <EmptyState message="작업이 없습니다" />}
 
       <div className="divide-y divide-slate-50">
         {tickets.length > 0 && (
@@ -105,12 +103,12 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
             <Link href={`/tickets/${ticket.id}`} className="flex items-center gap-4 flex-1 min-w-0">
               <div className="flex flex-col gap-2 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border border-black/5 ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
+                  <Badge colorClass={STATUS_COLOR[ticket.status as TicketStatus]}>
                     {STATUS_LABEL[ticket.status as TicketStatus]}
-                  </span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border border-black/5 ${PRIORITY_COLOR[ticket.priority as Priority]}`}>
+                  </Badge>
+                  <Badge colorClass={PRIORITY_COLOR[ticket.priority as Priority]}>
                     {PRIORITY_LABEL[ticket.priority as Priority]}
-                  </span>
+                  </Badge>
                   <span className="text-xs text-slate-600 font-medium">{TYPE_LABEL[ticket.type as TicketType]}</span>
                 </div>
                 <p className="text-sm font-semibold text-slate-900 truncate">{ticket.title}</p>

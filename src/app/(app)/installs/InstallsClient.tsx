@@ -352,10 +352,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       created_by: profile.id,
       status: 'received',
       delivery_type: newInstall.deliveryType,
+      sort_order: Date.now(),
     })
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
+    setPage(1)
     fetchInstalls()
   }
 

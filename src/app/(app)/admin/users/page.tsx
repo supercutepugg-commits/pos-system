@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ROLE_LABEL_KR } from './constants'
 import CreateUserForm from './CreateUserForm'
+import DeletePermissionToggle from './DeletePermissionToggle'
 
 const ROLE_COLOR: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-700',
@@ -68,6 +69,9 @@ export default async function UsersPage() {
                     <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${ROLE_COLOR[u.role]}`}>
                       {roleNames[u.role]}
                     </span>
+                    {u.role !== 'admin' && (
+                      <DeletePermissionToggle userId={u.id} initialCanDelete={!!u.can_delete} />
+                    )}
                   </div>
                 ))}
               </div>

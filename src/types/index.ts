@@ -30,6 +30,7 @@ export interface Profile {
   name: string
   phone?: string
   role: Role
+  can_delete?: boolean
   created_at: string
 }
 

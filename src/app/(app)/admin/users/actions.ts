@@ -49,3 +49,15 @@ export async function createUserAccount(form: { name: string; phone: string; pas
   revalidatePath('/admin/users')
   return { error: null }
 }
+
+export async function setUserDeletePermission(userId: string, canDelete: boolean) {
+  const authError = await requireAdmin()
+  if (authError) return { error: authError }
+
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('profiles').update({ can_delete: canDelete }).eq('id', userId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}

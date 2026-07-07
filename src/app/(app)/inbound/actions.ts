@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireAdmin } from '@/lib/auth/require-admin'
+import { requireDeletePermission } from '@/lib/auth/require-admin'
 
 const CHUNK_SIZE = 100
 
@@ -12,7 +12,7 @@ export async function updateInboundRow(id: string, patch: Record<string, string 
 }
 
 export async function deleteInboundRows(ids: string[]) {
-  const authError = await requireAdmin()
+  const authError = await requireDeletePermission()
   if (authError) return { error: authError }
   if (!ids.length) return { error: null }
   const supabase = createAdminClient()

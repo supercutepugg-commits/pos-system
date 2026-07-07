@@ -201,6 +201,59 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
   )
 })
 
+const EditableInstallText = memo(function EditableInstallText({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [text, setText] = useState(value)
+  useEffect(() => setText(value), [value])
+  return (
+    <input
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={() => { if (text !== value) onSave(text) }}
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+    />
+  )
+})
+
+const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }: { items: { name: string; quantity: number }[]; onChange: (items: { name: string; quantity: number }[]) => void }) {
+  const [product, setProduct] = useState(PRODUCT_CATALOG[0])
+  const [qty, setQty] = useState(1)
+  function add() {
+    const existing = items.find(i => i.name === product)
+    const next = existing
+      ? items.map(i => i.name === product ? { ...i, quantity: i.quantity + qty } : i)
+      : [...items, { name: product, quantity: qty }]
+    onChange(next)
+    setQty(1)
+  }
+  function remove(name: string) {
+    onChange(items.filter(i => i.name !== name))
+  }
+  return (
+    <div className="flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {items.map(i => (
+            <li key={i.name} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded px-2 py-1">
+              <span>{i.name} x{i.quantity}</span>
+              <button type="button" onClick={() => remove(i.name)} className="text-slate-400 hover:text-red-500">✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-1.5">
+        <select value={product} onChange={e => setProduct(e.target.value)}
+          className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none">
+          {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <input type="number" min={1} value={qty} onChange={e => setQty(Math.max(1, Number(e.target.value) || 1))}
+          className="w-14 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none" />
+        <button type="button" onClick={add} className="px-2.5 py-1 bg-slate-800 text-white text-xs rounded hover:bg-slate-700">추가</button>
+      </div>
+    </div>
+  )
+})
+
 export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly }: Props) {
   const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
   const toast = useToast()
@@ -499,6 +552,19 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined } : i))
     setEditingNotes(null)
+  }
+
+  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type', value: string) {
+    const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
+    const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, [field]: saveValue ?? undefined } : i))
+  }
+
+  async function saveInstallItems(id: string, items: { name: string; quantity: number }[]) {
+    const { error } = await supabase.from('installations').update({ items }).eq('id', id)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, items } : i))
   }
 
   async function handleAssign(id: string, assignedTo: string) {
@@ -1190,24 +1256,48 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       <td colSpan={(profile.role === 'admin' ? 1 : 0) + 1 + MAIN_COLUMNS.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
                         <div className="grid grid-cols-4 gap-4 mb-3 text-sm">
                           <div>
-                            <p className="text-xs font-semibold text-slate-400">고객명</p>
-                            <p className="text-slate-800">{inst.customer_name}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>
+                            {canEdit ? (
+                              <EditableInstallText value={inst.customer_name} onSave={v => saveInstallField(inst.id, 'customer_name', v)} />
+                            ) : (
+                              <p className="text-slate-800">{inst.customer_name}</p>
+                            )}
                           </div>
                           <div>
-                            <p className="text-xs font-semibold text-slate-400">전화번호</p>
-                            <p className="text-slate-800">{inst.customer_phone ? formatPhone(inst.customer_phone) : '-'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">전화번호</p>
+                            {canEdit ? (
+                              <EditableInstallText value={inst.customer_phone ?? ''} onSave={v => saveInstallField(inst.id, 'customer_phone', v)} />
+                            ) : (
+                              <p className="text-slate-800">{inst.customer_phone ? formatPhone(inst.customer_phone) : '-'}</p>
+                            )}
                           </div>
                           <div>
-                            <p className="text-xs font-semibold text-slate-400">구분</p>
-                            <p className="text-slate-800">{inst.delivery_type === 'delivery' ? '택배발송' : '설치'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">구분</p>
+                            {canEdit ? (
+                              <select
+                                value={inst.delivery_type === 'delivery' ? 'delivery' : 'install'}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              >
+                                <option value="install">설치</option>
+                                <option value="delivery">택배발송</option>
+                              </select>
+                            ) : (
+                              <p className="text-slate-800">{inst.delivery_type === 'delivery' ? '택배발송' : '설치'}</p>
+                            )}
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-slate-400">상태</p>
                             <p className="text-slate-800">{STATUS_LABELS[inst.status] ?? inst.status}</p>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs font-semibold text-slate-400">주소</p>
-                            <p className="text-slate-800 break-words">{inst.address || '-'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">주소</p>
+                            {canEdit ? (
+                              <EditableInstallText value={inst.address ?? ''} onSave={v => saveInstallField(inst.id, 'address', v)} />
+                            ) : (
+                              <p className="text-slate-800 break-words">{inst.address || '-'}</p>
+                            )}
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-slate-400">담당기사</p>
@@ -1218,8 +1308,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             <p className="text-slate-800">{inst.creator?.name ?? '-'}</p>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs font-semibold text-slate-400">제품</p>
-                            <p className="text-slate-800">{inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">제품</p>
+                            {canEdit ? (
+                              <InstallItemsEditor items={inst.items ?? []} onChange={items => saveInstallItems(inst.id, items)} />
+                            ) : (
+                              <p className="text-slate-800">{inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}</p>
+                            )}
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-slate-400">등록일</p>

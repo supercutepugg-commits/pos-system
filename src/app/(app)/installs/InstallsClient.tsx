@@ -19,6 +19,11 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: '반려',
 }
 const STATUS_ORDER = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
+// 택배발송 건은 상태값 자체는 in_transit을 그대로 쓰되(알림톡 템플릿만 다름), 화면 표시는 "택배발송"으로 보여준다
+function statusLabel(status: string, deliveryType?: string) {
+  if (status === 'in_transit' && deliveryType === 'delivery') return '택배발송'
+  return STATUS_LABELS[status] ?? status
+}
 const STATUS_COLORS: Record<string, string> = {
   received: 'bg-gray-100 text-gray-600 border-gray-200',
   preparing: 'bg-blue-50 text-blue-600 border-blue-200',
@@ -638,7 +643,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         고객명: i.customer_name,
         전화번호: i.customer_phone ?? '',
         제품: i.items.map(it => `${it.name} x${it.quantity}`).join(', '),
-        상태: STATUS_LABELS[i.status] ?? i.status,
+        상태: statusLabel(i.status, i.delivery_type),
         담당자: (i.assignee as any)?.name ?? '',
         비고: i.notes ?? '',
         등록일: format(new Date(i.created_at), 'yyyy-MM-dd HH:mm', { locale: ko }),
@@ -1178,11 +1183,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                          {STATUS_ORDER.map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
                         </select>
                       ) : (
                         <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${STATUS_COLORS[inst.status]}`}>
-                          {STATUS_LABELS[inst.status] ?? inst.status}
+                          {statusLabel(inst.status, inst.delivery_type)}
                         </span>
                       )}
                     </td>
@@ -1281,7 +1286,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-slate-400">상태</p>
-                            <p className="text-slate-800">{STATUS_LABELS[inst.status] ?? inst.status}</p>
+                            <p className="text-slate-800">{statusLabel(inst.status, inst.delivery_type)}</p>
                           </div>
                           <div className="col-span-2">
                             <p className="text-xs font-semibold text-slate-400 mb-1">주소</p>

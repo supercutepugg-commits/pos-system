@@ -105,6 +105,22 @@ const DEFAULT_WIDTHS: Record<string, number> = {
 }
 const COL_WIDTHS_STORAGE_KEY = 'installs_col_widths'
 
+function QtyStepper({ value, onChange, size = 'md' }: { value: number; onChange: (v: number) => void; size?: 'sm' | 'md' }) {
+  const btnCls = size === 'sm'
+    ? 'w-6 h-6 text-sm'
+    : 'w-9 h-9 text-base'
+  const numCls = size === 'sm' ? 'w-7 text-xs' : 'w-10 text-sm'
+  return (
+    <div className="inline-flex items-center border border-slate-200 rounded-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+      <button type="button" onClick={() => onChange(Math.max(1, value - 1))}
+        className={`${btnCls} flex items-center justify-center bg-slate-50 text-slate-600 hover:bg-slate-100 font-bold`}>−</button>
+      <span className={`${numCls} text-center font-semibold text-slate-800`}>{value}</span>
+      <button type="button" onClick={() => onChange(value + 1)}
+        className={`${btnCls} flex items-center justify-center bg-slate-50 text-slate-600 hover:bg-slate-100 font-bold`}>+</button>
+    </div>
+  )
+}
+
 // --- Separate form component so typing here doesn't re-render the whole list ---
 interface CreateFormProps {
   techUsers: { id: string; name: string }[]
@@ -197,8 +213,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
               <select value={cartProduct} onChange={e => { setCartProduct(e.target.value); setCartCustomName('') }} className={INPUT}>
                 {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
-              <input type="number" min={1} value={cartQty} onChange={e => setCartQty(Number(e.target.value))}
-                className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm text-center" />
+              <QtyStepper value={cartQty} onChange={setCartQty} />
               <button type="button" onClick={addToCart}
                 className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200">추가</button>
             </div>
@@ -207,8 +222,10 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
             {cartItems.length > 0 && (
               <ul className="mt-2 space-y-1">
                 {cartItems.map(it => (
-                  <li key={it.name} className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-sm">
-                    <span>{it.name} × {it.quantity}</span>
+                  <li key={it.name} className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-sm gap-2">
+                    <span className="flex-1">{it.name}</span>
+                    <QtyStepper size="sm" value={it.quantity}
+                      onChange={q => setCartItems(prev => prev.map(i => i.name === it.name ? { ...i, quantity: q } : i))} />
                     <button type="button" onClick={() => setCartItems(prev => prev.filter(i => i.name !== it.name))}
                       className="text-red-400 text-xs">삭제</button>
                   </li>
@@ -262,13 +279,17 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
   function remove(name: string) {
     onChange(items.filter(i => i.name !== name))
   }
+  function setQuantity(name: string, q: number) {
+    onChange(items.map(i => i.name === name ? { ...i, quantity: q } : i))
+  }
   return (
     <div className="flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
       {items.length > 0 && (
         <ul className="flex flex-col gap-1">
           {items.map(i => (
-            <li key={i.name} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded px-2 py-1">
-              <span>{i.name} x{i.quantity}</span>
+            <li key={i.name} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded px-2 py-1 gap-2">
+              <span className="flex-1">{i.name}</span>
+              <QtyStepper size="sm" value={i.quantity} onChange={q => setQuantity(i.name, q)} />
               <button type="button" onClick={() => remove(i.name)} className="text-slate-400 hover:text-red-500">✕</button>
             </li>
           ))}
@@ -279,8 +300,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
           className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none">
           {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
-        <input type="number" min={1} value={qty} onChange={e => setQty(Math.max(1, Number(e.target.value) || 1))}
-          className="w-14 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none" />
+        <QtyStepper size="sm" value={qty} onChange={setQty} />
         <button type="button" onClick={add} className="px-2.5 py-1 bg-slate-800 text-white text-xs rounded hover:bg-slate-700">추가</button>
       </div>
       <input value={customName} onChange={e => setCustomName(e.target.value)} placeholder="목록에 없는 제품은 직접 입력"

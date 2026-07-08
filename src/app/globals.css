@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Tailwind v4는 기본 테두리색이 currentColor로 바뀌어 색상 없는 border 클래스가
+   거의 안 보이는 문제가 있음. v3처럼 기본 회색 테두리로 복원. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;

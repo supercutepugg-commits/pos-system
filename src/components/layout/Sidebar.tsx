@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
   CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, RefreshCw, FileText,
-  Network, FileEdit,
+  Network, FileEdit, Hash,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Role } from '@/types'
@@ -32,6 +32,7 @@ const COMMON_NAV: NavItem[] = [
   { href: '/merchants', label: '가맹점', icon: Store },
   { href: '/chat', label: '채팅', icon: MessageCircle },
   { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
+  { href: '/slack', label: 'Slack', icon: Hash },
 ]
 
 // 역할별 폴더 — admin은 전부 보임

@@ -576,11 +576,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     completingRef.current = true
     setCompleting(true)
     const { id, notes } = completeModal
+    const targetInst = installs.find(i => i.id === id)
+    const safeName = (targetInst?.customer_name || '고객').replace(/[\/\\]/g, '_').trim()
 
     const photoUrls: string[] = []
     for (const [i, file] of completePhotos.entries()) {
       const ext = file.name.split('.').pop() ?? 'jpg'
-      const path = `${id}/${Date.now()}-${i}.${ext}`
+      const path = `${id}/${safeName} ${i + 1}.${ext}`
       const { error: uploadError } = await supabase.storage.from('install-photos').upload(path, file)
       if (uploadError) { toast.error('사진 업로드 실패: ' + uploadError.message); setCompleting(false); completingRef.current = false; return }
       const { data: { publicUrl } } = supabase.storage.from('install-photos').getPublicUrl(path)

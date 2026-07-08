@@ -42,7 +42,7 @@ export interface Merchant {
   owner_name: string
   business_number?: string
   phone: string
-  address: string
+  address?: string
   address_detail?: string
   pos_model?: string
   service_type?: string

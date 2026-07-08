@@ -111,8 +111,8 @@ export async function createLinkedInstallTicket(row: FranchiseApplication, toast
 
 // 카드가맹완료 -> 가맹점 탭에 자동 등록. 이미 등록된 건(franchise_application_id로 조회)이면 건너뛴다.
 export async function autoRegisterMerchant(row: FranchiseApplication, toast: StatusEffectsToast): Promise<void> {
-  if (!row.business_name || !row.owner_name || !row.phone || !row.address) {
-    toast.warning('상호명·대표자명·연락처·주소가 모두 입력되지 않아 가맹점을 자동으로 등록하지 못했습니다. 직접 등록해주세요.')
+  if (!row.business_name || !row.owner_name || !row.phone) {
+    toast.warning('상호명·대표자명·연락처가 모두 입력되지 않아 가맹점을 자동으로 등록하지 못했습니다. 직접 등록해주세요.')
     return
   }
   const supabase = createClient()
@@ -124,7 +124,7 @@ export async function autoRegisterMerchant(row: FranchiseApplication, toast: Sta
     owner_name: row.owner_name,
     business_number: row.business_number || null,
     phone: row.phone,
-    address: row.address,
+    address: row.address || null,
     address_detail: row.address_detail || null,
     pos_model: row.equipment_items?.length ? row.equipment_items.map(i => `${i.name} x${i.quantity}`).join(', ') : null,
     sales_id: row.sales_id || null,

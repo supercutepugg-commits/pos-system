@@ -208,7 +208,7 @@ export default async function DashboardPage() {
               </div>
               <div className="space-y-2">
                 {todayInstalls.map((i: any) => (
-                  <Link key={i.id} href="/installs" className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm hover:bg-blue-50 transition-colors">
+                  <Link key={i.id} href={`/installs/mine?id=${i.id}`} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm hover:bg-blue-50 transition-colors">
                     <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                     <span className="font-medium text-slate-900">{i.customer_name}</span>
                     {i.address && <span className="text-slate-400 text-xs truncate">{i.address}</span>}

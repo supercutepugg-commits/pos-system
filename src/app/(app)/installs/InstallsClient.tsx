@@ -289,6 +289,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [rejecting, setRejecting] = useState(false)
   const [transitModal, setTransitModal] = useState<{ id: string; eta: string } | null>(null)
   const [mobileExpandedId, setMobileExpandedId] = useState<string | null>(null)
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('id')
+    if (!id) return
+    setMobileExpandedId(id)
+    document.getElementById(`install-card-${id}`)?.scrollIntoView({ block: 'center' })
+  }, [])
   const [sendingTransit, setSendingTransit] = useState(false)
   const [scheduleModal, setScheduleModal] = useState<{ id: string; date: string; time: string } | null>(null)
   const [sendingSchedule, setSendingSchedule] = useState(false)
@@ -1133,7 +1139,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             pagedInstalls.map(inst => {
               const expanded = mobileExpandedId === inst.id
               return (
-              <div key={inst.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div key={inst.id} id={`install-card-${inst.id}`} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <button
                   onClick={() => setMobileExpandedId(expanded ? null : inst.id)}
                   className="w-full flex items-center justify-between gap-2 p-4 text-left"

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Trash2, Search, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import { useToast } from '@/components/ui/Toast'
 
 const CATEGORY_TREE: Record<string, Record<string, string[]>> = {
   '포스장비': {
@@ -80,6 +81,16 @@ export default function InventoryClient({
   const [items, setItems] = useState(initialItems)
   const [logs, setLogs] = useState(initialLogs)
   const [search, setSearch] = useState('')
+  const toast = useToast()
+  const notifiedLowStock = useRef(false)
+  useEffect(() => {
+    if (notifiedLowStock.current) return
+    notifiedLowStock.current = true
+    const low = initialItems.filter(i => i.quantity <= i.min_quantity)
+    if (low.length > 0) {
+      toast.warning(`재고 부족: ${low.length}개 품목이 최소 수량 이하입니다 (${low.slice(0, 3).map(i => i.name).join(', ')}${low.length > 3 ? ' 외' : ''})`)
+    }
+  }, [])
   const [majorFilter, setMajorFilter] = useState('')
   const [lowStockOnly, setLowStockOnly] = useState(false)
   const [showForm, setShowForm] = useState(false)

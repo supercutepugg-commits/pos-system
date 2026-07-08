@@ -68,6 +68,8 @@ interface Installation {
   scheduled_time?: string
   tracking_number?: string
   sort_order?: number | null
+  last_notify_status?: string
+  last_notify_at?: string
 }
 
 interface Props {
@@ -130,14 +132,14 @@ interface CreateFormProps {
     assignedTo: string
     notes: string
     items: { name: string; quantity: number }[]
-    deliveryType: 'install' | 'delivery'
+    deliveryType: 'install' | 'delivery' | 'as'
   }) => Promise<void>
   submitting: boolean
   onCancel: () => void
 }
 const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel }: CreateFormProps) {
   const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
-  const [deliveryType, setDeliveryType] = useState<'install' | 'delivery'>('install')
+  const [deliveryType, setDeliveryType] = useState<'install' | 'delivery' | 'as'>('install')
   const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
   const [cartCustomName, setCartCustomName] = useState('')
   const [cartQty, setCartQty] = useState(1)
@@ -176,10 +178,10 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 설치/택배 구분 */}
         <div className="flex gap-2">
-          {(['install', 'delivery'] as const).map(t => (
+          {(['install', 'delivery', 'as'] as const).map(t => (
             <button key={t} type="button" onClick={() => setDeliveryType(t)}
-              className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : 'bg-orange-500 text-white border-orange-500') : 'bg-white text-slate-500 border-slate-200'}`}>
-              {t === 'install' ? '설치' : '택배발송'}
+              className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : t === 'delivery' ? 'bg-orange-500 text-white border-orange-500' : 'bg-purple-500 text-white border-purple-500') : 'bg-white text-slate-500 border-slate-200'}`}>
+              {t === 'install' ? '설치' : t === 'delivery' ? '택배발송' : 'AS'}
             </button>
           ))}
         </div>
@@ -316,6 +318,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deletingSelected, setDeletingSelected] = useState(false)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
@@ -344,7 +347,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [showRejected, setShowRejected] = useState(false)
   const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [deliveryTab, setDeliveryTab] = useState<'all' | 'install' | 'delivery'>('all')
+  const [deliveryTab, setDeliveryTab] = useState<'all' | 'install' | 'delivery' | 'as'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [checklistItems, setChecklistItems] = useState<{ label: string; checked: boolean }[]>([])
@@ -385,7 +388,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     assignedTo: string
     notes: string
     items: { name: string; quantity: number }[]
-    deliveryType: 'install' | 'delivery'
+    deliveryType: 'install' | 'delivery' | 'as'
   }) {
     if (!newInstall.customerName) return
     setSubmitting(true)
@@ -431,7 +434,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         }),
       })
       const data = await res.json()
-      if (!data.ok) toast.error('알림톡 발송 실패: ' + data.error)
+      if (!data.ok) {
+        toast.error('알림톡 발송 실패: ' + data.error)
+        return
+      }
+      const sentAt = new Date().toISOString()
+      await supabase.from('installations').update({ last_notify_status: notifyStatus, last_notify_at: sentAt }).eq('id', id)
+      setInstalls(prev => prev.map(i => i.id === id ? { ...i, last_notify_status: notifyStatus, last_notify_at: sentAt } : i))
     } catch (e: any) {
       toast.error('알림톡 발송 실패: ' + (e?.message ?? '알 수 없는 오류'))
     }
@@ -685,13 +694,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     })
   }
 
-  async function handleBulkDelete() {
+  function handleBulkDelete() {
     if (selected.size === 0) return
-    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
+    setBulkDeleteConfirmOpen(true)
+  }
+
+  async function confirmBulkDelete() {
     setDeletingSelected(true)
     const ids = [...selected]
     const { error } = await supabase.from('installations').delete().in('id', ids)
     setDeletingSelected(false)
+    setBulkDeleteConfirmOpen(false)
     if (error) { toast.error('삭제 실패: ' + error.message); return }
     setInstalls(prev => prev.filter(i => !selected.has(i.id)))
     setSelected(new Set())
@@ -796,8 +809,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
     return installs.filter(i => {
-      if (deliveryTab === 'install' && (i as any).delivery_type === 'delivery') return false
+      if (deliveryTab === 'install' && (i as any).delivery_type !== 'install') return false
       if (deliveryTab === 'delivery' && (i as any).delivery_type !== 'delivery') return false
+      if (deliveryTab === 'as' && (i as any).delivery_type !== 'as') return false
       if (!showRejected && i.status === 'rejected') return false
       if (statusFilter && i.status !== statusFilter) return false
       if (techFilter && i.assigned_to !== techFilter) return false
@@ -1056,7 +1070,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {/* 설치/택배 탭 */}
       <div className="flex items-center justify-between">
         <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-          {([['all', '전체'], ['install', '설치'], ['delivery', '택배발송']] as const).map(([tab, label]) => (
+          {([['all', '전체'], ['install', '설치'], ['delivery', '택배발송'], ['as', 'AS']] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${deliveryTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
               {label}
@@ -1211,8 +1225,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <div className="text-sm text-slate-700">
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </div>
-                    {inst.notes && <p className="mt-1 text-xs text-slate-500">{inst.notes}</p>}
                     <p className="mt-2 text-xs text-slate-400">등록 {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {inst.last_notify_at
+                        ? `마지막 알림톡: ${statusLabel(inst.last_notify_status ?? '', inst.delivery_type)} (${format(new Date(inst.last_notify_at), 'M/d HH:mm', { locale: ko })})`
+                        : '알림톡 발송 이력 없음'}
+                    </p>
                     {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
                       <div className="flex gap-1 mt-2">
                         {inst.completion_photo_urls.map(url => (
@@ -1224,6 +1242,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     )}
                     {canEdit && (
                       <div className="mt-3 space-y-2">
+                        <label className="text-xs text-slate-500">담당기사</label>
+                        <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2 py-2 text-slate-700 focus:outline-none">
+                          <option value="">미배정</option>
+                          {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`w-full text-sm font-medium rounded-lg border px-2 py-2 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
                           {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
@@ -1234,6 +1258,14 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             도착시간 알림 발송
                           </button>
                         )}
+                        <label className="text-xs text-slate-500">비고</label>
+                        <textarea
+                          defaultValue={inst.notes ?? ''}
+                          onBlur={e => saveNotes(inst.id, e.target.value)}
+                          placeholder="비고 추가..."
+                          rows={2}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none resize-none"
+                        />
                       </div>
                     )}
                     {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
@@ -1325,15 +1357,16 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select
-                          value={inst.delivery_type === 'delivery' ? 'delivery' : 'install'}
+                          value={inst.delivery_type === 'delivery' ? 'delivery' : inst.delivery_type === 'as' ? 'as' : 'install'}
                           onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
-                          className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                          className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : inst.delivery_type === 'as' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                           <option value="install">설치</option>
                           <option value="delivery">택배발송</option>
+                          <option value="as">AS</option>
                         </select>
                       ) : (
-                        <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
-                          {inst.delivery_type === 'delivery' ? '택배발송' : '설치'}
+                        <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : inst.delivery_type === 'as' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                          {inst.delivery_type === 'delivery' ? '택배발송' : inst.delivery_type === 'as' ? 'AS' : '설치'}
                         </span>
                       )}
                     </td>
@@ -1497,6 +1530,14 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400">등록일</p>
                             <p className="text-slate-800">{format(new Date(inst.created_at), 'yyyy-M-d HH:mm', { locale: ko })}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400">알림톡 발송</p>
+                            <p className="text-slate-800">
+                              {inst.last_notify_at
+                                ? `${statusLabel(inst.last_notify_status ?? '', inst.delivery_type)} · ${format(new Date(inst.last_notify_at), 'M/d HH:mm', { locale: ko })}`
+                                : '발송 이력 없음'}
+                            </p>
                           </div>
                           <div className="col-span-4">
                             <p className="text-xs font-semibold text-slate-400 mb-1">비고</p>

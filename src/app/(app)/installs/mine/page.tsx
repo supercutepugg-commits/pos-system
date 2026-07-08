@@ -12,18 +12,21 @@ export default async function MyInstallsPage() {
   if (!profile) redirect('/dashboard')
   if (!['tech', 'admin'].includes(profile.role)) redirect('/dashboard')
 
-  const { data: installs } = await supabase
-    .from('installations')
-    .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
-    .not('assigned_to', 'is', null)
-    .order('sort_order', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(300)
+  const [{ data: installs }, { data: techUsers }] = await Promise.all([
+    supabase
+      .from('installations')
+      .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
+      .not('assigned_to', 'is', null)
+      .order('sort_order', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(300),
+    supabase.from('profiles').select('*').eq('role', 'tech').order('name'),
+  ])
 
   return (
     <InstallsClient
       profile={profile as Profile}
-      techUsers={[]}
+      techUsers={(techUsers as Profile[]) ?? []}
       initialInstalls={(installs as any) ?? []}
       mineOnly
     />

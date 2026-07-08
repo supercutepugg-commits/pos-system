@@ -1363,7 +1363,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           <div className="py-16 text-center text-slate-400 text-sm">설치건이 없습니다</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+            <table
+              className="w-full text-sm border-collapse [&_th]:border [&_th]:border-slate-200 [&_td]:border [&_td]:border-slate-200 [&_tbody_tr:nth-child(even)]:bg-slate-50/60"
+              style={{ tableLayout: 'fixed' }}
+            >
               <colgroup>
                 {profile.role === 'admin' && <col style={{ width: 32 }} />}
                 <col style={{ width: 24 }} />
@@ -1372,7 +1375,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 ))}
               </colgroup>
               <thead>
-                <tr className="border-b border-slate-200 divide-x divide-slate-200 bg-slate-50">
+                <tr className="bg-slate-50">
                   {profile.role === 'admin' && (
                     <th className="px-3 py-3">
                       <input type="checkbox"
@@ -1396,10 +1399,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 </tr>
               </thead>
               <tbody>
-                {pagedInstalls.map((inst, idx) => (
+                {pagedInstalls.map(inst => (
                 <Fragment key={inst.id}>
                   <tr
-                    className={`border-b border-slate-200 divide-x divide-slate-100 hover:bg-blue-50/40 transition cursor-pointer ${idx % 2 === 1 ? 'bg-slate-50/60' : ''} ${rowDragId === inst.id ? 'opacity-40' : ''}`}
+                    className={`hover:bg-blue-50/40 transition cursor-pointer ${rowDragId === inst.id ? 'opacity-40' : ''}`}
                     onClick={() => setDetailInst(prev => prev?.id === inst.id ? null : inst)}
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}

@@ -4,19 +4,20 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Save, Square, Circle as CircleIcon, Type, Minus, MousePointer2,
-  Trash2, Download,
+  Trash2, Download, LayoutTemplate, Rows,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import type { Profile } from '@/types'
 
-type Tool = 'select' | 'rect' | 'circle' | 'text' | 'line'
+type Tool = 'select' | 'rect' | 'circle' | 'text' | 'line' | 'group'
 
 interface RectEl { id: string; type: 'rect'; x: number; y: number; w: number; h: number; label: string; stroke: string; fill: string; textColor: string; fontSize: number; vertical: boolean }
 interface CircleEl { id: string; type: 'circle'; x: number; y: number; r: number; stroke: string; fill: string }
 interface TextEl { id: string; type: 'text'; x: number; y: number; text: string; color: string; fontSize: number; vertical: boolean }
 interface LineEl { id: string; type: 'line'; x1: number; y1: number; x2: number; y2: number; stroke: string; dash: boolean; arrow: boolean; label: string }
-type Element = RectEl | CircleEl | TextEl | LineEl
+interface GroupEl { id: string; type: 'group'; x: number; y: number; w: number; h: number; title: string; titleColor: string }
+type Element = RectEl | CircleEl | TextEl | LineEl | GroupEl
 
 const COLORS = ['#0f172a', '#dc2626', '#16a34a', '#2563eb', '#64748b', '#ea580c']
 const CANVAS_W = 2000
@@ -30,7 +31,34 @@ function makeDefault(type: Tool, x: number, y: number): Element | null {
   if (type === 'rect') return { id, type: 'rect', x, y, w: 160, h: 90, label: '장비', stroke: '#0f172a', fill: '#ffffff', textColor: '#0f172a', fontSize: 14, vertical: false }
   if (type === 'circle') return { id, type: 'circle', x, y, r: 18, stroke: '#0f172a', fill: '#ffffff' }
   if (type === 'text') return { id, type: 'text', x, y, text: '텍스트', color: '#0f172a', fontSize: 16, vertical: false }
+  if (type === 'group') return { id, type: 'group', x, y, w: 360, h: 260, title: '구역', titleColor: '#dc2626' }
   return null
+}
+
+function makeTemplate(): Element[] {
+  const g = (x: number, y: number, w: number, h: number, title: string, titleColor: string): GroupEl =>
+    ({ id: newId(), type: 'group', x, y, w, h, title, titleColor })
+  const box = (x: number, y: number, label: string): RectEl =>
+    ({ id: newId(), type: 'rect', x, y, w: 140, h: 80, label, stroke: '#0f172a', fill: '#ffffff', textColor: '#0f172a', fontSize: 14, vertical: false })
+  const line = (x1: number, y1: number, x2: number, y2: number, stroke: string, label: string, dash = false): LineEl =>
+    ({ id: newId(), type: 'line', x1, y1, x2, y2, stroke, dash, arrow: false, label })
+
+  return [
+    g(40, 40, 380, 200, '주방', '#dc2626'),
+    box(160, 110, '주방 프린터'),
+    g(40, 280, 620, 480, '카운터', '#2563eb'),
+    box(300, 400, 'POS 본체'),
+    box(90, 400, '영수증 프린터'),
+    box(300, 620, '사업장 공유기'),
+    g(740, 280, 560, 480, '홀', '#16a34a'),
+    box(820, 380, '테이블오더 #01'),
+    box(820, 620, '테이블오더 #18'),
+    line(230, 190, 370, 400, '#dc2626', 'SERIAL (COM_02)'),
+    line(160, 440, 300, 440, '#dc2626', 'SERIAL (COM_01)'),
+    line(370, 480, 370, 620, '#2563eb', 'LAN (UTP)'),
+    line(470, 660, 820, 420, '#16a34a', 'Wi-Fi', true),
+    line(470, 660, 820, 660, '#16a34a', 'Wi-Fi', true),
+  ]
 }
 
 export default function BlueprintEditor({
@@ -171,15 +199,15 @@ export default function BlueprintEditor({
       const dx = x - drag.startX
       const dy = y - drag.startY
       const orig = drag.orig
-      if (orig.type === 'rect' || orig.type === 'circle' || orig.type === 'text') {
+      if (orig.type === 'rect' || orig.type === 'circle' || orig.type === 'text' || orig.type === 'group') {
         updateElement(drag.id, { x: orig.x + dx, y: orig.y + dy } as any)
       } else if (orig.type === 'line') {
         updateElement(drag.id, { x1: orig.x1 + dx, y1: orig.y1 + dy, x2: orig.x2 + dx, y2: orig.y2 + dy } as any)
       }
-    } else if (drag.mode === 'resize' && drag.id && drag.orig?.type === 'rect') {
+    } else if (drag.mode === 'resize' && drag.id && (drag.orig?.type === 'rect' || drag.orig?.type === 'group')) {
       const dx = x - drag.startX
       const dy = y - drag.startY
-      const orig = drag.orig as RectEl
+      const orig = drag.orig as RectEl | GroupEl
       updateElement(drag.id, { w: Math.max(40, orig.w + dx), h: Math.max(30, orig.h + dy) })
     } else if (drag.mode === 'resize' && drag.id && drag.orig?.type === 'circle') {
       const dx = x - drag.startX
@@ -280,6 +308,11 @@ export default function BlueprintEditor({
     img.src = url
   }
 
+  const insertTemplate = () => {
+    if (elements.length > 0 && !window.confirm('현재 캔버스에 네트워크 구성 템플릿을 추가할까요? (기존 요소는 유지됩니다)')) return
+    setElements(prev => [...prev, ...makeTemplate()])
+  }
+
   const drawingLine = drawingLineRef.current
 
   return (
@@ -303,6 +336,9 @@ export default function BlueprintEditor({
           {merchants.map(m => <option key={m.id} value={m.id}>{m.business_name}</option>)}
         </select>
         <div className="flex-1" />
+        <button onClick={insertTemplate} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-md hover:bg-slate-50">
+          <LayoutTemplate size={14} /> 네트워크 템플릿 삽입
+        </button>
         <button onClick={handleExportPng} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-md hover:bg-slate-50">
           <Download size={14} /> PNG로 내보내기
         </button>
@@ -322,6 +358,7 @@ export default function BlueprintEditor({
           <ToolButton icon={CircleIcon} active={tool === 'circle'} onClick={() => setTool('circle')} label="원" />
           <ToolButton icon={Type} active={tool === 'text'} onClick={() => setTool('text')} label="글씨" />
           <ToolButton icon={Minus} active={tool === 'line'} onClick={() => setTool('line')} label="선" />
+          <ToolButton icon={Rows} active={tool === 'group'} onClick={() => setTool('group')} label="구역 박스" />
           <div className="flex-1" />
           <ToolButton icon={Trash2} active={false} disabled={!selectedId} onClick={deleteSelected} label="삭제" />
         </div>
@@ -346,6 +383,21 @@ export default function BlueprintEditor({
             </defs>
 
             {elements.map(el => {
+              if (el.type === 'group') return (
+                <g key={el.id} onMouseDown={e => startMove(e, el)} style={{ cursor: 'move' }}>
+                  <rect x={el.x} y={el.y} width={el.w} height={el.h} fill="none" stroke={el.titleColor} strokeWidth={2} rx={6} />
+                  <rect x={el.x} y={el.y - 26} width={Math.max(70, el.title.length * 16 + 24)} height={32} fill={el.titleColor} rx={4} />
+                  <text x={el.x + Math.max(70, el.title.length * 16 + 24) / 2} y={el.y - 10} fill="#ffffff" fontSize={15} fontWeight={700} textAnchor="middle" style={{ userSelect: 'none' }}>
+                    {el.title}
+                  </text>
+                  {selectedId === el.id && (
+                    <>
+                      <rect x={el.x - 3} y={el.y - 3} width={el.w + 6} height={el.h + 6} fill="none" stroke="#f97316" strokeWidth={1.5} strokeDasharray="4 3" rx={8} />
+                      <rect x={el.x + el.w - 8} y={el.y + el.h - 8} width={16} height={16} fill="#f97316" rx={3} style={{ cursor: 'nwse-resize' }} onMouseDown={e => startResize(e, el)} />
+                    </>
+                  )}
+                </g>
+              )
               if (el.type === 'rect') return (
                 <g key={el.id} onMouseDown={e => startMove(e, el)} style={{ cursor: 'move' }}>
                   <rect x={el.x} y={el.y} width={el.w} height={el.h} fill={el.fill} stroke={el.stroke} strokeWidth={2} rx={4} />
@@ -462,6 +514,17 @@ function PropertyPanel({ element, onChange, onDelete }: { element: Element; onCh
   return (
     <div className="space-y-4">
       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">속성</h3>
+
+      {element.type === 'group' && (
+        <>
+          <Field label="구역 이름">
+            <input value={element.title} onChange={e => onChange({ title: e.target.value } as any)} className={inputCls} />
+          </Field>
+          <Field label="헤더 색">
+            <ColorPicker value={element.titleColor} onChange={c => onChange({ titleColor: c } as any)} />
+          </Field>
+        </>
+      )}
 
       {(element.type === 'rect') && (
         <>

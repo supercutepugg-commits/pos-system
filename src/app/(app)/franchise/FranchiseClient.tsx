@@ -1139,15 +1139,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
     if (newStatus === row.status) return
-    const canNotify = !!row.phone
-    const confirmMsg = newStatus === 'doc_waiting'
-      ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 아래에서 보낼 템플릿이 맞는지 확인 후 진행하세요.`
-      : newStatus === 'toss_review_done'
-        ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다.`
-        : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다.`
+    // '완료'는 내부 관리용 상태라 고객에게 보낼 알림톡 템플릿이 없음 - 메시지 발송 없이 상태만 변경
+    const canNotify = newStatus !== 'completed' && !!row.phone
+    const confirmMsg = newStatus === 'completed'
+      ? `'완료'로 상태만 변경됩니다. (고객 안내 메시지는 발송되지 않습니다)`
+      : newStatus === 'doc_waiting'
+        ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 아래에서 보낼 템플릿이 맞는지 확인 후 진행하세요.`
+        : newStatus === 'toss_review_done'
+          ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다.`
+          : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다.`
     setStatusConfirm({
       row, newStatus,
-      msg: canNotify ? confirmMsg : '연락처가 없어 메시지 발송 없이 상태만 변경됩니다.',
+      msg: newStatus === 'completed' ? confirmMsg : canNotify ? confirmMsg : '연락처가 없어 메시지 발송 없이 상태만 변경됩니다.',
       docCase: newStatus === 'doc_waiting' ? docCaseOf(row.owner_name, row.business_name) : undefined,
     })
   }
@@ -1166,7 +1169,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }
 
-  const canNotifyConfirm = statusConfirm ? !!statusConfirm.row.phone : false
+  const canNotifyConfirm = statusConfirm ? statusConfirm.newStatus !== 'completed' && !!statusConfirm.row.phone : false
 
   return (
     <div className="flex flex-col h-full">

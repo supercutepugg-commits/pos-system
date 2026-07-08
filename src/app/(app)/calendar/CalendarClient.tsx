@@ -37,6 +37,14 @@ interface CalendarWooRow {
   open_date?: string | null
 }
 
+interface CalendarInstallRow {
+  id: string
+  customer_name?: string | null
+  status: string
+  scheduled_date?: string | null
+  assignee?: { name: string } | null
+}
+
 interface CalendarManualEvent {
   id: string
   date: string
@@ -78,6 +86,16 @@ const WOO_EVENT_LEGEND = [
 ] as const
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
+const INSTALL_STATUS_LABEL: Record<string, string> = {
+  received: '접수',
+  preparing: '제품준비',
+  scheduled: '일정확정',
+  in_transit: '이동중',
+  delivery_sent: '택배발송',
+  completed: '설치완료',
+  rejected: '반려',
+}
+
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -96,7 +114,7 @@ function mondayOfWeek(ymd: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[] }) {
+export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [], installRows = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[]; installRows?: CalendarInstallRow[] }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth()) // 0-indexed
@@ -165,12 +183,28 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           date,
           label: et.label,
           color: et.color,
-          href: '/franchise',
+          href: `/franchise?highlight=${row.id}`,
           businessName: row.business_name || '상호명 미입력',
           subtitle: '가맹 접수',
           salesName: row.sales?.name,
         })
       }
+    }
+    for (const row of installRows) {
+      const date = toYMD(row.scheduled_date)
+      if (!date) continue
+      if (!map[date]) map[date] = []
+      map[date].push({
+        date,
+        label: '설치',
+        color: 'bg-fuchsia-500',
+        href: `/installs?id=${row.id}`,
+        businessName: row.customer_name || '고객명 미입력',
+        subtitle: '설치 관리',
+        statusLabel: INSTALL_STATUS_LABEL[row.status] ?? row.status,
+        statusColor: 'bg-fuchsia-50 text-fuchsia-600',
+        techName: row.assignee?.name,
+      })
     }
     for (const row of wooRows) {
       const openDate = row.open_date && ISO_DATE_RE.test(row.open_date) ? row.open_date : null
@@ -214,7 +248,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       })
     }
     return map
-  }, [tickets, franchiseRows, wooRows, localManualEvents])
+  }, [tickets, franchiseRows, wooRows, installRows, localManualEvents])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -314,7 +348,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {events.slice(0, 3).map((ev, i) => (
-                    <div key={i} className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded truncate ${ev.color} ${
+                    <div key={i} title={`${ev.label} ${ev.businessName}`} className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded truncate ${ev.color} ${
                       ev.glow ? 'ring-2 ring-amber-300 shadow-[0_0_8px_2px_rgba(245,158,11,0.75)] animate-pulse' : ''
                     }`}>
                       {ev.label} {ev.businessName}
@@ -331,7 +365,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
 
         {/* 범례 */}
         <div className="flex flex-wrap gap-3 mt-3">
-          {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES, ...WOO_EVENT_LEGEND, { key: 'manual', label: '메모', color: 'bg-violet-500' }].map(et => (
+          {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES, { key: 'install_management', label: '설치 관리', color: 'bg-fuchsia-500' }, ...WOO_EVENT_LEGEND, { key: 'manual', label: '메모', color: 'bg-violet-500' }].map(et => (
             <div key={et.key + et.label} className="flex items-center gap-1.5 text-xs text-slate-500">
               <span className={`w-2.5 h-2.5 rounded-sm ${et.color}`} />
               {et.label}
@@ -412,10 +446,10 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-semibold text-slate-900 truncate">
+                      <p className="text-sm font-semibold text-slate-900 break-words">
                         {ev.businessName}
                       </p>
-                      {ev.subtitle && <p className="text-xs text-slate-500 truncate mt-0.5">{ev.subtitle}</p>}
+                      {ev.subtitle && <p className="text-xs text-slate-500 break-words mt-0.5">{ev.subtitle}</p>}
                       <div className="flex gap-2 mt-1 text-xs text-slate-400">
                         {ev.type && <span>{TYPE_LABEL[ev.type]}</span>}
                         {ev.techName && <span>· {ev.techName}</span>}

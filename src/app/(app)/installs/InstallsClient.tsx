@@ -1364,7 +1364,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         ) : (
           <div className="overflow-x-auto">
             <table
-              className="w-full text-sm border-collapse [&_th]:border [&_th]:border-slate-200 [&_td]:border [&_td]:border-slate-200 [&_tbody_tr:nth-child(even)]:bg-slate-50/60"
+              className="w-full text-sm border-collapse [&_th]:border-2 [&_th]:border-slate-300 [&_td]:border-2 [&_td]:border-slate-300 [&_tbody_tr:nth-child(even)]:bg-slate-50/60"
               style={{ tableLayout: 'fixed' }}
             >
               <colgroup>

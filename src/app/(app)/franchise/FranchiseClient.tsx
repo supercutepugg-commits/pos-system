@@ -622,7 +622,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (transferTab === 'completed' && !completedIds.has(row.id)) return false
-      if (transferTab === 'all' && isHiddenInAllTab(row, skip.statusForTabRule ?? statusFilter)) return false
+      if (transferTab === 'all' && isHiddenInAllTab(row, skip.statusForTabRule ?? (statusFilter as FranchiseStatus | ''))) return false
     }
     if (!skip.skipStatus && statusFilter && row.status !== statusFilter) return false
     if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
@@ -752,7 +752,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const tabCounts = useMemo(() => {
     const base = localRows.filter(row => matchesFilters(row, { skipTab: true }))
     return {
-      all: base.filter(r => !isHiddenInAllTab(r, statusFilter)).length,
+      all: base.filter(r => !isHiddenInAllTab(r, statusFilter as FranchiseStatus | '')).length,
       transferred: base.filter(r => transferredIds.has(r.id)).length,
       rejected: base.filter(r => rejectedIds.has(r.id)).length,
       completed: base.filter(r => completedIds.has(r.id)).length,

@@ -1653,7 +1653,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             )}
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">설치완료사진 (필수, 여러 장 가능)</label>
-              <label className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-medium cursor-pointer hover:bg-blue-100 active:bg-blue-200 transition-colors">
+              <label className="relative inline-flex items-center justify-center gap-1.5 w-full py-2.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-medium cursor-pointer hover:bg-blue-100 active:bg-blue-200 transition-colors overflow-hidden">
                 사진 등록
                 <input
                   type="file"
@@ -1663,7 +1663,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     setCompletePhotos(prev => [...prev, ...Array.from(e.target.files ?? [])])
                     e.target.value = ''
                   }}
-                  className="hidden"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
               </label>
               {completePhotos.length > 0 && (

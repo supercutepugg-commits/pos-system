@@ -602,6 +602,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (transferTab === 'internet' && !internetIds.has(row.id)) return false
+      if (transferTab === 'all' && transferredIds.has(row.id)) return false
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (channelFilter && (row.reception_channel || '미지정') !== channelFilter) return false
@@ -1289,7 +1290,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {/* 이관 탭 */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
         {([
-          ['all', '전체', localRows.length],
+          ['all', '전체', localRows.length - transferredIds.size],
           ['internet', '인터넷', internetIds.size],
           ['transferred', '기술지원 이관', transferredIds.size],
           ['rejected', '반려됨', rejectedIds.size],

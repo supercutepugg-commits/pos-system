@@ -320,7 +320,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
   )
 })
 
-export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly }: Props) {
+export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, initialHighlightId }: Props) {
   const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
   const toast = useToast()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
@@ -342,12 +342,25 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [rejecting, setRejecting] = useState(false)
   const [transitModal, setTransitModal] = useState<{ id: string; eta: string } | null>(null)
   const [mobileExpandedId, setMobileExpandedId] = useState<string | null>(null)
+  const highlightId = initialHighlightId ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null)
+  const highlightAppliedRef = useRef(false)
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('id')
-    if (!id) return
-    setMobileExpandedId(id)
-    document.getElementById(`install-card-${id}`)?.scrollIntoView({ block: 'center' })
-  }, [])
+    if (!highlightId || highlightAppliedRef.current) return
+    const target = installs.find(i => i.id === highlightId)
+    if (!target) return
+    highlightAppliedRef.current = true
+    setMobileExpandedId(highlightId)
+    setDetailInst(target)
+    setSearch('')
+    setStatusFilter('')
+    setTechFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setDeliveryTab('all')
+    if (target.status === 'rejected') setShowRejected(true)
+    if (target.status === 'completed') setShowCompleted(true)
+    document.getElementById(`install-card-${highlightId}`)?.scrollIntoView({ block: 'center' })
+  }, [highlightId, installs])
   const [sendingTransit, setSendingTransit] = useState(false)
   const [scheduleModal, setScheduleModal] = useState<{ id: string; date: string; time: string } | null>(null)
   const [sendingSchedule, setSendingSchedule] = useState(false)
@@ -902,6 +915,16 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }, [installs, supabase, toast])
 
   const pagedInstalls = filteredInstalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  useEffect(() => {
+    if (!highlightId) return
+    const idx = filteredInstalls.findIndex(i => i.id === highlightId)
+    if (idx === -1) return
+    setPage(Math.floor(idx / PAGE_SIZE) + 1)
+    setTimeout(() => {
+      document.getElementById(`install-row-${highlightId}`)?.scrollIntoView({ block: 'center' })
+    }, 50)
+  }, [highlightId, filteredInstalls])
   const totalPages = Math.ceil(filteredInstalls.length / PAGE_SIZE)
 
   const thisMonth = installs.filter(i => {
@@ -1403,6 +1426,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 {pagedInstalls.map(inst => (
                 <Fragment key={inst.id}>
                   <tr
+                    id={`install-row-${inst.id}`}
                     className={`hover:bg-blue-50/40 transition cursor-pointer ${rowDragId === inst.id ? 'opacity-40' : ''}`}
                     onClick={() => setDetailInst(prev => prev?.id === inst.id ? null : inst)}
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}

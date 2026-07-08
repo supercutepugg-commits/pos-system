@@ -1184,11 +1184,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       </div>
                     )}
                     {canEdit && (
-                      <div className="mt-3">
+                      <div className="mt-3 space-y-2">
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`w-full text-sm font-medium rounded-lg border px-2 py-2 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
                           {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
                         </select>
+                        {inst.status !== 'completed' && (
+                          <button onClick={() => setTransitModal({ id: inst.id, eta: '' })}
+                            className="w-full text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 px-3 py-2 rounded-lg">
+                            도착시간 알림 발송
+                          </button>
+                        )}
                       </div>
                     )}
                     {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (

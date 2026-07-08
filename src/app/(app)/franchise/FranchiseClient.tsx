@@ -495,7 +495,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkChanging, setBulkChanging] = useState(false)
   const [bulkStatusConfirmOpen, setBulkStatusConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [transferTab, setTransferTab] = useState<'all' | 'internet' | 'transferred' | 'rejected' | 'completed'>('all')
+  const [transferTab, setTransferTab] = useState<'all' | 'transferred' | 'rejected' | 'completed'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [bulkAssignModal, setBulkAssignModal] = useState(false)
@@ -598,7 +598,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   const transferredIds = useMemo(() => new Set(Object.keys(localLinkedInstalls)), [localLinkedInstalls])
   const rejectedIds = useMemo(() => new Set(Object.entries(localLinkedInstalls).filter(([, v]) => v.status === 'rejected').map(([k]) => k)), [localLinkedInstalls])
-  const internetIds = useMemo(() => new Set(Object.keys(localLinkedInternets)), [localLinkedInternets])
   const completedIds = useMemo(() => new Set(localRows.filter(r => r.status === 'completed').map(r => r.id)), [localRows])
 
   // '전체' 탭은 기술지원 이관/완료된 건을 작업 목록에서 숨기는 축약 뷰다. 그런데 '완료'는
@@ -622,7 +621,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (!skip.skipTab) {
       if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
-      if (transferTab === 'internet' && !internetIds.has(row.id)) return false
       if (transferTab === 'completed' && !completedIds.has(row.id)) return false
       if (transferTab === 'all' && isHiddenInAllTab(row, skip.statusForTabRule ?? statusFilter)) return false
     }
@@ -633,7 +631,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (dateFrom && row.created_at < dateFrom) return false
     if (dateTo && row.created_at > dateTo + 'T23:59:59') return false
     return true
-  }, [transferTab, transferredIds, rejectedIds, internetIds, completedIds, isHiddenInAllTab, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
+  }, [transferTab, transferredIds, rejectedIds, completedIds, isHiddenInAllTab, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -755,12 +753,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const base = localRows.filter(row => matchesFilters(row, { skipTab: true }))
     return {
       all: base.filter(r => !isHiddenInAllTab(r, statusFilter)).length,
-      internet: base.filter(r => internetIds.has(r.id)).length,
       transferred: base.filter(r => transferredIds.has(r.id)).length,
       rejected: base.filter(r => rejectedIds.has(r.id)).length,
       completed: base.filter(r => completedIds.has(r.id)).length,
     }
-  }, [localRows, matchesFilters, isHiddenInAllTab, statusFilter, transferredIds, completedIds, internetIds, rejectedIds])
+  }, [localRows, matchesFilters, isHiddenInAllTab, statusFilter, transferredIds, completedIds, rejectedIds])
 
   // 접수채널 칩 카운트: channelFilter 자신은 빼고 나머지 필터를 반영한다.
   const channelCounts = useMemo(() => {
@@ -1396,7 +1393,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
         {([
           ['all', '전체', tabCounts.all],
-          ['internet', '인터넷', tabCounts.internet],
           ['transferred', '기술지원 이관', tabCounts.transferred],
           ['rejected', '반려됨', tabCounts.rejected],
           ['completed', '완료', tabCounts.completed],

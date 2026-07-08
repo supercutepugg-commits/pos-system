@@ -84,6 +84,7 @@ interface Props {
   techUsers: { id: string; name: string }[]
   initialInstalls: Installation[]
   mineOnly?: boolean
+  initialHighlightId?: string
 }
 
 const PAGE_SIZE = 50
@@ -955,7 +956,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {/* 가맹접수 상세 모달 */}
       {franchiseDetail !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setFranchiseDetail(null)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-slate-800">가맹접수 원본 정보</h3>
               <button onClick={() => setFranchiseDetail(null)} aria-label="닫기" className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
@@ -1006,7 +1007,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {/* 반려 사유 모달 */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">반려 사유 입력</p>
             <textarea
               value={rejectModal.reason}
@@ -1032,7 +1033,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {/* 이동 예정 시각 입력 모달 */}
       {transitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">몇 시 방문 예정인가요?</p>
             <input
               type="time"
@@ -1063,7 +1064,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {/* 설치 일정 확정 안내 모달 */}
       {scheduleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">설치 일정을 확정하시나요?</p>
             <div>
               <label className="block text-xs text-slate-500 mb-1">설치 예정일</label>
@@ -1271,7 +1272,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-900 truncate">{inst.customer_name}</span>
+                      <span className="font-semibold text-slate-900 break-words">{inst.customer_name}</span>
                       {inst.franchise_application_id && (
                         <span className="text-[10px] font-semibold bg-purple-100 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-md shrink-0">가맹이관</span>
                       )}
@@ -1423,7 +1424,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     >
                       <GripVertical size={14} />
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis" title={inst.customer_name}>
                       <div className="flex items-center gap-1.5">
                         <span>{inst.customer_name}</span>
                         {inst.franchise_application_id && (
@@ -1447,7 +1448,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">{inst.customer_phone || '-'}</td>
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" title={inst.customer_phone || undefined}>{inst.customer_phone || '-'}</td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                       {mineOnly ? (
                         canEdit && inst.status !== 'completed' ? (
@@ -1462,7 +1463,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         inst.tracking_number || '-'
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" title={inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : undefined}>
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
                     {!mineOnly && (
@@ -1500,7 +1501,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       ) : (
                         <span className={`text-xs line-clamp-1 ${canEdit ? 'cursor-pointer hover:text-blue-500' : ''}`}
                           onClick={() => canEdit && setEditingNotes({ id: inst.id, value: inst.notes ?? '' })}
-                          title={canEdit ? '클릭하여 수정' : undefined}>
+                          title={inst.notes || (canEdit ? '클릭하여 수정' : undefined)}>
                           {inst.notes || (canEdit ? <span className="text-slate-500">비고 추가...</span> : '-')}
                         </span>
                       )}
@@ -1667,7 +1668,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
       {completeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 max-w-full max-h-[85vh] overflow-y-auto flex flex-col gap-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 max-w-full max-h-[85vh] overflow-y-auto flex flex-col gap-4">
             <h3 className="text-sm font-semibold text-slate-800">
               {installs.find(i => i.id === completeModal.id)?.delivery_type === 'as' ? 'AS 완료 처리' : '설치 완료 처리'}
             </h3>

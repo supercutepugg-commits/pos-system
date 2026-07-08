@@ -7,8 +7,9 @@ import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown } from 'lucide-react'
-import type { Profile } from '@/types'
+import type { Profile, FranchiseApplication } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import { autoRegisterMerchant } from '@/lib/franchiseStatusEffects'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import { NotificationHistory, logNotification } from '@/components/ui/NotificationHistory'
 
@@ -645,7 +646,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if (inst?.franchise_application_id) {
       const { data: fa } = await supabase
         .from('franchise_applications')
-        .select('cs_id, sales_id, business_name, owner_name, status')
+        .select('cs_id, sales_id, business_name, owner_name, status, phone, business_number, address, address_detail, equipment_items, memo')
         .eq('id', inst.franchise_application_id)
         .single()
       const name = fa?.business_name || fa?.owner_name || '미입력'
@@ -661,6 +662,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           from_status: fa.status,
           to_status: 'card_done',
         })
+        // 카드가맹완료 -> 가맹점 탭 자동 등록 (이미 등록된 건은 건너뜀)
+        await autoRegisterMerchant({ ...fa, id: inst.franchise_application_id } as FranchiseApplication, toast)
       }
 
       // CS/영업 완료 알림

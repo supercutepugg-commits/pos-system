@@ -48,6 +48,7 @@ export interface Merchant {
   service_type?: string
   memo?: string
   sales_id?: string
+  franchise_application_id?: string
   created_at: string
   updated_at: string
   sales?: Profile

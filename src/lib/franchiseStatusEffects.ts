@@ -80,6 +80,7 @@ export async function createLinkedInstallTicket(row: FranchiseApplication, toast
     pos_model: row.equipment_items?.length ? row.equipment_items.map(i => `${i.name} x${i.quantity}`).join(', ') : null,
     sales_id: row.sales_id || null,
     memo: row.memo || null,
+    franchise_application_id: row.id,
   }).select('id').single()
 
   if (merchantError || !merchant) {
@@ -106,6 +107,32 @@ export async function createLinkedInstallTicket(row: FranchiseApplication, toast
     toast.error('설치 작업 생성 실패로 방금 등록한 가맹점도 함께 취소했습니다: ' + ticketError.message)
     return
   }
+}
+
+// 카드가맹완료 -> 가맹점 탭에 자동 등록. 이미 등록된 건(franchise_application_id로 조회)이면 건너뛴다.
+export async function autoRegisterMerchant(row: FranchiseApplication, toast: StatusEffectsToast): Promise<void> {
+  if (!row.business_name || !row.owner_name || !row.phone || !row.address) {
+    toast.warning('상호명·대표자명·연락처·주소가 모두 입력되지 않아 가맹점을 자동으로 등록하지 못했습니다. 직접 등록해주세요.')
+    return
+  }
+  const supabase = createClient()
+  const { data: existing } = await supabase.from('merchants').select('id').eq('franchise_application_id', row.id).maybeSingle()
+  if (existing) return // 이미 등록됨
+
+  const { error } = await supabase.from('merchants').insert({
+    business_name: row.business_name,
+    owner_name: row.owner_name,
+    business_number: row.business_number || null,
+    phone: row.phone,
+    address: row.address,
+    address_detail: row.address_detail || null,
+    pos_model: row.equipment_items?.length ? row.equipment_items.map(i => `${i.name} x${i.quantity}`).join(', ') : null,
+    sales_id: row.sales_id || null,
+    memo: row.memo || null,
+    franchise_application_id: row.id,
+  })
+
+  if (error) toast.error('가맹점 자동 등록 실패: ' + error.message)
 }
 
 // 카드가맹완료 -> 설치관리에 이관, 기술팀 전원에게 알림.
@@ -181,6 +208,7 @@ export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEff
   if (status === 'toss_review_done') await createLinkedInstallTicket(row, toast)
 
   if (status === 'card_done') {
+    await autoRegisterMerchant(row, toast)
     const linked = await autoTransferToTech(row, currentUserId, existingLinkedInstall)
     if (linked) return { linkedInstall: linked }
   }

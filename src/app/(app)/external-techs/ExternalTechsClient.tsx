@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Trash2, Search, Phone } from 'lucide-react'
+import { formatPhone } from '@/lib/format'
+import { useToast } from '@/components/ui/Toast'
 
 const SPECIALTIES = ['포스기', '키오스크', '네트워크', '카드단말기', '인터넷', '전기', '기타']
 
@@ -34,6 +36,7 @@ export default function ExternalTechsClient({
   currentUserRole: string
 }) {
   const canEdit = ['admin', 'cs'].includes(currentUserRole)
+  const toast = useToast()
   const [techs, setTechs] = useState(initialTechs)
   const [search, setSearch] = useState('')
   const [specialtyFilter, setSpecialtyFilter] = useState('')
@@ -50,9 +53,7 @@ export default function ExternalTechsClient({
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name) return
-    const raw = form.phone.replace(/\D/g, '')
-    const fmtPhone = raw.length === 11 ? `${raw.slice(0,3)}-${raw.slice(3,7)}-${raw.slice(7)}`
-      : raw.length === 10 ? `${raw.slice(0,3)}-${raw.slice(3,6)}-${raw.slice(6)}` : form.phone
+    const fmtPhone = form.phone ? formatPhone(form.phone) : ''
     setSubmitting(true)
     const { data, error } = await supabase.from('external_techs').insert({
       name: form.name,
@@ -63,7 +64,7 @@ export default function ExternalTechsClient({
       notes: form.notes || null,
     }).select('*').single()
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return }
     setTechs(prev => [data, ...prev])
     setForm(EMPTY_FORM)
     setShowForm(false)
@@ -80,21 +81,35 @@ export default function ExternalTechsClient({
       if ((count ?? 0) > 0 && !confirm(`${tech.name} 기사에게 배정된 진행 중인 설치건이 ${count}건 있습니다. 그래도 비활성화하시겠습니까?`)) return
     }
     const { error } = await supabase.from('external_techs').update({ available: !tech.available }).eq('id', tech.id)
-    if (error) { alert('변경 실패: ' + error.message); return }
+    if (error) { toast.error('변경 실패: ' + error.message); return }
     setTechs(prev => prev.map(t => t.id === tech.id ? { ...t, available: !t.available } : t))
   }
 
   async function saveNotes(id: string) {
     const { error } = await supabase.from('external_techs').update({ notes: editNotes || null }).eq('id', id)
-    if (error) { alert('저장 실패: ' + error.message); return }
+    if (error) { toast.error('저장 실패: ' + error.message); return }
     setTechs(prev => prev.map(t => t.id === id ? { ...t, notes: editNotes } : t))
     setEditingId(null)
   }
 
   async function deleteTech(id: string, name: string) {
-    if (!confirm(`"${name}" 기사를 삭제하시겠습니까?`)) return
+    // 삭제 전에 이 기사에게 배정된 설치건(과거 이력 포함)이 있는지 확인해서, 있으면 경고 후
+    // 사용자가 그래도 진행할지 선택하게 한다 — 그래야 설치 목록 등 다른 화면의 담당기사 표시가
+    // 갑자기 깨지지(참조 끊김) 않는다.
+    const { count, error: countError } = await supabase
+      .from('installations')
+      .select('*', { count: 'exact', head: true })
+      .eq('assigned_to', id)
+    if (countError) {
+      toast.error('배정 이력 확인 실패: ' + countError.message)
+      return
+    }
+    const confirmMsg = (count ?? 0) > 0
+      ? `"${name}" 기사에게 배정된 설치건이 (과거 이력 포함) ${count}건 있습니다. 삭제하면 해당 설치건의 담당기사 표시가 사라집니다. 그래도 삭제하시겠습니까?`
+      : `"${name}" 기사를 삭제하시겠습니까?`
+    if (!confirm(confirmMsg)) return
     const { error } = await supabase.from('external_techs').delete().eq('id', id)
-    if (error) { alert('삭제 실패: ' + error.message); return }
+    if (error) { toast.error('삭제 실패: ' + error.message); return }
     setTechs(prev => prev.filter(t => t.id !== id))
   }
 
@@ -140,7 +155,7 @@ export default function ExternalTechsClient({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">연락처</label>
-            <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000"
+            <input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000"
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
@@ -231,7 +246,7 @@ export default function ExternalTechsClient({
               </div>
             </div>
             {tech.phone && (
-              <button onClick={() => { navigator.clipboard.writeText(tech.phone); alert(`복사됨: ${tech.phone}`) }}
+              <button onClick={() => { navigator.clipboard.writeText(tech.phone); toast.success(`복사됨: ${tech.phone}`) }}
                 className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline mb-2">
                 <Phone size={13} />{tech.phone}
               </button>

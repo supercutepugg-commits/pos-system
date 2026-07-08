@@ -11,11 +11,18 @@ import { deleteFranchiseRows } from '../franchise/actions'
 import type { FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import {
+  docCaseOf,
+  buildFranchiseStatusPatch,
+  applyFranchiseStatusSideEffects,
+  franchiseStatusChangeConfirm,
+} from '@/lib/franchiseStatusEffects'
 
 interface Props {
   rows: FranchiseApplication[]
   techProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   currentUserId: string
+  linkedInstalls?: Record<string, { id: string; status: string }>
 }
 
 const PROGRAMS = ['유니온', '아임유', '토스', '플릭']
@@ -246,7 +253,7 @@ const CreateForm = memo(function CreateForm({ techProfiles, onSubmit, submitting
   )
 })
 
-export default function TransfersClient({ rows, techProfiles, currentUserId }: Props) {
+export default function TransfersClient({ rows, techProfiles, currentUserId, linkedInstalls = {} }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
@@ -263,6 +270,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
+  const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
 
   useEffect(() => {
     setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
@@ -400,10 +408,17 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() } : r))
   }, [toast])
 
+  // franchise/FranchiseClient.tsx의 updateStatus와 동일한 부수효과(알림톡 발송, 설치작업 자동생성,
+  // 기술팀 자동이관)를 franchiseStatusEffects 공용 모듈을 통해 그대로 재현한다. 두 화면은 같은
+  // franchise_applications 테이블/상태값을 다루므로 여기서만 다르게 처리하면 안 된다.
   const changeStatus = useCallback(async (row: FranchiseApplication, status: FranchiseStatus) => {
     if (status === row.status) return
+    const { msg, canNotify } = franchiseStatusChangeConfirm(row, status)
+    if (!confirm(msg + (status === 'completed' ? '' : '\n계속하시겠습니까?'))) return
+
     const supabase = createClient()
-    const { error } = await supabase.from('franchise_applications').update({ status }).eq('id', row.id)
+    const patch = buildFranchiseStatusPatch(row, status)
+    const { error } = await supabase.from('franchise_applications').update(patch).eq('id', row.id)
     if (error) { toast.error('상태 변경 실패: ' + error.message); return }
     await supabase.from('franchise_application_logs').insert({
       franchise_application_id: row.id,
@@ -412,8 +427,18 @@ export default function TransfersClient({ rows, techProfiles, currentUserId }: P
       to_status: status,
     })
     setLogsByRow(prev => { const next = { ...prev }; delete next[row.id]; return next })
-    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, status, updated_at: new Date().toISOString() } : r))
-  }, [currentUserId, toast])
+
+    const docCase = status === 'doc_waiting' ? docCaseOf(row.owner_name, row.business_name) : undefined
+    const { linkedInstall } = await applyFranchiseStatusSideEffects({
+      row, status, sendNotify: canNotify, docCase, currentUserId, toast,
+      existingLinkedInstall: localLinkedInstalls[row.id],
+    })
+    if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
+
+    setLocalRows(prev => prev.map(r => r.id === row.id
+      ? { ...r, status, doc_template: (patch.doc_template as string | undefined) ?? r.doc_template, updated_at: new Date().toISOString() }
+      : r))
+  }, [currentUserId, toast, localLinkedInstalls])
 
   return (
     <div className="flex flex-col h-full">

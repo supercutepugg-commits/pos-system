@@ -1,16 +1,20 @@
 'use client'
 
-import { useState, useTransition, useMemo, memo, Fragment } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, memo, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
+import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { deleteChangeRequests } from './actions'
 import type { ChangeRequest, ChangeRequestStatus, ChangeType, ChangeApplicantType, Profile } from '@/types'
 import { CHANGE_TYPE_LABEL, CHANGE_STATUS_LABEL, CHANGE_STATUS_COLOR, CHANGE_APPLICANT_TYPE_LABEL } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+
+const PAGE_SIZE = 50
 
 const STATUS_OPTIONS = Object.keys(CHANGE_STATUS_LABEL) as ChangeRequestStatus[]
 const TYPE_OPTIONS = Object.keys(CHANGE_TYPE_LABEL) as ChangeType[]
@@ -109,7 +113,9 @@ const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoPro
 })
 
 export default function ChangesClient({ rows, csProfiles, currentUserId, currentUserName, currentUserRole }: Props) {
+  const router = useRouter()
   const [localRows, setLocalRows] = useState(rows)
+  const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ChangeRequestStatus | ''>('')
   const [typeFilter, setTypeFilter] = useState<ChangeType | ''>('')
@@ -129,6 +135,29 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
   const supabase = createClient()
 
   const canDelete = currentUserRole === 'admin' || currentUserRole === 'cs'
+
+  // franchise/internet과 동일하게 다른 세션에서의 변경도 실시간으로 반영한다 (목록이 계속 늘어나므로
+  // 페이지네이션과 함께 추가).
+  useEffect(() => {
+    setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
+  }, [rows])
+
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('change_requests-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'change_requests' }, () => {
+        if (refreshTimer.current) clearTimeout(refreshTimer.current)
+        refreshTimer.current = setTimeout(() => startTransition(() => router.refresh()), 400)
+      })
+      .subscribe()
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -153,6 +182,10 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
     return result
   }, [localRows, search, statusFilter, typeFilter, applicantTypeFilter, dateFrom, dateTo, sortBy])
 
+  useEffect(() => { setPage(1) }, [search, statusFilter, typeFilter, applicantTypeFilter, dateFrom, dateTo, sortBy])
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   function toggleExpand(row: ChangeRequest) {
     setExpandedId(prev => prev === row.id ? null : row.id)
   }
@@ -165,9 +198,19 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
     })
   }
 
-  const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
+  const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
   function toggleAll() {
-    setSelected(allChecked ? new Set() : new Set(filteredRows.map(r => r.id)))
+    setSelected(prev => {
+      if (allChecked) {
+        const next = new Set(prev)
+        pagedRows.forEach(r => next.delete(r.id))
+        return next
+      }
+      return new Set([...prev, ...pagedRows.map(r => r.id)])
+    })
+  }
+  function selectAllFiltered() {
+    setSelected(new Set(filteredRows.map(r => r.id)))
   }
 
   async function saveField(row: ChangeRequest, field: keyof ChangeRequest, value: string) {
@@ -333,6 +376,12 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
           {canDelete && selected.size > 0 && (
             <>
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+              {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
+                <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                  필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
+                </button>
+              )}
               <button onClick={handleDelete} disabled={deleting || isPending}
                 className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
                 <Trash2 size={14} />
@@ -412,7 +461,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr className="text-left text-slate-500 text-xs">
               <th className="px-3 py-2.5 border-b border-slate-200 w-10">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" title="이 페이지 전체 선택 (필터링된 전체가 아님)" />
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200 w-6"></th>
               <th className="px-3 py-2.5 border-b border-slate-200">접수날짜</th>
@@ -431,7 +480,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
           <tbody>
             {filteredRows.length === 0 ? (
               <tr><td colSpan={13} className="text-center text-slate-400 p-8">등록된 변경 요청이 없습니다.</td></tr>
-            ) : filteredRows.map(row => (
+            ) : pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
                   className="border-t border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
@@ -534,6 +583,15 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
+          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+        </div>
+      )}
 
       <BulkConfirmDialog
         open={deleteConfirmOpen}

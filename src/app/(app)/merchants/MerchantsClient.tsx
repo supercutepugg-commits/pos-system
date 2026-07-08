@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { MapPin, Phone } from 'lucide-react'
+import { MapPin, Phone, Search } from 'lucide-react'
 import { deleteMerchants } from './actions'
 import EmptyState from '@/components/ui/EmptyState'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
@@ -28,11 +28,23 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
   const [isPending, startTransition] = useTransition()
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
-  const allChecked = merchants.length > 0 && selected.size === merchants.length
+  const filteredMerchants = search.trim()
+    ? merchants.filter(m => {
+        const q = search.trim().toLowerCase()
+        return (
+          m.business_name?.toLowerCase().includes(q) ||
+          m.phone?.toLowerCase().includes(q) ||
+          m.sales?.name?.toLowerCase().includes(q)
+        )
+      })
+    : merchants
+
+  const allChecked = filteredMerchants.length > 0 && filteredMerchants.every(m => selected.has(m.id))
 
   function toggleAll() {
-    setSelected(allChecked ? new Set() : new Set(merchants.map(m => m.id)))
+    setSelected(allChecked ? new Set() : new Set(filteredMerchants.map(m => m.id)))
   }
 
   function toggleOne(id: string) {
@@ -60,7 +72,18 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
 
   return (
     <div>
-      {merchants.length > 0 && (
+      <div className="relative mb-3">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="상호명, 연락처, 담당 영업으로 검색"
+          className="w-full text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {filteredMerchants.length > 0 && (
         <div className="flex items-center gap-3 mb-3">
           <input
             type="checkbox"
@@ -77,10 +100,10 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
         </div>
       )}
 
-      {merchants.length === 0 && <EmptyState message="등록된 가맹점이 없습니다" />}
+      {filteredMerchants.length === 0 && <EmptyState message={search.trim() ? '검색 결과가 없습니다' : '등록된 가맹점이 없습니다'} />}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {merchants.map(m => (
+        {filteredMerchants.map(m => (
           <div
             key={m.id}
             className="relative bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow"
@@ -89,6 +112,7 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
               type="checkbox"
               checked={selected.has(m.id)}
               onChange={() => toggleOne(m.id)}
+              onClick={e => e.stopPropagation()}
               className="absolute top-4 right-4 w-4 h-4 accent-blue-600 cursor-pointer z-10"
             />
             <Link href={`/merchants/${m.id}`} className="block pr-6">

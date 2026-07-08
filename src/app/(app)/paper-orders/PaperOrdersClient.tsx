@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Search, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ui/Toast'
 
 function calcUnitStandard(count: string | null, revenue: string | null): string {
   const c = parseFloat((count ?? '').replace(/,/g, ''))
@@ -194,6 +195,7 @@ interface Props {
 
 export default function PaperOrdersClient({ rows }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [, startTransition] = useTransition()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -236,8 +238,8 @@ export default function PaperOrdersClient({ rows }: Props) {
     const supabase = createClient()
     Promise.all(next.map((r, i) =>
       supabase.from('paper_orders').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
-    )).catch(() => alert('순서 저장에 실패했습니다.'))
-  }, [localRows])
+    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
+  }, [localRows, toast])
 
   const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
 
@@ -267,10 +269,10 @@ export default function PaperOrdersClient({ rows }: Props) {
     const supabase = createClient()
     const { error } = await supabase.from('paper_orders').delete().in('id', [...selected])
     setDeleting(false)
-    if (error) { alert('삭제 실패: ' + error.message); return }
+    if (error) { toast.error('삭제 실패: ' + error.message); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
-  }, [selected])
+  }, [selected, toast])
 
   const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
     setSubmitting(true)
@@ -290,24 +292,32 @@ export default function PaperOrdersClient({ rows }: Props) {
       memo: form.memo || null,
     }).select().single()
     setSubmitting(false)
-    if (error) { alert('등록 실패: ' + error.message); return }
+    if (error) { toast.error('등록 실패: ' + error.message); return }
     setLocalRows(prev => [...prev, data])
     setShowForm(false)
-  }, [])
+  }, [toast])
 
   const toggleShipped = useCallback(async (row: PaperOrder) => {
     const supabase = createClient()
     const { error } = await supabase.from('paper_orders').update({ shipped: !row.shipped }).eq('id', row.id)
-    if (error) { alert('수정 실패: ' + error.message); return }
+    if (error) { toast.error('수정 실패: ' + error.message); return }
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, shipped: !r.shipped } : r))
-  }, [])
+  }, [toast])
 
   const saveField = useCallback(async (row: PaperOrder, field: keyof PaperOrder, value: string) => {
     const supabase = createClient()
-    const { error } = await supabase.from('paper_orders').update({ [field]: value || null }).eq('id', row.id)
-    if (error) alert('수정 실패: ' + error.message)
-    else setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || null } : r))
-  }, [])
+    // count/revenue가 바뀌면 화면에 보이는 낱개기준도 바뀌므로, DB에 저장된 unit_standard도 함께
+    // 최신화한다. 안 그러면 등록 시점 값이 그대로 남아서 화면 표시(재계산값)와 어긋난다.
+    const patch: Record<string, string | null> = { [field]: value || null }
+    if (field === 'count' || field === 'revenue') {
+      const nextCount = field === 'count' ? value : row.count
+      const nextRevenue = field === 'revenue' ? value : row.revenue
+      patch.unit_standard = calcUnitStandard(nextCount, nextRevenue) || null
+    }
+    const { error } = await supabase.from('paper_orders').update(patch).eq('id', row.id)
+    if (error) toast.error('수정 실패: ' + error.message)
+    else setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, ...patch } : r))
+  }, [toast])
 
   return (
     <div className="flex flex-col h-full">

@@ -15,19 +15,18 @@ import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } 
 import type { DocCase } from '@/lib/solapi'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+import {
+  docCaseOf,
+  createLinkedInstallTicket as createLinkedInstallTicketShared,
+  applyFranchiseStatusSideEffects,
+  notifyAndLogFranchiseStatus,
+} from '@/lib/franchiseStatusEffects'
 
 const DOC_CASE_LABEL: Record<DocCase, string> = {
   both: '대표자명+상호명',
   business_only: '상호명만',
   owner_only: '대표자명만',
   phone_only: '번호만',
-}
-
-function docCaseOf(ownerName?: string | null, businessName?: string | null): DocCase {
-  if (ownerName && businessName) return 'both'
-  if (businessName) return 'business_only'
-  if (ownerName) return 'owner_only'
-  return 'phone_only'
 }
 
 const RECEPTION_CHANNELS = ['토스 홈페이지', '직접 영업', '전환', '토스리드건', '토스프리미엄', '승계', '명변', '랜탈', '할부']
@@ -524,26 +523,49 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 오픈예정일 D-7 / D-3 / D-1 자동 알림 (하루 1회)
+  // 오픈예정일 D-7 / D-3 / D-1 자동 알림 (하루 1회).
+  // localStorage 대신 notification_logs(DB)로 중복발송 여부를 판단해서, 같은 사용자가
+  // 여러 기기/브라우저를 쓰더라도 같은 날 중복 알림이 가지 않게 한다.
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
     const supabase = createClient()
     for (const days of [7, 3, 1]) {
-      const key = `d${days}_notify_${currentUserId}_${today}`
-      if (localStorage.getItem(key)) continue
-      const target = new Date(Date.now() + days * 86400000).toISOString().split('T')[0]
-      const matched = rows.filter(r =>
-        r.open_date === target &&
-        (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
-      )
-      if (matched.length === 0) { localStorage.setItem(key, '1'); continue }
-      const names = matched.map(r => r.business_name || r.owner_name || '미입력').join(', ')
-      supabase.from('notifications').insert({
-        user_id: currentUserId,
-        type: 'open_date_soon',
-        title: `오픈 D-${days} 알림 ${matched.length}건`,
-        body: `${names} — ${days}일 후 오픈 예정입니다. 준비 상태를 확인해주세요.`,
-      }).then(() => localStorage.setItem(key, '1'))
+      const templateKey = `franchise_dday_${days}_${today}`
+      ;(async () => {
+        try {
+          const { data: already } = await supabase
+            .from('notification_logs')
+            .select('id')
+            .eq('entity_type', 'franchise_dday_notify')
+            .eq('entity_id', currentUserId)
+            .eq('template_key', templateKey)
+            .limit(1)
+            .maybeSingle()
+          if (already) return
+          const target = new Date(Date.now() + days * 86400000).toISOString().split('T')[0]
+          const matched = rows.filter(r =>
+            r.open_date === target &&
+            (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+          )
+          if (matched.length === 0) return
+          const names = matched.map(r => r.business_name || r.owner_name || '미입력').join(', ')
+          const { error } = await supabase.from('notifications').insert({
+            user_id: currentUserId,
+            type: 'open_date_soon',
+            title: `오픈 D-${days} 알림 ${matched.length}건`,
+            body: `${names} — ${days}일 후 오픈 예정입니다. 준비 상태를 확인해주세요.`,
+          })
+          if (error) { toast.error('D-day 알림 생성 실패: ' + error.message); return }
+          await supabase.from('notification_logs').insert({
+            entity_type: 'franchise_dday_notify',
+            entity_id: currentUserId,
+            template_key: templateKey,
+            user_id: currentUserId,
+          })
+        } catch (err) {
+          console.error('D-day 알림 처리 실패:', err)
+        }
+      })()
     }
   }, [])
 
@@ -557,26 +579,48 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     localStorage.setItem(key, '1')
   }, [])
 
-  // 장기 미처리 건 자동 알림 (7일 이상, 하루 1회)
+  // 장기 미처리 건 자동 알림 (7일 이상, 하루 1회). D-day 알림과 동일하게 DB(notification_logs)로
+  // 중복발송을 막고, insert 실패 시 조용히 삼키지 않고 콘솔/토스트로 드러낸다.
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
-    const key = `stale_notify_${currentUserId}_${today}`
-    if (localStorage.getItem(key)) return
-    const terminal: FranchiseStatus[] = ['card_done', 'internet_done']
-    const stale = rows.filter(r =>
-      !terminal.includes(r.status) &&
-      Math.floor((Date.now() - new Date(r.updated_at).getTime()) / 86400000) >= 7 &&
-      (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
-    )
-    if (stale.length === 0) return
+    const templateKey = `franchise_stale_${today}`
     const supabase = createClient()
-    const names = stale.slice(0, 3).map(r => r.business_name || r.owner_name || '미입력').join(', ')
-    supabase.from('notifications').insert({
-      user_id: currentUserId,
-      type: 'stale_franchise',
-      title: `장기 미처리 건 ${stale.length}개`,
-      body: names + (stale.length > 3 ? ` 외 ${stale.length - 3}건` : '') + ' — 7일 이상 상태 변화가 없습니다.',
-    }).then(() => localStorage.setItem(key, '1'))
+    ;(async () => {
+      try {
+        const { data: already } = await supabase
+          .from('notification_logs')
+          .select('id')
+          .eq('entity_type', 'franchise_stale_notify')
+          .eq('entity_id', currentUserId)
+          .eq('template_key', templateKey)
+          .limit(1)
+          .maybeSingle()
+        if (already) return
+        const terminal: FranchiseStatus[] = ['card_done', 'internet_done']
+        const stale = rows.filter(r =>
+          !terminal.includes(r.status) &&
+          Math.floor((Date.now() - new Date(r.updated_at).getTime()) / 86400000) >= 7 &&
+          (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+        )
+        if (stale.length === 0) return
+        const names = stale.slice(0, 3).map(r => r.business_name || r.owner_name || '미입력').join(', ')
+        const { error } = await supabase.from('notifications').insert({
+          user_id: currentUserId,
+          type: 'stale_franchise',
+          title: `장기 미처리 건 ${stale.length}개`,
+          body: names + (stale.length > 3 ? ` 외 ${stale.length - 3}건` : '') + ' — 7일 이상 상태 변화가 없습니다.',
+        })
+        if (error) { toast.error('장기 미처리 알림 생성 실패: ' + error.message); return }
+        await supabase.from('notification_logs').insert({
+          entity_type: 'franchise_stale_notify',
+          entity_id: currentUserId,
+          template_key: templateKey,
+          user_id: currentUserId,
+        })
+      } catch (err) {
+        console.error('장기 미처리 알림 처리 실패:', err)
+      }
+    })()
   }, [])
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -783,6 +827,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
   }, [allChecked, pagedRows])
 
+  // 전체선택 체크박스는 "이 페이지"만 대상으로 한다 (필터링된 전체가 아님). 혼동을 막기 위해
+  // 필터링된 전체를 한 번에 선택할 수 있는 별도 버튼을 옆에 둔다.
+  const selectAllFiltered = useCallback(() => {
+    setSelected(new Set(filteredRows.map(r => r.id)))
+  }, [filteredRows])
+
   const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -864,45 +914,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }
 
   async function createLinkedInstallTicket(row: FranchiseApplication) {
-    if (!row.business_name || !row.owner_name || !row.phone || !row.address) {
-      toast.warning('상호명·대표자명·연락처·주소가 모두 입력되지 않아 설치 작업을 자동으로 만들지 못했습니다. 직접 등록해주세요.')
-      return
-    }
-    const supabase = createClient()
-    const { data: merchant, error: merchantError } = await supabase.from('merchants').insert({
-      business_name: row.business_name,
-      owner_name: row.owner_name,
-      business_number: row.business_number || null,
-      phone: row.phone,
-      address: row.address,
-      address_detail: row.address_detail || null,
-      pos_model: row.equipment_items?.length ? row.equipment_items.map(i => `${i.name} x${i.quantity}`).join(', ') : null,
-      sales_id: row.sales_id || null,
-      memo: row.memo || null,
-    }).select('id').single()
-
-    if (merchantError || !merchant) {
-      toast.error('가맹점 자동 등록 실패: ' + merchantError?.message)
-      return
-    }
-
-    const { error: ticketError } = await supabase.from('tickets').insert({
-      merchant_id: merchant.id,
-      title: row.title || `${row.business_name} 가맹 설치`,
-      type: 'install',
-      status: 'tech_pending',
-      sales_id: row.sales_id || null,
-      cs_id: row.cs_id || null,
-      memo: row.memo || null,
-      reception_channel: row.reception_channel || null,
-      open_date: row.open_date || null,
-      install_date: row.install_date || null,
-    })
-
-    if (ticketError) {
-      toast.error('가맹점은 등록됐지만 설치 작업 생성 실패: ' + ticketError.message)
-      return
-    }
+    await createLinkedInstallTicketShared(row, toast)
   }
 
   async function updateStatus(row: FranchiseApplication, status: FranchiseStatus, sendNotify: boolean, docCase?: DocCase) {
@@ -920,21 +932,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       to_status: status,
     })
 
-    if (sendNotify) {
-      if (status === 'doc_waiting') {
-        // 서류대기 상태 알림톡 (가맹진행안내_서류대기)
-        await notifyAndLog(row.id, 'doc_waiting', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'doc_waiting' })
-        // 서류 목록 상세 안내 (가맹서류안내_* 16종)
-        await notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase })
-      } else if (status === 'card_internet_apply_done') {
-        // 카드가맹접수완료 템플릿만 발송 (인터넷 접수완료 알림은 인터넷관리 탭 상태 변경 시 발송됨)
-        await notifyAndLog(row.id, 'card_apply_done', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'card_apply_done' })
-      } else {
-        await notifyAndLog(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status })
-      }
-    }
-    if (status === 'toss_review_done') await createLinkedInstallTicket(row)
-    if (status === 'card_done') await autoTransferToTech(row)
+    const { linkedInstall } = await applyFranchiseStatusSideEffects({
+      row, status, sendNotify, docCase, currentUserId, toast,
+      existingLinkedInstall: localLinkedInstalls[row.id],
+    })
+    if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
     setBusyId(null)
     setLocalRows(prev => prev.map(r => r.id === row.id
       ? { ...r, status, doc_template: status === 'doc_waiting' ? APPLICANT_TYPE_LABEL[row.applicant_type] : r.doc_template, updated_at: new Date().toISOString() }
@@ -1010,30 +1012,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }
 
   async function notifyAndLog(franchiseId: string, logKey: string, payload: Record<string, unknown>) {
-    try {
-      const res = await fetch('/api/franchise/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        console.error('가맹 알림톡 발송 실패:', json.error)
-        toast.error(`알림톡 발송 실패: ${json.error ?? res.status} (상태는 변경됨)`)
-        return
-      }
-      const supabase = createClient()
-      await supabase.from('franchise_application_logs').insert({
-        franchise_application_id: franchiseId,
-        user_id: currentUserId,
-        to_status: `alimtalk:${logKey}`,
-      })
-      toast.success('알림톡이 발송되었습니다.')
-      setLogsByRow(prev => prev[franchiseId] ? { ...prev, [franchiseId]: undefined as any } : prev)
-    } catch (err) {
-      console.error('가맹 알림톡 발송 실패:', err)
-      toast.error('알림톡 발송에 실패했습니다. 고객에게 직접 안내해주세요.')
-    }
+    await notifyAndLogFranchiseStatus(franchiseId, logKey, payload, currentUserId, toast)
+    setLogsByRow(prev => prev[franchiseId] ? { ...prev, [franchiseId]: undefined as any } : prev)
   }
 
   function handleExcel() {
@@ -1086,45 +1066,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setBulkStatusModal(false)
     setBulkStatus('')
     setSelected(new Set())
-  }
-
-  async function autoTransferToTech(row: FranchiseApplication) {
-    const existing = localLinkedInstalls[row.id]
-    if (existing && existing.status !== 'rejected') return // 이미 이관됨
-    const supabase = createClient()
-    let installId: string
-    if (existing?.status === 'rejected') {
-      const { error } = await supabase.from('installations').update({ status: 'received', updated_at: new Date().toISOString() }).eq('id', existing.id)
-      if (error) return
-      installId = existing.id
-    } else {
-      const { data, error } = await supabase.from('installations').insert({
-        customer_name: row.business_name || row.owner_name || '미입력',
-        customer_phone: row.phone || null,
-        items: row.equipment_items ?? [],
-        status: 'received',
-        notes: row.memo || null,
-        franchise_application_id: row.id,
-        address: row.address || null,
-        scheduled_date: row.install_date || null,
-        created_by: currentUserId,
-      }).select('id').single()
-      if (error) return
-      installId = data.id
-    }
-    setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
-    // 기술팀 전원 알림 (한 번에 일괄 insert)
-    const { data: techUsers } = await supabase.from('profiles').select('id').eq('role', 'tech')
-    if (techUsers?.length) {
-      const { error: notifyError } = await supabase.from('notifications').insert(techUsers.map(t => ({
-        user_id: t.id,
-        franchise_application_id: row.id,
-        type: 'install_transfer',
-        title: `[${row.business_name || row.owner_name || '미입력'}] 설치 자동 이관`,
-        body: '카드가맹완료로 설치건이 자동 생성되었습니다.',
-      })))
-      if (notifyError) console.error('기술팀 알림 발송 실패:', notifyError.message)
-    }
   }
 
   async function transferToTech(row: FranchiseApplication) {
@@ -1498,6 +1439,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           {selected.size > 0 && (
             <>
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+              {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
+                <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                  필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
+                </button>
+              )}
               <button onClick={() => setBulkStatusModal(true)}
                 className="text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors">
                 일괄 상태 변경
@@ -1550,7 +1497,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <tr>
               <th className="px-1 py-2.5 border-b border-slate-200" />
               <th className="px-3 py-2.5 border-b border-slate-200">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" title="이 페이지 전체 선택 (필터링된 전체가 아님)" />
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (

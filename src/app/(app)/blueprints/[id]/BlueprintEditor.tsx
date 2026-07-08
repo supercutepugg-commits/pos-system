@@ -63,6 +63,8 @@ export default function BlueprintEditor({
   } | null>(null)
   const drawingLineRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [, forceRender] = useState(0)
+  const lastSavedRef = useRef<string>(JSON.stringify(blueprint.elements ?? []))
+  const lastDeletedRef = useRef<{ element: Element; index: number } | null>(null)
 
   const selected = elements.find(e => e.id === selectedId) ?? null
 
@@ -79,22 +81,62 @@ export default function BlueprintEditor({
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return
-    setElements(prev => prev.filter(el => el.id !== selectedId))
+    if (!window.confirm('선택한 요소를 삭제하시겠습니까?')) return
+    setElements(prev => {
+      const index = prev.findIndex(el => el.id === selectedId)
+      if (index !== -1) lastDeletedRef.current = { element: prev[index], index }
+      return prev.filter(el => el.id !== selectedId)
+    })
     setSelectedId(null)
-  }, [selectedId])
+    toast.success('삭제했습니다. (Ctrl+Z로 복구)')
+  }, [selectedId, toast])
+
+  const undoDelete = useCallback(() => {
+    const last = lastDeletedRef.current
+    if (!last) return
+    setElements(prev => {
+      const next = [...prev]
+      const index = Math.min(last.index, next.length)
+      next.splice(index, 0, last.element)
+      return next
+    })
+    setSelectedId(last.element.id)
+    lastDeletedRef.current = null
+    toast.success('삭제를 취소했습니다.')
+  }, [toast])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement
+      const isEditable = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        const active = document.activeElement
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return
+        if (isEditable) return
         e.preventDefault()
         deleteSelected()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (isEditable) return
+        if (lastDeletedRef.current) {
+          e.preventDefault()
+          undoDelete()
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedId, deleteSelected])
+  }, [selectedId, deleteSelected, undoDelete])
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasUnsavedChanges = JSON.stringify(elements) !== lastSavedRef.current
+      if (!hasUnsavedChanges) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [elements])
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     const { x, y } = pointerPos(e)
@@ -202,6 +244,7 @@ export default function BlueprintEditor({
       toast.error('저장하지 못했습니다.')
       return
     }
+    lastSavedRef.current = JSON.stringify(elements)
     toast.success('저장했습니다.')
   }
 

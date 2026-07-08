@@ -16,6 +16,18 @@ export default async function TransfersPage() {
     supabase.from('profiles').select('id,name,role').in('role', ['tech', 'admin']).order('name'),
   ])
 
+  // franchise_application_id → { id, status } 맵 (상태변경 시 자동이관 부수효과가 중복 생성되지 않도록)
+  const linkedInstalls: Record<string, { id: string; status: string }> = {}
+  if (rows && rows.length > 0) {
+    const { data: installs } = await supabase
+      .from('installations')
+      .select('id, status, franchise_application_id')
+      .in('franchise_application_id', rows.map(r => r.id))
+    for (const inst of installs ?? []) {
+      if (inst.franchise_application_id) linkedInstalls[inst.franchise_application_id] = { id: inst.id, status: inst.status }
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen p-6 gap-4">
       <div>
@@ -25,7 +37,7 @@ export default async function TransfersPage() {
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <TransfersClient rows={rows ?? []} techProfiles={techProfiles ?? []} currentUserId={user.id} />
+        <TransfersClient rows={rows ?? []} techProfiles={techProfiles ?? []} currentUserId={user.id} linkedInstalls={linkedInstalls} />
       )}
     </div>
   )

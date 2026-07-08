@@ -1,22 +1,34 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import MarkAllRead from './MarkAllRead'
 import NotificationRow from './NotificationRow'
 
-export default async function NotificationsPage() {
+const PAGE_SIZE = 50
+
+interface Props {
+  searchParams: Promise<{ limit?: string }>
+}
+
+export default async function NotificationsPage({ searchParams }: Props) {
+  const params = await searchParams
+  const limit = Math.max(PAGE_SIZE, Number(params.limit) || PAGE_SIZE)
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: notifications } = await supabase
+  const { data: notifications, count } = await supabase
     .from('notifications')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(limit)
+
+  const totalCount = count ?? 0
+  const hasMore = totalCount > limit
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
@@ -41,6 +53,17 @@ export default async function NotificationsPage() {
           />
         ))}
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center mt-4">
+          <Link
+            href={`/notifications?limit=${limit + PAGE_SIZE}`}
+            className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium"
+          >
+            더 보기
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

@@ -126,6 +126,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
   }, [selectedDate, newTitle, newMemo, toast])
 
   const handleDeleteEvent = useCallback(async (id: string) => {
+    if (!confirm('이 일정을 삭제하시겠습니까?')) return
     const supabase = createClient()
     const { error } = await supabase.from('calendar_events').delete().eq('id', id)
     if (error) { toast.error('일정 삭제 실패: ' + error.message); return }

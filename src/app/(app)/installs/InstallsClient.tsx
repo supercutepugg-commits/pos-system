@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback, memo, Fragment } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef, memo, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
@@ -81,7 +81,8 @@ interface Props {
   mineOnly?: boolean
 }
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 50
+const FETCH_LIMIT = 300
 
 const MAIN_COLUMNS = [
   { key: 'name', label: '고객명' },
@@ -318,6 +319,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const toast = useToast()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
   const [loading, setLoading] = useState(false)
+  const [hitFetchLimit, setHitFetchLimit] = useState(initialInstalls.length >= FETCH_LIMIT)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deletingSelected, setDeletingSelected] = useState(false)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
@@ -329,6 +331,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [completeModal, setCompleteModal] = useState<{ id: string; notes: string } | null>(null)
   const [completePhotos, setCompletePhotos] = useState<File[]>([])
   const [completing, setCompleting] = useState(false)
+  const completingRef = useRef(false)
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [transitModal, setTransitModal] = useState<{ id: string; eta: string } | null>(null)
@@ -367,8 +370,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
       .order('sort_order', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
-      .limit(300)
+      .limit(FETCH_LIMIT)
     setInstalls((data as any) ?? [])
+    setHitFetchLimit((data?.length ?? 0) >= FETCH_LIMIT)
     setLoading(false)
   }
 
@@ -565,6 +569,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function submitCompletion(skipCompleteSend?: boolean) {
     if (!completeModal) return
     if (completePhotos.length === 0) { toast.warning('설치완료사진을 최소 1장 첨부해주세요.'); return }
+    // completing 상태(state)는 리렌더 이후에만 disabled에 반영되므로, 같은 이벤트 루프 틱 안에서
+    // 버튼이 두 번 눌리면(더블클릭) 두 번 다 통과해서 재고가 이중 차감될 수 있다.
+    // ref로 즉시(동기적으로) 재진입을 막는다.
+    if (completingRef.current) return
+    completingRef.current = true
     setCompleting(true)
     const { id, notes } = completeModal
 
@@ -573,7 +582,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       const ext = file.name.split('.').pop() ?? 'jpg'
       const path = `${id}/${Date.now()}-${i}.${ext}`
       const { error: uploadError } = await supabase.storage.from('install-photos').upload(path, file)
-      if (uploadError) { toast.error('사진 업로드 실패: ' + uploadError.message); setCompleting(false); return }
+      if (uploadError) { toast.error('사진 업로드 실패: ' + uploadError.message); setCompleting(false); completingRef.current = false; return }
       const { data: { publicUrl } } = supabase.storage.from('install-photos').getPublicUrl(path)
       photoUrls.push(publicUrl)
     }
@@ -584,12 +593,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       completion_photo_urls: photoUrls,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
-    if (error) { toast.error('완료 처리 실패: ' + error.message); setCompleting(false); return }
+    if (error) { toast.error('완료 처리 실패: ' + error.message); setCompleting(false); completingRef.current = false; return }
 
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'completed', notes, completion_photo_urls: photoUrls } : i))
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
+    completingRef.current = false
     if (!skipNotify && !skipCompleteSend) await sendInstallNotify(id, 'completed')
 
     // 가맹이관 건이면 CS/영업에게 완료 알림 + 가맹접수 상태 업데이트 + 이관 로그
@@ -658,6 +668,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }
 
   async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number' | 'notes', value: string) {
+    // notes는 saveNotes와 같은 방식(누적 스탬프)으로 저장해서, 이 경로로 들어와도 이력이 남게 한다.
+    if (field === 'notes') { await saveNotes(id, value); return }
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
     const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
@@ -875,6 +887,19 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">
+      {/* 알림 건너뛰기가 켜져있는 동안 계속 보이는 알림 배너 (꺼야 다시 알림이 발송됨을 상기) */}
+      {skipNotify && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-red-700 font-semibold">
+          ⚠ 알림 건너뛰기가 켜져 있습니다 — 상태를 변경해도 고객에게 알림톡이 발송되지 않습니다.
+          <button onClick={() => setSkipNotify(false)} className="ml-auto text-xs font-semibold underline underline-offset-2 hover:text-red-900">지금 끄기</button>
+        </div>
+      )}
+      {/* 서버에서 최대 300건만 가져오므로, 그 한도에 걸렸을 때 누락 가능성을 알려준다 */}
+      {hitFetchLimit && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700">
+          최근 {FETCH_LIMIT}건만 불러왔습니다. 그보다 오래된 건은 검색/필터에 나타나지 않을 수 있습니다.
+        </div>
+      )}
       {/* 당일 설치 예정 배너 */}
       {todayScheduled.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">

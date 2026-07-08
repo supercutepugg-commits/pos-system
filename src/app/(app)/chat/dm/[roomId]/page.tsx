@@ -38,5 +38,14 @@ export default async function DMChatPage({ params }: Props) {
 
   const otherUser = (room.user1 as any).id === user.id ? room.user2 as any : room.user1 as any
 
+  // 방문 시각을 읽음 상태로 기록 (실패해도 채팅 이용에는 지장 없으므로 조용히 무시)
+  const { error: readError } = await supabase
+    .from('chat_room_reads')
+    .upsert(
+      { user_id: user.id, room_type: 'dm', room_id: roomId, last_read_at: new Date().toISOString() },
+      { onConflict: 'user_id,room_type,room_id' }
+    )
+  if (readError) console.error('읽음 상태 기록 실패:', readError)
+
   return <DMChatRoom profile={profile as Profile} otherUser={otherUser} roomId={roomId} initialMessages={messages ?? []} />
 }

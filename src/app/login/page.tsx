@@ -25,7 +25,7 @@ export default function LoginPage() {
     const data = await res.json()
 
     if (!res.ok || data.error) {
-      setError(data.error || '이름을 찾을 수 없습니다.')
+      setError('이름 또는 비밀번호가 올바르지 않습니다.')
       setLoading(false)
       return
     }
@@ -38,7 +38,7 @@ export default function LoginPage() {
     })
 
     if (signInError) {
-      setError('비밀번호가 올바르지 않습니다.')
+      setError('이름 또는 비밀번호가 올바르지 않습니다.')
       setLoading(false)
     } else {
       router.push('/')
@@ -93,6 +93,8 @@ export default function LoginPage() {
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
+
+        <p className="text-center text-sm text-slate-500 mt-4">비밀번호를 잊으셨나요? 관리자에게 문의하세요</p>
       </div>
     </div>
   )

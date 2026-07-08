@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { STATUS_LABEL, type TicketStatus } from '@/types'
@@ -15,14 +16,20 @@ interface Log {
   user?: { name: string }
 }
 
+const PAGE_SIZE = 20
+
 export default function TicketLogs({ logs }: { logs: Log[] }) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
   if (logs.length === 0) return null
+
+  const visibleLogs = logs.slice(0, visibleCount)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <h2 className="text-sm font-semibold text-gray-700 mb-3">작업 이력</h2>
       <div className="space-y-3">
-        {logs.map(log => (
+        {visibleLogs.map(log => (
           <div key={log.id} className="flex gap-3">
             <div className="w-1.5 h-1.5 rounded-full bg-gray-300 mt-2 flex-shrink-0" />
             <div className="flex-1">
@@ -40,7 +47,7 @@ export default function TicketLogs({ logs }: { logs: Log[] }) {
                 <div className="flex gap-1.5 mt-1.5 flex-wrap">
                   {log.photo_urls.map(url => (
                     <a key={url} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt="설치완료사진" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                      <img src={url} alt="설치완료사진" loading="lazy" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
                     </a>
                   ))}
                 </div>
@@ -52,6 +59,14 @@ export default function TicketLogs({ logs }: { logs: Log[] }) {
           </div>
         ))}
       </div>
+      {visibleCount < logs.length && (
+        <button
+          onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+          className="w-full mt-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+        >
+          더보기 ({logs.length - visibleCount}건 더 있음)
+        </button>
+      )}
     </div>
   )
 }

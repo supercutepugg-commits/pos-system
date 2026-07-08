@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { FRANCHISE_STATUS_LABEL, APPLICANT_TYPE_LABEL, type FranchiseStatus, type ApplicantType } from '@/types'
 import { useState } from 'react'
+import { useToast } from '@/components/ui/Toast'
 
 // 백업 대상 테이블 (탭 이름 → 테이블명)
 const BACKUP_TABLES: { label: string; table: string }[] = [
@@ -19,18 +20,21 @@ const BACKUP_TABLES: { label: string; table: string }[] = [
 ]
 
 // 테이블 전체 행을 페이지 단위로 끝까지 가져온다 (기본 응답 제한 대응)
-async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string) {
+// 조회 중 오류가 발생하면 그 시점까지 모은 행과 함께 실패 여부를 반환해
+// 호출부가 불완전한 데이터임을 알 수 있게 한다.
+async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string): Promise<{ rows: Record<string, unknown>[]; failed: boolean }> {
   const pageSize = 1000
   let from = 0
   const all: Record<string, unknown>[] = []
   while (true) {
     const { data, error } = await supabase.from(table).select('*').range(from, from + pageSize - 1)
-    if (error || !data) break
+    if (error) return { rows: all, failed: true }
+    if (!data) break
     all.push(...data)
     if (data.length < pageSize) break
     from += pageSize
   }
-  return all
+  return { rows: all, failed: false }
 }
 
 function downloadCsv(XLSX: typeof import('xlsx'), rows: Record<string, unknown>[], filename: string) {
@@ -50,42 +54,54 @@ function downloadCsv(XLSX: typeof import('xlsx'), rows: Record<string, unknown>[
 export default function ExcelDownloadButton() {
   const [loading, setLoading] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
+  const toast = useToast()
 
   async function handleDownload() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const [
-        { data: franchiseRows },
-        { data: installRows },
-        { data: ticketRows },
-        { data: merchantRows },
-        { data: internetRows },
-        { data: paperOrderRows },
-        { data: wooRows },
-      ] = await Promise.all([
-        supabase.from('franchise_applications')
+      const queries: { label: string; result: Promise<{ data: any[] | null; error: any }> }[] = [
+        { label: '가맹접수', result: supabase.from('franchise_applications')
           .select('*, sales:profiles!franchise_applications_sales_id_fkey(name), cs:profiles!franchise_applications_cs_id_fkey(name)')
-          .order('created_at', { ascending: false }),
-        supabase.from('installations')
+          .order('created_at', { ascending: false }) },
+        { label: '설치관리', result: supabase.from('installations')
           .select('*, assignee:profiles!installations_assigned_to_fkey(name)')
-          .order('created_at', { ascending: false }),
-        supabase.from('tickets')
+          .order('created_at', { ascending: false }) },
+        { label: 'AS티켓', result: supabase.from('tickets')
           .select('*, merchant:merchants(business_name,phone), tech:profiles!tickets_tech_id_fkey(name)')
-          .order('created_at', { ascending: false }),
-        supabase.from('merchants')
+          .order('created_at', { ascending: false }) },
+        { label: '가맹점', result: supabase.from('merchants')
           .select('*, sales:profiles!merchants_sales_id_fkey(name)')
-          .order('created_at', { ascending: false }),
-        supabase.from('internet_management')
+          .order('created_at', { ascending: false }) },
+        { label: '인터넷관리', result: supabase.from('internet_management')
           .select('*')
-          .order('created_at', { ascending: false }),
-        supabase.from('paper_orders')
+          .order('created_at', { ascending: false }) },
+        { label: '용지요청', result: supabase.from('paper_orders')
           .select('*')
-          .order('created_at', { ascending: false }),
-        supabase.from('woo_customers')
+          .order('created_at', { ascending: false }) },
+        { label: '우국상 관리', result: supabase.from('woo_customers')
           .select('*')
-          .order('created_at', { ascending: false }),
-      ])
+          .order('created_at', { ascending: false }) },
+      ]
+
+      const [
+        { data: franchiseRows, error: franchiseError },
+        { data: installRows, error: installError },
+        { data: ticketRows, error: ticketError },
+        { data: merchantRows, error: merchantError },
+        { data: internetRows, error: internetError },
+        { data: paperOrderRows, error: paperOrderError },
+        { data: wooRows, error: wooError },
+      ] = await Promise.all(queries.map(q => q.result))
+
+      const failedLabels = queries
+        .map((q, i) => ({ label: q.label, error: [franchiseError, installError, ticketError, merchantError, internetError, paperOrderError, wooError][i] }))
+        .filter(q => q.error)
+        .map(q => q.label)
+
+      if (failedLabels.length > 0) {
+        toast.error(`일부 시트 조회 실패로 데이터가 누락되었습니다: ${failedLabels.join(', ')}`)
+      }
 
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
@@ -232,12 +248,17 @@ export default function ExcelDownloadButton() {
       const supabase = createClient()
       const XLSX = await import('xlsx')
       const stamp = format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })
+      const failedTables: string[] = []
       for (const { label, table } of BACKUP_TABLES) {
-        const rows = await fetchAllRows(supabase, table)
+        const { rows, failed } = await fetchAllRows(supabase, table)
+        if (failed) failedTables.push(label)
         if (rows.length === 0) continue
         downloadCsv(XLSX, rows, `${label}_${table}_${stamp}.csv`)
         // 브라우저가 연속 다운로드를 차단하지 않도록 약간의 간격을 둔다
         await new Promise(r => setTimeout(r, 300))
+      }
+      if (failedTables.length > 0) {
+        toast.error(`일부 테이블 백업 실패(데이터 누락 가능): ${failedTables.join(', ')}`)
       }
     } finally {
       setBackingUp(false)

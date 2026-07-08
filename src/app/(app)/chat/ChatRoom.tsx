@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { Send } from 'lucide-react'
 import type { Profile } from '@/types'
+import { useToast } from '@/components/ui/Toast'
 
 const ROLE_LABEL: Record<string, string> = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR: Record<string, string> = {
@@ -34,6 +35,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+  const toast = useToast()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -46,11 +48,16 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         async (payload) => {
-          const { data: msg } = await supabase
+          const { data: msg, error } = await supabase
             .from('messages')
             .select('*, user:profiles(id, name, role)')
             .eq('id', payload.new.id)
             .single()
+          if (error) {
+            console.error('메시지 조회 실패:', error)
+            toast.error('새 메시지를 불러오지 못했습니다')
+            return
+          }
           if (msg) setMessages(prev => [...prev, msg as Message])
         }
       )
@@ -64,10 +71,18 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
     if (!input.trim() || sending) return
     setSending(true)
 
-    await supabase.from('messages').insert({
+    const content = input.trim()
+    const { error } = await supabase.from('messages').insert({
       user_id: profile.id,
-      content: input.trim(),
+      content,
     })
+
+    if (error) {
+      console.error('메시지 전송 실패:', error)
+      toast.error('메시지 전송에 실패했습니다. 다시 시도해주세요.')
+      setSending(false)
+      return
+    }
 
     setInput('')
     setSending(false)

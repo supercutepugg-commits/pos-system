@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, Search, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Search, AlertTriangle, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { useToast } from '@/components/ui/Toast'
@@ -99,12 +99,19 @@ export default function InventoryClient({
   const [adjustModal, setAdjustModal] = useState<{ item: InventoryItem; delta: number; reason: string } | null>(null)
   const [showLogs, setShowLogs] = useState(false)
   const [inlineEdit, setInlineEdit] = useState<{ id: string; value: string } | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const supabase = createClient()
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!form.category) return
+    const dup = items.find(i =>
+      i.major_category === form.major_category &&
+      i.mid_category === form.mid_category &&
+      i.name.trim().toLowerCase() === form.category.trim().toLowerCase()
+    )
+    if (dup && !confirm(`같은 분류에 동일한 품목명이 이미 등록되어 있습니다: "${dup.name}" (현재 수량 ${dup.quantity}${dup.unit}). 그래도 등록하시겠습니까?`)) return
     setSubmitting(true)
     const { data, error } = await supabase.from('inventory_items').insert({
       name: form.category,
@@ -134,12 +141,13 @@ export default function InventoryClient({
     if (error) { alert('수량 변경 실패: ' + error.message); return }
     const newQty = (updated as InventoryItem).quantity
 
-    await supabase.from('inventory_logs').insert({
+    const { error: logError } = await supabase.from('inventory_logs').insert({
       item_id: item.id,
       item_name: item.name,
       change: delta,
       reason: reason || null,
     })
+    if (logError) toast.error('변동 이력 기록 실패: ' + logError.message)
 
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: newQty, last_checked: new Date().toISOString().slice(0, 10) } : i))
     setLogs(prev => [{
@@ -162,15 +170,22 @@ export default function InventoryClient({
     const { data: updated, error } = await supabase
       .rpc('adjust_inventory_quantity', { p_item_id: item.id, p_delta: delta })
       .single()
-    if (error) return
+    if (error) { toast.error('수량 변경 실패: ' + error.message); return }
     const newQty = (updated as InventoryItem).quantity
-    await supabase.from('inventory_logs').insert({
+    const { error: logError } = await supabase.from('inventory_logs').insert({
       item_id: item.id,
       item_name: item.name,
       change: delta,
       reason: '직접 수정',
     })
+    if (logError) toast.error('변동 이력 기록 실패: ' + logError.message)
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: newQty, last_checked: new Date().toISOString().slice(0, 10) } : i))
+  }
+
+  // 빠른 증감 버튼(±5, ±10)용: 목표 수량을 직접 계산해 saveInlineQty 경로 재사용
+  function quickAdjust(item: InventoryItem, delta: number) {
+    const target = Math.max(0, item.quantity + delta)
+    saveInlineQty(item, String(target))
   }
 
   async function deleteItem(id: string, name: string) {
@@ -198,6 +213,31 @@ export default function InventoryClient({
 
   const lowCount = items.filter(i => i.quantity <= i.min_quantity).length
 
+  // 재고 실사용 엑셀(xlsx) 내보내기 — 대시보드 ExcelDownloadButton과 동일하게 xlsx 라이브러리 사용
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const rows = filtered.map(item => ({
+        대분류: item.major_category,
+        중분류: item.mid_category,
+        품목명: item.name,
+        수량: item.quantity,
+        단위: item.unit,
+        최소수량: item.min_quantity,
+        보관위치: item.location || '',
+        마지막실사: item.last_checked || '',
+        비고: item.notes || '',
+      }))
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '재고실사')
+      XLSX.writeFile(wb, `재고실사_${format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })}.xlsx`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const grouped = useMemo(() => {
     const g: Record<string, Record<string, InventoryItem[]>> = {}
     for (const item of filtered) {
@@ -218,6 +258,10 @@ export default function InventoryClient({
           <p className="text-sm text-slate-500 mt-0.5">장비 및 소모품 재고를 관리합니다</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleExport} disabled={exporting}
+            className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors">
+            <Download size={14} />{exporting ? '내보내는 중...' : '엑셀 내보내기'}
+          </button>
           <button onClick={() => setShowLogs(v => !v)}
             className="text-sm text-slate-500 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors">
             {showLogs ? '재고 목록' : '변동 이력'}
@@ -402,6 +446,18 @@ export default function InventoryClient({
                             {canEdit && (
                               <div className="flex items-center gap-1">
                                 <button
+                                  onClick={() => quickAdjust(item, -10)}
+                                  title="-10 (일괄 출고)"
+                                  className="text-xs px-1.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100">
+                                  -10
+                                </button>
+                                <button
+                                  onClick={() => quickAdjust(item, -5)}
+                                  title="-5 (일괄 출고)"
+                                  className="text-xs px-1.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100">
+                                  -5
+                                </button>
+                                <button
                                   onClick={() => setAdjustModal({ item, delta: 1, reason: '' })}
                                   className="text-xs px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100">
                                   +입고
@@ -410,6 +466,18 @@ export default function InventoryClient({
                                   onClick={() => setAdjustModal({ item, delta: -1, reason: '' })}
                                   className="text-xs px-2 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100">
                                   -출고
+                                </button>
+                                <button
+                                  onClick={() => quickAdjust(item, 5)}
+                                  title="+5 (일괄 입고)"
+                                  className="text-xs px-1.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100">
+                                  +5
+                                </button>
+                                <button
+                                  onClick={() => quickAdjust(item, 10)}
+                                  title="+10 (일괄 입고)"
+                                  className="text-xs px-1.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100">
+                                  +10
                                 </button>
                                 <button onClick={() => deleteItem(item.id, item.name)}
                                   className="text-slate-300 hover:text-red-500 p-1 transition-colors">

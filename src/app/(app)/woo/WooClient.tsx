@@ -23,7 +23,7 @@ const SELECT_OPTIONS: Partial<Record<keyof WooCustomer, string[]>> = {
   setting: ['PC세팅', '포스세팅'],
 }
 
-const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['internet_note']
+const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['business_name', 'owner_name', 'phone', 'internet_note']
 
 // 가맹여부 값에 따른 배지 색상 (가맹완료: 초록, 가맹미확인: 슬레이트 기본)
 function cardApplyStatusColor(value: string) {
@@ -349,24 +349,34 @@ export default function WooClient({ rows }: Props) {
 
   useEffect(() => { setPage(1) }, [search, categoryFilter])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  useEffect(() => {
+    // 실시간 삭제 등으로 목록이 줄어들어 현재 페이지가 범위를 벗어나면 되돌림
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const canReorder = !search.trim() && !categoryFilter
 
-  const reorderRows = useCallback((dragId: string, dropId: string) => {
+  const reorderRows = useCallback(async (dragId: string, dropId: string) => {
     if (dragId === dropId) return
-    const from = localRows.findIndex(r => r.id === dragId)
-    const to = localRows.findIndex(r => r.id === dropId)
+    const previous = localRows
+    const from = previous.findIndex(r => r.id === dragId)
+    const to = previous.findIndex(r => r.id === dropId)
     if (from === -1 || to === -1) return
-    const next = [...localRows]
+    const next = [...previous]
     const [moved] = next.splice(from, 1)
     next.splice(to, 0, moved)
     setLocalRows(next)
     const n = next.length
     const supabase = createClient()
-    Promise.all(next.map((r, i) =>
+    const results = await Promise.all(next.map((r, i) =>
       supabase.from('woo_customers').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
-    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
+    ))
+    const failed = results.some(r => r.error)
+    if (failed) {
+      setLocalRows(previous)
+      toast.error('순서 저장에 실패해 이전 순서로 되돌렸습니다.')
+    }
   }, [localRows, toast])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
@@ -424,11 +434,15 @@ export default function WooClient({ rows }: Props) {
       return
     }
     // 화면은 바로 반영 (서버 재조회를 기다리지 않음 - 실시간 구독이 다른 사용자 변경사항은 알아서 동기화)
+    const previousValue = row[field]
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value } : r))
     const supabase = createClient()
     const { error } = await supabase.from('woo_customers').update({ [field]: value || null }).eq('id', row.id)
-    if (error) toast.error('수정 실패: ' + error.message)
-  }, [])
+    if (error) {
+      setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: previousValue } : r))
+      toast.error('수정 실패: ' + error.message)
+    }
+  }, [toast])
 
   return (
     <div className="flex flex-col h-full">

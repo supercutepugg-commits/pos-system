@@ -23,7 +23,7 @@ const TAB_STATUSES: Record<string, TicketStatus[]> = {
 export default async function TicketsPage({ searchParams }: Props) {
   const params = await searchParams
   const tab = params.tab ?? 'all'
-  const page = Math.max(1, Number(params.page) || 1)
+  const requestedPage = Math.max(1, Number(params.page) || 1)
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,28 +33,34 @@ export default async function TicketsPage({ searchParams }: Props) {
   if (!profile) redirect('/login')
   const p = profile as Profile
 
-  let query = supabase
-    .from('tickets')
-    .select('*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)', { count: 'exact' })
-    .order('created_at', { ascending: false })
+  function buildQuery() {
+    let q = supabase
+      .from('tickets')
+      .select('*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)', { count: 'exact' })
+      .order('created_at', { ascending: false })
 
-  // 역할별 필터
-  if (p.role === 'sales') query = query.eq('sales_id', user.id)
-  if (p.role === 'cs') query = query.eq('cs_id', user.id)
-  if (p.role === 'tech') query = query.eq('tech_id', user.id)
+    // 역할별 필터
+    if (p.role === 'sales') q = q.eq('sales_id', user.id)
+    if (p.role === 'cs') q = q.eq('cs_id', user.id)
+    if (p.role === 'tech') q = q.eq('tech_id', user.id)
 
-  // 탭별 상태 필터
-  if (params.status) {
-    query = query.eq('status', params.status)
-  } else if (tab !== 'all') {
-    query = query.in('status', TAB_STATUSES[tab] ?? [])
+    // 탭별 상태 필터
+    if (params.status) {
+      q = q.eq('status', params.status)
+    } else if (tab !== 'all') {
+      q = q.in('status', TAB_STATUSES[tab] ?? [])
+    }
+
+    return q
   }
 
-  query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
-
-  const { data: tickets, count } = await query
+  // 먼저 전체 건수를 확인해 요청된 페이지가 범위를 벗어나면 마지막 페이지로 보정한다.
+  const { count } = await buildQuery().range(0, 0)
   const totalCount = count ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const page = Math.min(requestedPage, totalPages)
+
+  const { data: tickets } = await buildQuery().range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
   // 탭 구성 (영업팀은 이관완료 탭 추가)
   const TABS = p.role === 'sales' || p.role === 'admin'

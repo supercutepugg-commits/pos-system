@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Search } from 'lucide-react'
 import { deleteTickets } from './actions'
 import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL, type TicketStatus, type TicketType, type Priority } from '@/types'
 import Badge from '@/components/ui/Badge'
@@ -31,11 +31,23 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
   const [isPending, startTransition] = useTransition()
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
-  const allChecked = tickets.length > 0 && selected.size === tickets.length
+  const filteredTickets = search.trim()
+    ? tickets.filter(t => {
+        const q = search.trim().toLowerCase()
+        return (
+          t.title?.toLowerCase().includes(q) ||
+          t.merchant?.business_name?.toLowerCase().includes(q) ||
+          t.tech?.name?.toLowerCase().includes(q)
+        )
+      })
+    : tickets
+
+  const allChecked = filteredTickets.length > 0 && filteredTickets.every(t => selected.has(t.id))
 
   function toggleAll() {
-    setSelected(allChecked ? new Set() : new Set(tickets.map(t => t.id)))
+    setSelected(allChecked ? new Set() : new Set(filteredTickets.map(t => t.id)))
   }
 
   function toggleOne(id: string) {
@@ -63,6 +75,20 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* 검색 */}
+      <div className="px-6 py-3 border-b border-slate-100">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="가맹점명, 제목, 담당 기사로 검색"
+            className="w-full text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
       {/* 선택 시 상단 액션바 */}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100">
@@ -70,10 +96,10 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
         </div>
       )}
 
-      {tickets.length === 0 && <EmptyState message="작업이 없습니다" />}
+      {filteredTickets.length === 0 && <EmptyState message={search.trim() ? '검색 결과가 없습니다' : '작업이 없습니다'} />}
 
       <div className="divide-y divide-slate-50">
-        {tickets.length > 0 && (
+        {filteredTickets.length > 0 && (
           <div className="flex items-center gap-3 px-6 py-2.5 bg-slate-50 border-b border-slate-100">
             <input
               type="checkbox"
@@ -84,7 +110,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
             <span className="text-xs text-slate-400 font-medium">전체 선택</span>
           </div>
         )}
-        {tickets.map(ticket => (
+        {filteredTickets.map(ticket => (
           <div key={ticket.id} className="flex items-center gap-3 px-6 py-4 hover:bg-slate-50 transition-colors group">
             <input
               type="checkbox"

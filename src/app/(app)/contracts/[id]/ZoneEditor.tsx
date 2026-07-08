@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Save, ArrowLeft, Send } from 'lucide-react'
 import Link from 'next/link'
 import { NotificationHistory } from '@/components/ui/NotificationHistory'
+import { useToast } from '@/components/ui/Toast'
+
+const MIN_ZONE_WIDTH = 20
+const MIN_ZONE_HEIGHT = 10
 
 interface Zone {
   id: string
@@ -45,6 +49,18 @@ export default function ZoneEditor({ contract }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
+  const toast = useToast()
+
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (JSON.stringify(zones) !== JSON.stringify(contract.signature_zones ?? [])) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [zones, contract.signature_zones])
 
   function getRelativePos(e: React.MouseEvent) {
     const rect = overlayRef.current!.getBoundingClientRect()
@@ -76,7 +92,8 @@ export default function ZoneEditor({ contract }: Props) {
   function handleMouseUp(e: React.MouseEvent) {
     if (!drawing) return
     setDrawing(false)
-    if (!currentRect || currentRect.width < 20 || currentRect.height < 10) {
+    if (!currentRect || currentRect.width < MIN_ZONE_WIDTH || currentRect.height < MIN_ZONE_HEIGHT) {
+      if (currentRect) toast.warning(`서명 위치가 너무 작아서 무시됐습니다 (최소 ${MIN_ZONE_WIDTH}x${MIN_ZONE_HEIGHT}px).`)
       setCurrentRect(null)
       return
     }
@@ -106,8 +123,9 @@ export default function ZoneEditor({ contract }: Props) {
 
   async function handleSave() {
     setSaving(true)
-    await supabase.from('contracts').update({ signature_zones: zones }).eq('id', contract.id)
+    const { error } = await supabase.from('contracts').update({ signature_zones: zones }).eq('id', contract.id)
     setSaving(false)
+    if (error) { toast.error('저장 실패: ' + error.message); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

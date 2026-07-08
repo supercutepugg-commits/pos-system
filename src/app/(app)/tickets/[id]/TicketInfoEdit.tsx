@@ -30,19 +30,26 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
   })
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const save = useCallback(async (key: string, value: string | boolean) => {
     setSaving(key)
+    setSaved(null)
+    setSaveError(null)
     const supabase = createClient()
-    await supabase.from('tickets').update({ [key]: value || null }).eq('id', ticket.id)
+    const { error } = await supabase.from('tickets').update({ [key]: value || null }).eq('id', ticket.id)
     setSaving(null)
+    if (error) {
+      setSaveError(key)
+      setTimeout(() => setSaveError(null), 3000)
+      return
+    }
     setSaved(key)
     setTimeout(() => setSaved(null), 1500)
   }, [ticket.id])
 
   function handleChange(key: string, value: string | boolean) {
     setForm(f => ({ ...f, [key]: value }))
-    if (typeof value === 'boolean') save(key, value)
   }
 
   function handleBlur(key: string) {
@@ -54,6 +61,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
 
   function StatusDot({ field }: { field: string }) {
     if (saving === field) return <span className="text-[10px] text-slate-400 ml-1">저장중...</span>
+    if (saveError === field) return <span className="text-[10px] text-red-500 ml-1">✗ 저장 실패</span>
     if (saved === field) return <span className="text-[10px] text-blue-500 ml-1">✓ 저장됨</span>
     return null
   }
@@ -148,7 +156,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           <p className="text-xs text-gray-400 mb-1">배민접수 <StatusDot field="baemin_apply" /></p>
           <label className={`flex items-center gap-2 mt-1 ${canEdit ? 'cursor-pointer' : 'pointer-events-none'}`}>
             <input type="checkbox" checked={form.baemin_apply} disabled={!canEdit}
-              onChange={e => handleChange('baemin_apply', e.target.checked)}
+              onChange={e => { handleChange('baemin_apply', e.target.checked); save('baemin_apply', e.target.checked) }}
               className="w-4 h-4 accent-blue-600" />
             <span className="text-sm text-gray-700">배민 접수됨</span>
           </label>

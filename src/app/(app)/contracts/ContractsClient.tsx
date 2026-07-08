@@ -1,12 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus, Copy, ExternalLink, Trash2, FileText, PenLine } from 'lucide-react'
+import { Plus, Copy, ExternalLink, Trash2, FileText, PenLine, Search } from 'lucide-react'
 import type { Profile } from '@/types'
+import { useToast } from '@/components/ui/Toast'
+
+const PAGE_SIZE = 50
 
 const STATUS_LABELS: Record<string, string> = {
   pending: '서명 대기',
@@ -41,6 +44,7 @@ interface Props {
 
 export default function ContractsClient({ profile, initialContracts }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const canEdit = profile.role === 'cs' || profile.role === 'admin'
   const [contracts, setContracts] = useState<Contract[]>(initialContracts)
   const [showForm, setShowForm] = useState(false)
@@ -53,7 +57,23 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     signerEmail: '',
     signerPhone: '',
   })
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(1)
   const supabase = createClient()
+
+  const filteredContracts = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return contracts.filter(c => {
+      if (statusFilter && c.status !== statusFilter) return false
+      if (term && !c.signer_name?.toLowerCase().includes(term)) return false
+      return true
+    })
+  }, [contracts, search, statusFilter])
+
+  useEffect(() => { setPage(1) }, [search, statusFilter])
+  const totalPages = Math.max(1, Math.ceil(filteredContracts.length / PAGE_SIZE))
+  const pagedContracts = filteredContracts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -86,15 +106,18 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
   async function handleDelete(id: string) {
     if (!confirm('삭제하시겠습니까?')) return
     const contract = contracts.find(c => c.id === id)
-    await supabase.from('contracts').delete().eq('id', id)
+    const { error } = await supabase.from('contracts').delete().eq('id', id)
+    if (error) { toast.error('삭제 실패: ' + error.message); return }
     // Storage 파일도 삭제
     if (contract?.pdf_url) {
       const path = contract.pdf_url.split('/contracts/')[1]
       if (path) await supabase.storage.from('contracts').remove([path])
+      else console.warn('삭제할 storage 경로를 pdf_url에서 파싱하지 못했습니다:', contract.pdf_url)
     }
     if (contract?.signed_pdf_url) {
       const path = contract.signed_pdf_url.split('/contracts/')[1]
       if (path) await supabase.storage.from('contracts').remove([path])
+      else console.warn('삭제할 storage 경로를 signed_pdf_url에서 파싱하지 못했습니다:', contract.signed_pdf_url)
     }
     setContracts(prev => prev.filter(c => c.id !== id))
   }
@@ -102,7 +125,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
   function copySignLink(token: string) {
     const url = `${window.location.origin}/sign/${token}`
     navigator.clipboard.writeText(url)
-    alert('서명 링크가 복사됐습니다.')
+    toast.success('서명 링크가 복사됐습니다.')
   }
 
   return (
@@ -110,7 +133,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">계약서 / 서명</h1>
-          <p className="text-slate-500 text-sm mt-1">총 {contracts.length}건</p>
+          <p className="text-slate-500 text-sm mt-1">총 {filteredContracts.length}건</p>
         </div>
         {canEdit && (
           <button onClick={() => setShowForm(v => !v)}
@@ -165,13 +188,33 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
         </div>
       )}
 
+      {/* 검색/필터 */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="서명자 성함으로 검색"
+            className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          />
+        </div>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">전체 상태</option>
+          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </div>
+
       {/* 목록 */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        {contracts.length === 0 ? (
+        {filteredContracts.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-sm">계약서가 없습니다</div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {contracts.map(c => (
+            {pagedContracts.map(c => (
               <div key={c.id} className="px-5 py-5 flex items-center gap-4">
                 <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                   <FileText size={18} className="text-blue-600" />
@@ -221,6 +264,17 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
           </div>
         )}
       </div>
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
+          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+        </div>
+      )}
     </div>
   )
 }

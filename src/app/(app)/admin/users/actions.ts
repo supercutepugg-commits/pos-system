@@ -43,7 +43,14 @@ export async function createUserAccount(form: { name: string; phone: string; pas
     role,
   })
   if (profileError) {
-    await supabase.auth.admin.deleteUser(authData.user.id)
+    const { error: cleanupError } = await supabase.auth.admin.deleteUser(authData.user.id)
+    if (cleanupError) {
+      console.error('프로필 생성 실패 후 인증 계정 정리 실패:', cleanupError.message, 'userId:', authData.user.id)
+      return {
+        error: '프로필 생성 실패: ' + profileError.message +
+          ` (또한 인증 계정 정리 실패: ${cleanupError.message} — 관리자에게 문의하세요. userId: ${authData.user.id})`,
+      }
+    }
     return { error: '프로필 생성 실패: ' + profileError.message }
   }
 
@@ -61,11 +68,14 @@ export async function deleteUserAccount(userId: string) {
 
   const supabase = createAdminClient()
 
-  const { error: profileError } = await supabase.from('profiles').delete().eq('id', userId)
-  if (profileError) return { error: '프로필 삭제 실패: ' + profileError.message }
-
+  // 인증 계정을 먼저 삭제합니다 (profiles.id는 auth.users를 ON DELETE CASCADE로 참조하므로
+  // 인증 계정 삭제 시 프로필 행도 함께 삭제됩니다). 이렇게 하면 도중에 실패해도
+  // 프로필 행이 남아있어 상태 복구가 가능합니다.
   const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
-  if (authDeleteError) return { error: '계정 삭제 실패: ' + authDeleteError.message }
+  if (authDeleteError) return { error: '계정 삭제 실패(인증): ' + authDeleteError.message }
+
+  const { error: profileError } = await supabase.from('profiles').delete().eq('id', userId)
+  if (profileError) return { error: '계정 삭제 실패(프로필): ' + profileError.message }
 
   revalidatePath('/admin/users')
   return { error: null }

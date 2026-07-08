@@ -22,7 +22,8 @@ export default async function DashboardPage() {
   const p = profile as Profile
 
   // ── 역할별 데이터 쿼리 ──────────────────────────────────────
-  const today = new Date().toISOString().split('T')[0]
+  // UTC 기준 자정 근처에서 날짜가 하루 밀리지 않도록 KST(Asia/Seoul) 기준으로 "오늘"을 계산한다.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date())
 
   // 공통: 최근 가맹 접수
   let franchiseQuery = supabase

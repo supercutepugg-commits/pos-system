@@ -90,17 +90,23 @@ export default function NewTicketForm({ salesId, role }: Props) {
     }).select('id').single()
 
     if (error || !ticket) {
+      // 작업 등록이 실패하면 방금 만든 가맹점 레코드가 고아로 남아 재제출 시 중복 가맹점이
+      // 생기므로, 베스트 에포트로 되돌린다.
+      await supabase.from('merchants').delete().eq('id', merchantId)
       alert('등록 실패: ' + error?.message)
       setLoading(false)
       return
     }
 
-    await supabase.from('ticket_logs').insert({
+    const { error: logError } = await supabase.from('ticket_logs').insert({
       ticket_id: ticket.id,
       user_id: salesId,
       to_status: role === 'cs' ? 'cs_pending' : 'sales',
       message: '신규 작업 등록',
     })
+    if (logError) {
+      alert('작업은 등록되었지만 이력 기록에 실패했습니다: ' + logError.message)
+    }
 
     router.push(`/tickets/${ticket.id}`)
   }

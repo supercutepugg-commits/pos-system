@@ -10,6 +10,7 @@ import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
 interface Props {
   rows: InternetManagement[]
@@ -283,6 +284,7 @@ export default function InternetClient({ rows }: Props) {
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
@@ -324,18 +326,23 @@ export default function InternetClient({ rows }: Props) {
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
+  // franchise/FranchiseClient.tsx와 동일하게 전체선택 체크박스는 "이 페이지"만 대상으로 한다.
+  const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
 
   const toggleAll = useCallback(() => {
     setSelected(prev => {
       if (allChecked) {
         const next = new Set(prev)
-        filteredRows.forEach(r => next.delete(r.id))
+        pagedRows.forEach(r => next.delete(r.id))
         return next
       }
-      return new Set([...prev, ...filteredRows.map(r => r.id)])
+      return new Set([...prev, ...pagedRows.map(r => r.id)])
     })
-  }, [allChecked, filteredRows])
+  }, [allChecked, pagedRows])
+
+  const selectAllFiltered = useCallback(() => {
+    setSelected(new Set(filteredRows.map(r => r.id)))
+  }, [filteredRows])
 
   const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
@@ -367,12 +374,16 @@ export default function InternetClient({ rows }: Props) {
     )).catch(() => toast.error('순서 저장에 실패했습니다.'))
   }, [localRows, toast])
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (selected.size === 0) return
-    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
+    setDeleteConfirmOpen(true)
+  }, [selected])
+
+  const confirmDelete = useCallback(async () => {
     setDeleting(true)
     const { error } = await deleteInternetRows([...selected])
     setDeleting(false)
+    setDeleteConfirmOpen(false)
     if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
@@ -411,6 +422,8 @@ export default function InternetClient({ rows }: Props) {
           } catch {
             toast.error('메시지 발송 실패')
           }
+        } else {
+          toast.warning('상태는 저장됐지만 알림은 보내지 않았습니다.')
         }
       }
     }
@@ -420,6 +433,19 @@ export default function InternetClient({ rows }: Props) {
 
   return (
     <div className="flex flex-col h-full">
+      <BulkConfirmDialog
+        open={deleteConfirmOpen}
+        title="선택 항목 삭제"
+        items={[...selected].map(id => {
+          const row = localRows.find(r => r.id === id)
+          return { id, label: row?.business_name || row?.owner_name || id, detail: row?.phone ?? undefined }
+        })}
+        confirmText="삭제"
+        confirmColor="red"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirmOpen(false)}
+      />
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
@@ -451,6 +477,12 @@ export default function InternetClient({ rows }: Props) {
           {selected.size > 0 && (
             <>
               <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+              {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
+                <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                  필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
+                </button>
+              )}
               <button onClick={handleDelete} disabled={deleting}
                 className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
                 <Trash2 size={14} />
@@ -483,7 +515,7 @@ export default function InternetClient({ rows }: Props) {
             <tr>
               <th className="px-1 py-3 border-b border-slate-200" />
               <th className="px-3 py-3 border-b border-slate-200">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" title="이 페이지 전체 선택 (필터링된 전체가 아님)" />
               </th>
               <th className="px-3 py-3 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (

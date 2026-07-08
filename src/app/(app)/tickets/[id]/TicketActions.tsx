@@ -7,6 +7,8 @@ import type { Ticket, Profile } from '@/types'
 import { STATUS_LABEL } from '@/types'
 import { ArrowRight, UserCheck, Calendar, CheckCircle } from 'lucide-react'
 import { NotificationHistory } from '@/components/ui/NotificationHistory'
+import { useToast } from '@/components/ui/Toast'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
 interface Props {
   ticket: Ticket & { merchant: any; sales: any; cs: any; tech: any }
@@ -17,12 +19,16 @@ interface Props {
 
 export default function TicketActions({ ticket, profile, techUsers, csUsers }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [completeOpen, setCompleteOpen] = useState(false)
   const [completePhotos, setCompletePhotos] = useState<File[]>([])
   const [completeNote, setCompleteNote] = useState('')
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
 
+  // 담당자(cs_id/tech_id)가 아직 배정되지 않은 상태에서는 알림을 보낼 대상이 없으므로
+  // targets가 비어 있으면 자연스럽게 아무 알림도 보내지 않는다 (의도된 동작).
   async function notifyTargets(newStatus: string, logMessage: string) {
     const supabase = createClient()
     const targets: string[] = []
@@ -55,14 +61,23 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    await supabase.from('tickets').update({ status: newStatus, ...extra }).eq('id', ticket.id)
-    await supabase.from('ticket_logs').insert({
+    const { error: statusError } = await supabase.from('tickets').update({ status: newStatus, ...extra }).eq('id', ticket.id)
+    if (statusError) {
+      toast.error('상태 변경 실패: ' + statusError.message)
+      setLoading(false)
+      return
+    }
+
+    const { error: logError } = await supabase.from('ticket_logs').insert({
       ticket_id: ticket.id,
       user_id: user?.id,
       from_status: ticket.status,
       to_status: newStatus,
       message: message || null,
     })
+    if (logError) {
+      toast.error('상태는 변경되었지만 이력 기록에 실패했습니다: ' + logError.message)
+    }
 
     await notifyTargets(newStatus, message)
 
@@ -87,8 +102,14 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
       photoUrls.push(publicUrl)
     }
 
-    await supabase.from('tickets').update({ status: 'done' }).eq('id', ticket.id)
-    await supabase.from('ticket_logs').insert({
+    const { error: statusError } = await supabase.from('tickets').update({ status: 'done' }).eq('id', ticket.id)
+    if (statusError) {
+      toast.error('완료 처리 실패: ' + statusError.message)
+      setLoading(false)
+      return
+    }
+
+    const { error: logError } = await supabase.from('ticket_logs').insert({
       ticket_id: ticket.id,
       user_id: user?.id,
       from_status: ticket.status,
@@ -96,6 +117,9 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
       message: completeNote || null,
       photo_urls: photoUrls,
     })
+    if (logError) {
+      toast.error('완료 처리는 되었지만 이력 기록에 실패했습니다: ' + logError.message)
+    }
 
     await notifyTargets('done', completeNote)
 
@@ -110,12 +134,20 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('tickets').update({ [field]: userId }).eq('id', ticket.id)
-    await supabase.from('ticket_logs').insert({
+    const { error: updateError } = await supabase.from('tickets').update({ [field]: userId }).eq('id', ticket.id)
+    if (updateError) {
+      toast.error('배정 실패: ' + updateError.message)
+      setLoading(false)
+      return
+    }
+    const { error: logError } = await supabase.from('ticket_logs').insert({
       ticket_id: ticket.id,
       user_id: user?.id,
       message: `${field === 'cs_id' ? 'CS' : '기사'} 배정`,
     })
+    if (logError) {
+      toast.error('배정은 되었지만 이력 기록에 실패했습니다: ' + logError.message)
+    }
     setLoading(false)
     router.refresh()
   }
@@ -124,16 +156,33 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('tickets').update({ scheduled_at: datetime, status: 'scheduled' }).eq('id', ticket.id)
-    await supabase.from('ticket_logs').insert({
+    const { error: updateError } = await supabase.from('tickets').update({ scheduled_at: datetime, status: 'scheduled' }).eq('id', ticket.id)
+    if (updateError) {
+      toast.error('일정 확정 실패: ' + updateError.message)
+      setLoading(false)
+      return
+    }
+    const { error: logError } = await supabase.from('ticket_logs').insert({
       ticket_id: ticket.id,
       user_id: user?.id,
       from_status: ticket.status,
       to_status: 'scheduled',
       message: `일정 확정: ${datetime}`,
     })
+    if (logError) {
+      toast.error('일정은 확정되었지만 이력 기록에 실패했습니다: ' + logError.message)
+    }
     setLoading(false)
     router.refresh()
+  }
+
+  function requestCancel() {
+    setCancelConfirmOpen(true)
+  }
+
+  async function confirmCancel() {
+    setCancelConfirmOpen(false)
+    await updateStatus('canceled')
   }
 
   const { status, role } = { status: ticket.status, role: profile.role }
@@ -261,7 +310,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         {/* 취소 */}
         {status !== 'done' && status !== 'canceled' && (role === 'cs' || role === 'admin') && (
           <button
-            onClick={() => updateStatus('canceled')}
+            onClick={requestCancel}
             disabled={loading}
             className="text-sm text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors font-medium"
           >
@@ -317,6 +366,17 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </div>
         </div>
       )}
+
+      <BulkConfirmDialog
+        open={cancelConfirmOpen}
+        title="작업 취소"
+        busy={loading}
+        confirmText="취소 처리"
+        confirmColor="red"
+        items={[{ id: ticket.id, label: ticket.title }]}
+        onCancel={() => setCancelConfirmOpen(false)}
+        onConfirm={confirmCancel}
+      />
     </div>
   )
 }

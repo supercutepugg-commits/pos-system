@@ -7,6 +7,7 @@ import { ko } from 'date-fns/locale'
 import { Send, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import type { Profile } from '@/types'
+import { useToast } from '@/components/ui/Toast'
 
 const ROLE_LABEL: Record<string, string> = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function DMChatRoom({ profile, otherUser, roomId, initialMessages
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+  const toast = useToast()
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -39,7 +41,12 @@ export default function DMChatRoom({ profile, otherUser, roomId, initialMessages
     const channel = supabase.channel(`dm-${roomId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'dm_messages', filter: `room_id=eq.${roomId}` },
         async (payload) => {
-          const { data: msg } = await supabase.from('dm_messages').select('*, user:profiles(id, name, role)').eq('id', payload.new.id).single()
+          const { data: msg, error } = await supabase.from('dm_messages').select('*, user:profiles(id, name, role)').eq('id', payload.new.id).single()
+          if (error) {
+            console.error('메시지 조회 실패:', error)
+            toast.error('새 메시지를 불러오지 못했습니다')
+            return
+          }
           if (msg) setMessages(prev => [...prev, msg as Message])
         }).subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -49,7 +56,14 @@ export default function DMChatRoom({ profile, otherUser, roomId, initialMessages
     e.preventDefault()
     if (!input.trim() || sending) return
     setSending(true)
-    await supabase.from('dm_messages').insert({ room_id: roomId, user_id: profile.id, content: input.trim() })
+    const content = input.trim()
+    const { error } = await supabase.from('dm_messages').insert({ room_id: roomId, user_id: profile.id, content })
+    if (error) {
+      console.error('메시지 전송 실패:', error)
+      toast.error('메시지 전송에 실패했습니다. 다시 시도해주세요.')
+      setSending(false)
+      return
+    }
     setInput('')
     setSending(false)
   }

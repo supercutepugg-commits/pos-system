@@ -1504,8 +1504,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       </div>
 
       {completeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 max-w-full max-h-[85vh] overflow-y-auto flex flex-col gap-4">
             <h3 className="text-sm font-semibold text-slate-800">설치 완료 처리</h3>
             {checklistItems.length > 0 && (
               <div className="flex flex-col gap-1">
@@ -1526,12 +1526,25 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 type="file"
                 accept="image/*"
                 multiple
-                capture="environment"
-                onChange={e => setCompletePhotos(Array.from(e.target.files ?? []))}
+                onChange={e => {
+                  setCompletePhotos(prev => [...prev, ...Array.from(e.target.files ?? [])])
+                  e.target.value = ''
+                }}
                 className="text-sm"
               />
               {completePhotos.length > 0 && (
-                <p className="text-xs text-slate-500">{completePhotos.length}장 선택됨</p>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {completePhotos.map((file, i) => (
+                    <div key={i} className="relative">
+                      <img src={URL.createObjectURL(file)} alt={file.name} className="w-14 h-14 object-cover rounded-lg border border-slate-200" />
+                      <button
+                        type="button"
+                        onClick={() => setCompletePhotos(prev => prev.filter((_, j) => j !== i))}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs leading-none flex items-center justify-center"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
             <div className="flex flex-col gap-1">

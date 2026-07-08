@@ -665,11 +665,24 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function saveNotes(id: string, notes: string) {
     const prev = installs.find(i => i.id === id)
-    let saveValue = notes || null
-    if (notes) {
+    const prevNotes = (prev?.notes ?? '').trim()
+    let saveValue: string | null = notes || null
+    if (notes && prevNotes) {
+      // 비고 입력창은 기존 메모 전체를 담은 채로 편집되므로, 기존 내용으로 시작할 때만
+      // "새로 늘어난 부분"만 스탬프를 찍어 이어붙인다. 그래야 그냥 클릭만 해도
+      // 전체 내용이 통째로 중복 저장되는 걸 막을 수 있다.
+      if (notes.startsWith(prevNotes)) {
+        const added = notes.slice(prevNotes.length).replace(/^\n+/, '')
+        if (!added.trim()) {
+          saveValue = prevNotes
+        } else {
+          const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+          saveValue = `${prevNotes}\n${stamp} ${added}`
+        }
+      }
+    } else if (notes && !prevNotes) {
       const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
-      const prevNotes = (prev?.notes ?? '').trim()
-      saveValue = prevNotes ? `${prevNotes}\n${stamp} ${notes}` : `${stamp} ${notes}`
+      saveValue = `${stamp} ${notes}`
     }
     await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined } : i))

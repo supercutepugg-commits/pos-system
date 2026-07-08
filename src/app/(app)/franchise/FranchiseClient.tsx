@@ -1010,9 +1010,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setBulkChanging(true)
     const supabase = createClient()
     const ids = [...selected]
+    const rowsBefore = localRows.filter(r => ids.includes(r.id))
     const { error } = await supabase.from('franchise_applications').update({ status: bulkStatus }).in('id', ids)
+    if (error) { setBulkChanging(false); toast.error('일괄 변경 실패: ' + error.message); return }
+    await supabase.from('franchise_application_logs').insert(
+      rowsBefore.map(r => ({
+        franchise_application_id: r.id,
+        user_id: currentUserId,
+        from_status: r.status,
+        to_status: bulkStatus,
+      }))
+    )
     setBulkChanging(false)
-    if (error) { toast.error('일괄 변경 실패: ' + error.message); return }
     const idSet = new Set(ids)
     const status = bulkStatus
     setLocalRows(prev => prev.map(r => idSet.has(r.id) ? { ...r, status, updated_at: new Date().toISOString() } : r))

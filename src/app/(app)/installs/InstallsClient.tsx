@@ -1136,7 +1136,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           ) : filteredInstalls.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm">설치건이 없습니다</div>
           ) : (
-            pagedInstalls.map(inst => {
+            filteredInstalls.map(inst => {
               const expanded = mobileExpandedId === inst.id
               return (
               <div key={inst.id} id={`install-card-${inst.id}`} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">

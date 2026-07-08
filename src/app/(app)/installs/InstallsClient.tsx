@@ -6,7 +6,7 @@ import { formatPhone } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus, Search, RefreshCw, Download, GripVertical, Trash2 } from 'lucide-react'
+import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 
@@ -288,6 +288,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [transitModal, setTransitModal] = useState<{ id: string; eta: string } | null>(null)
+  const [mobileExpandedId, setMobileExpandedId] = useState<string | null>(null)
   const [sendingTransit, setSendingTransit] = useState(false)
   const [scheduleModal, setScheduleModal] = useState<{ id: string; date: string; time: string } | null>(null)
   const [sendingSchedule, setSendingSchedule] = useState(false)
@@ -1129,45 +1130,70 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           ) : filteredInstalls.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm">설치건이 없습니다</div>
           ) : (
-            pagedInstalls.map(inst => (
-              <div key={inst.id} className="bg-white rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
+            pagedInstalls.map(inst => {
+              const expanded = mobileExpandedId === inst.id
+              return (
+              <div key={inst.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <button
+                  onClick={() => setMobileExpandedId(expanded ? null : inst.id)}
+                  className="w-full flex items-center justify-between gap-2 p-4 text-left"
+                >
+                  <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-900">{inst.customer_name}</span>
+                      <span className="font-semibold text-slate-900 truncate">{inst.customer_name}</span>
                       {inst.franchise_application_id && (
-                        <span className="text-[10px] font-semibold bg-purple-100 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-md">가맹이관</span>
+                        <span className="text-[10px] font-semibold bg-purple-100 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-md shrink-0">가맹이관</span>
                       )}
                     </div>
-                    <p className="text-slate-500 text-xs mt-0.5">{inst.customer_phone || '-'}</p>
+                    <p className="text-slate-500 text-sm mt-0.5">{inst.customer_phone || '-'}</p>
                   </div>
-                  <span className={`text-xs font-medium rounded-lg border px-2 py-1 whitespace-nowrap ${STATUS_COLORS[inst.status]}`}>
-                    {statusLabel(inst.status, inst.delivery_type)}
-                  </span>
-                </div>
-                <div className="mt-3 text-sm text-slate-700">
-                  {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
-                </div>
-                {inst.notes && <p className="mt-1 text-xs text-slate-500">{inst.notes}</p>}
-                <p className="mt-2 text-xs text-slate-400">등록 {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}</p>
-                {canEdit && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
-                      className={`flex-1 text-sm font-medium rounded-lg border px-2 py-2 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
-                      {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
-                    </select>
-                    {inst.status !== 'in_transit' && inst.status !== 'completed' && (
-                      <button onClick={() => handleStatusChange(inst.id, 'in_transit')}
-                        className="text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg whitespace-nowrap">이동중</button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-xs font-medium rounded-lg border px-2 py-1 whitespace-nowrap ${STATUS_COLORS[inst.status]}`}>
+                      {statusLabel(inst.status, inst.delivery_type)}
+                    </span>
+                    {canEdit && inst.status !== 'in_transit' && inst.status !== 'completed' && (
+                      <span
+                        role="button"
+                        onClick={e => { e.stopPropagation(); handleStatusChange(inst.id, 'in_transit') }}
+                        className="text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg whitespace-nowrap"
+                      >이동중</span>
+                    )}
+                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+                {expanded && (
+                  <div className="px-4 pb-4 border-t border-slate-100 pt-3" onClick={e => e.stopPropagation()}>
+                    <div className="text-sm text-slate-700">
+                      {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
+                    </div>
+                    {inst.notes && <p className="mt-1 text-xs text-slate-500">{inst.notes}</p>}
+                    <p className="mt-2 text-xs text-slate-400">등록 {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}</p>
+                    {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
+                      <div className="flex gap-1 mt-2">
+                        {inst.completion_photo_urls.map(url => (
+                          <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                            <img src={url} alt="설치완료사진" className="w-10 h-10 object-cover rounded border border-slate-200" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <div className="mt-3">
+                        <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
+                          className={`w-full text-sm font-medium rounded-lg border px-2 py-2 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
+                          {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
+                      <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
+                        className="mt-2 text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>
                     )}
                   </div>
                 )}
-                {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
-                  <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
-                    className="mt-2 text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>
-                )}
               </div>
-            ))
+              )
+            })
           )}
         </div>
       )}

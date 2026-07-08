@@ -24,6 +24,7 @@ export type FranchiseStatus =
   | 'internet_done'
   | 'toss_review_apply_done'
   | 'toss_review_done'
+  | 'completed'
 export type ApplicantType = 'corporate' | 'individual' | 'giga_corporate' | 'giga_individual'
 
 export interface Profile {
@@ -277,6 +278,7 @@ export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
   internet_done: '인터넷 가입완료',
   toss_review_apply_done: '토스심사접수완료',
   toss_review_done: '토스심사완료',
+  completed: '완료',
 }
 
 export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
@@ -290,6 +292,7 @@ export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
   internet_done: 'bg-blue-100 text-blue-700 border-blue-200',
   toss_review_apply_done: 'bg-lime-100 text-lime-700 border-lime-200',
   toss_review_done: 'bg-green-100 text-green-700 border-green-200',
+  completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 }
 
 export const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {

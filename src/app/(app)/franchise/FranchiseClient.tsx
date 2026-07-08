@@ -305,6 +305,7 @@ const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   card_apply_done: 'toss_review_apply_done',
   toss_review_apply_done: 'toss_review_done',
   toss_review_done: 'card_done',
+  card_done: 'completed',
 }
 
 const MAIN_COLUMNS = [
@@ -491,7 +492,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
-  const [transferTab, setTransferTab] = useState<'all' | 'internet' | 'transferred' | 'rejected'>('all')
+  const [transferTab, setTransferTab] = useState<'all' | 'internet' | 'transferred' | 'rejected' | 'completed'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [bulkAssignModal, setBulkAssignModal] = useState(false)
@@ -595,6 +596,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const transferredIds = useMemo(() => new Set(Object.keys(localLinkedInstalls)), [localLinkedInstalls])
   const rejectedIds = useMemo(() => new Set(Object.entries(localLinkedInstalls).filter(([, v]) => v.status === 'rejected').map(([k]) => k)), [localLinkedInstalls])
   const internetIds = useMemo(() => new Set(Object.keys(localLinkedInternets)), [localLinkedInternets])
+  const completedIds = useMemo(() => new Set(localRows.filter(r => r.status === 'completed').map(r => r.id)), [localRows])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -602,7 +604,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (transferTab === 'internet' && !internetIds.has(row.id)) return false
+      if (transferTab === 'completed' && !completedIds.has(row.id)) return false
       if (transferTab === 'all' && transferredIds.has(row.id)) return false
+      if (transferTab === 'all' && completedIds.has(row.id)) return false
       if (statusFilter && row.status !== statusFilter) return false
       if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
       if (channelFilter && (row.reception_channel || '미지정') !== channelFilter) return false
@@ -623,7 +627,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (sortBy === 'manual') return (b.sort_order ?? new Date(b.created_at).getTime()) - (a.sort_order ?? new Date(a.created_at).getTime())
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
-  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, internetIds, dateFrom, dateTo])
+  }, [localRows, search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, transferredIds, rejectedIds, internetIds, completedIds, dateFrom, dateTo])
 
   useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
@@ -1290,10 +1294,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {/* 이관 탭 */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
         {([
-          ['all', '전체', localRows.length - transferredIds.size],
+          ['all', '전체', localRows.length - transferredIds.size - completedIds.size],
           ['internet', '인터넷', internetIds.size],
           ['transferred', '기술지원 이관', transferredIds.size],
           ['rejected', '반려됨', rejectedIds.size],
+          ['completed', '완료', completedIds.size],
         ] as const).map(([tab, label, count]) => (
           <button key={tab} onClick={() => setTransferTab(tab)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${transferTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -1303,10 +1308,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       </div>
 
       {/* 상태별 현황 배지 */}
-      <div className="flex flex-wrap gap-1.5 mb-2">
+      <div className="flex flex-nowrap gap-1.5 mb-2 overflow-x-auto">
         {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
           <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${statusFilter === s ? FRANCHISE_STATUS_COLOR[s] + ' border-current' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors whitespace-nowrap flex-shrink-0 ${statusFilter === s ? FRANCHISE_STATUS_COLOR[s] + ' border-current' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
             {FRANCHISE_STATUS_LABEL[s]} {statusCounts[s]}
           </button>
         ))}

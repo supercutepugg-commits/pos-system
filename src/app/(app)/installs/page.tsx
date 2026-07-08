@@ -3,7 +3,12 @@ import { redirect } from 'next/navigation'
 import InstallsClient from './InstallsClient'
 import type { Profile } from '@/types'
 
-export default async function InstallsPage() {
+interface Props {
+  searchParams: Promise<{ id?: string }>
+}
+
+export default async function InstallsPage({ searchParams }: Props) {
+  const { id } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -30,6 +35,7 @@ export default async function InstallsPage() {
       profile={profile as Profile}
       techUsers={techUsers ?? []}
       initialInstalls={(installs as any) ?? []}
+      initialHighlightId={id}
     />
   )
 }

@@ -38,7 +38,14 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-50 text-green-600 border-green-200',
   rejected: 'bg-red-50 text-red-600 border-red-200',
 }
-const PRODUCT_CATALOG = ['포스기 1set', '포스기 본체', '영수증 프린터', '카드단말기', '기타']
+const PRODUCT_CATALOG = [
+  'J100 화이트', 'J100 블랙', 'J200 화이트', 'J200 블랙',
+  'T100 화이트', 'T100 블랙', 'T200 화이트', 'T200 블랙',
+  'G250 화이트', 'G250 블랙', '윙포스 화이트',
+  'ZPP-3000 화이트', 'ZPP-3000 블랙', '금전함', '테블릿 PC', '테이블 오더 브라켓',
+  '프론트', '코세스/코밴 SDR-300', '코세스/코밴 KRE-C100+',
+  '기타',
+]
 
 interface Installation {
   id: string
@@ -116,16 +123,20 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
   const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
   const [deliveryType, setDeliveryType] = useState<'install' | 'delivery'>('install')
   const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
+  const [cartCustomName, setCartCustomName] = useState('')
   const [cartQty, setCartQty] = useState(1)
   const [cartItems, setCartItems] = useState<{ name: string; quantity: number }[]>([])
 
   function addToCart() {
+    const name = cartCustomName.trim() || cartProduct
+    if (!name) return
     setCartItems(prev => {
-      const existing = prev.find(i => i.name === cartProduct)
-      if (existing) return prev.map(i => i.name === cartProduct ? { ...i, quantity: i.quantity + cartQty } : i)
-      return [...prev, { name: cartProduct, quantity: cartQty }]
+      const existing = prev.find(i => i.name === name)
+      if (existing) return prev.map(i => i.name === name ? { ...i, quantity: i.quantity + cartQty } : i)
+      return [...prev, { name, quantity: cartQty }]
     })
     setCartQty(1)
+    setCartCustomName('')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -183,7 +194,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
           <div className="col-span-2">
             <label className="block text-xs text-slate-500 mb-1">제품 추가</label>
             <div className="flex gap-2">
-              <select value={cartProduct} onChange={e => setCartProduct(e.target.value)} className={INPUT}>
+              <select value={cartProduct} onChange={e => { setCartProduct(e.target.value); setCartCustomName('') }} className={INPUT}>
                 {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
               <input type="number" min={1} value={cartQty} onChange={e => setCartQty(Number(e.target.value))}
@@ -191,6 +202,8 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
               <button type="button" onClick={addToCart}
                 className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200">추가</button>
             </div>
+            <input value={cartCustomName} onChange={e => setCartCustomName(e.target.value)} placeholder="목록에 없는 제품은 직접 입력"
+              className="mt-1.5 border border-slate-200 rounded-lg px-3 py-2 text-sm w-full" />
             {cartItems.length > 0 && (
               <ul className="mt-2 space-y-1">
                 {cartItems.map(it => (
@@ -233,14 +246,18 @@ const EditableInstallText = memo(function EditableInstallText({ value, onSave }:
 
 const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }: { items: { name: string; quantity: number }[]; onChange: (items: { name: string; quantity: number }[]) => void }) {
   const [product, setProduct] = useState(PRODUCT_CATALOG[0])
+  const [customName, setCustomName] = useState('')
   const [qty, setQty] = useState(1)
   function add() {
-    const existing = items.find(i => i.name === product)
+    const name = customName.trim() || product
+    if (!name) return
+    const existing = items.find(i => i.name === name)
     const next = existing
-      ? items.map(i => i.name === product ? { ...i, quantity: i.quantity + qty } : i)
-      : [...items, { name: product, quantity: qty }]
+      ? items.map(i => i.name === name ? { ...i, quantity: i.quantity + qty } : i)
+      : [...items, { name, quantity: qty }]
     onChange(next)
     setQty(1)
+    setCustomName('')
   }
   function remove(name: string) {
     onChange(items.filter(i => i.name !== name))
@@ -258,7 +275,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
         </ul>
       )}
       <div className="flex gap-1.5">
-        <select value={product} onChange={e => setProduct(e.target.value)}
+        <select value={product} onChange={e => { setProduct(e.target.value); setCustomName('') }}
           className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none">
           {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
@@ -266,6 +283,8 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
           className="w-14 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none" />
         <button type="button" onClick={add} className="px-2.5 py-1 bg-slate-800 text-white text-xs rounded hover:bg-slate-700">추가</button>
       </div>
+      <input value={customName} onChange={e => setCustomName(e.target.value)} placeholder="목록에 없는 제품은 직접 입력"
+        className="border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none" />
     </div>
   )
 })
@@ -590,7 +609,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setEditingNotes(null)
   }
 
-  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number', value: string) {
+  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number' | 'notes', value: string) {
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
     const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
@@ -1460,8 +1479,18 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             <p className="text-slate-800">{format(new Date(inst.created_at), 'yyyy-M-d HH:mm', { locale: ko })}</p>
                           </div>
                           <div className="col-span-4">
-                            <p className="text-xs font-semibold text-slate-400">비고</p>
-                            <p className="text-slate-800 whitespace-pre-wrap">{inst.notes || '-'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">비고</p>
+                            {canEdit ? (
+                              <textarea
+                                defaultValue={inst.notes ?? ''}
+                                onClick={e => e.stopPropagation()}
+                                onBlur={e => { if (e.target.value !== (inst.notes ?? '')) saveInstallField(inst.id, 'notes', e.target.value) }}
+                                rows={2}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                            ) : (
+                              <p className="text-slate-800 whitespace-pre-wrap">{inst.notes || '-'}</p>
+                            )}
                           </div>
                           {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
                             <div className="col-span-4">

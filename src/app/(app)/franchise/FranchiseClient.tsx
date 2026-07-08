@@ -601,20 +601,30 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const internetIds = useMemo(() => new Set(Object.keys(localLinkedInternets)), [localLinkedInternets])
   const completedIds = useMemo(() => new Set(localRows.filter(r => r.status === 'completed').map(r => r.id)), [localRows])
 
+  // '전체' 탭은 기술지원 이관/완료된 건을 작업 목록에서 숨기는 축약 뷰다. 그런데 '완료'는
+  // FranchiseStatus 축에도 동일한 값('completed')이 존재하므로, 사용자가 상태 드롭다운/배지에서
+  // '완료'를 직접 골랐다면 그 명시적 선택이 탭의 암묵적 숨김보다 우선해야 한다.
+  // statusForRule을 그 판단에만 쓰이는 값으로 분리해서, 배지 카운트 계산 시(자기 상태를
+  // 임시로 "선택된 것"처럼 넣어봄) 실제 필터와 뒤섞이지 않게 한다.
+  const isHiddenInAllTab = useCallback((row: FranchiseApplication, statusForRule: FranchiseStatus | '') => {
+    if (transferredIds.has(row.id)) return true
+    if (statusForRule !== 'completed' && completedIds.has(row.id)) return true
+    return false
+  }, [transferredIds, completedIds])
+
   // 필터는 서로 AND로 결합되는 여러 축(탭/상태/채널/사업자유형/VAN/기간/검색어)이다.
   // skip으로 지정한 축만 빼고 나머지 축을 전부 적용해서 판정한다 — 배지·칩의 카운트를
   // "자기 자신을 제외한 나머지 필터가 걸린 상태에서 몇 건인지"로 계산하기 위한 공용 함수.
   // (이렇게 안 하면 예: transferTab='all'에서 제외되는 완료/반려 건이 상태 배지엔 여전히
   // 잡혀서, 배지 숫자 합이 탭 숫자와 안 맞고, 그 배지를 누르면 조용히 0건이 되는 문제가 생긴다.)
-  type FilterSkip = { skipTab?: boolean; skipStatus?: boolean; skipChannel?: boolean }
+  type FilterSkip = { skipTab?: boolean; skipStatus?: boolean; skipChannel?: boolean; statusForTabRule?: FranchiseStatus }
   const matchesFilters = useCallback((row: FranchiseApplication, skip: FilterSkip = {}) => {
     if (!skip.skipTab) {
       if (transferTab === 'transferred' && !transferredIds.has(row.id)) return false
       if (transferTab === 'rejected' && !rejectedIds.has(row.id)) return false
       if (transferTab === 'internet' && !internetIds.has(row.id)) return false
       if (transferTab === 'completed' && !completedIds.has(row.id)) return false
-      if (transferTab === 'all' && transferredIds.has(row.id)) return false
-      if (transferTab === 'all' && completedIds.has(row.id)) return false
+      if (transferTab === 'all' && isHiddenInAllTab(row, skip.statusForTabRule ?? statusFilter)) return false
     }
     if (!skip.skipStatus && statusFilter && row.status !== statusFilter) return false
     if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
@@ -623,7 +633,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (dateFrom && row.created_at < dateFrom) return false
     if (dateTo && row.created_at > dateTo + 'T23:59:59') return false
     return true
-  }, [transferTab, transferredIds, rejectedIds, internetIds, completedIds, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
+  }, [transferTab, transferredIds, rejectedIds, internetIds, completedIds, isHiddenInAllTab, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -732,7 +742,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const statusCounts = useMemo(() => {
     const counts: Partial<Record<FranchiseStatus, number>> = {}
     for (const row of localRows) {
-      if (!matchesFilters(row, { skipStatus: true })) continue
+      // statusForTabRule에 row 자신의 상태를 넣어서, '전체' 탭의 완료-숨김 예외가
+      // "이 배지를 눌렀다고 가정했을 때" 기준으로 판정되게 한다.
+      if (!matchesFilters(row, { skipStatus: true, statusForTabRule: row.status })) continue
       counts[row.status] = (counts[row.status] ?? 0) + 1
     }
     return counts
@@ -742,13 +754,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const tabCounts = useMemo(() => {
     const base = localRows.filter(row => matchesFilters(row, { skipTab: true }))
     return {
-      all: base.filter(r => !transferredIds.has(r.id) && !completedIds.has(r.id)).length,
+      all: base.filter(r => !isHiddenInAllTab(r, statusFilter)).length,
       internet: base.filter(r => internetIds.has(r.id)).length,
       transferred: base.filter(r => transferredIds.has(r.id)).length,
       rejected: base.filter(r => rejectedIds.has(r.id)).length,
       completed: base.filter(r => completedIds.has(r.id)).length,
     }
-  }, [localRows, matchesFilters, transferredIds, completedIds, internetIds, rejectedIds])
+  }, [localRows, matchesFilters, isHiddenInAllTab, statusFilter, transferredIds, completedIds, internetIds, rejectedIds])
 
   // 접수채널 칩 카운트: channelFilter 자신은 빼고 나머지 필터를 반영한다.
   const channelCounts = useMemo(() => {

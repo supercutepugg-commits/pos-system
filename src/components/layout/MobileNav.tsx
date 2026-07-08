@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, FileText, Wrench, MessageCircle, Bell } from 'lucide-react'
+import ThemeToggle from './ThemeToggle'
 import type { Role } from '@/types'
 
 const NAV = [
@@ -52,6 +53,9 @@ export default function MobileNav({ role, unreadCount }: Props) {
           </Link>
         )
       })}
+      <div className="flex items-center px-2">
+        <ThemeToggle compact />
+      </div>
     </nav>
   )
 }

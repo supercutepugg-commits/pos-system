@@ -12,8 +12,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className="h-full" style={{ colorScheme: 'light' }}>
-      <body className="min-h-full antialiased" style={{ background: '#f8fafc', color: '#0f172a' }}>{children}</body>
+    <html lang="ko" className="h-full">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('theme');if(t==='dark'||t==='pink')document.documentElement.setAttribute('data-theme',t);}catch(e){}`,
+          }}
+        />
+      </head>
+      <body className="min-h-full antialiased">{children}</body>
     </html>
   );
 }

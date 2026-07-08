@@ -10,20 +10,99 @@
   --color-foreground: var(--foreground);
 }
 
-body {
-  background: #f8fafc;
-  color: #0f172a;
+html, body {
+  background: var(--background);
+  color: var(--foreground);
   font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-*, *::before, *::after {
+/* -------------------------------------------------------------
+   다크 모드 / 핑크 모드
+   Tailwind 유틸리티 클래스를 컴포넌트마다 손보는 대신, 자주 쓰이는
+   배경/텍스트/테두리 색상 클래스를 [data-theme] 아래에서 재정의한다.
+   ------------------------------------------------------------- */
+
+:root[data-theme="dark"] {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  color-scheme: dark;
+}
+
+:root[data-theme="pink"] {
+  --background: #fff0f6;
+  --foreground: #55293e;
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  html, body {
-    background: #f8fafc !important;
-    color: #0f172a !important;
-  }
+:root[data-theme="dark"],
+:root[data-theme="pink"] {
+  scrollbar-color: var(--foreground) transparent;
 }
+
+/* ---- 다크 모드 오버라이드 ---- */
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-slate-50 { background-color: #1e293b !important; }
+:root[data-theme="dark"] .bg-slate-100 { background-color: #334155 !important; }
+:root[data-theme="dark"] .bg-slate-200 { background-color: #475569 !important; }
+:root[data-theme="dark"] .bg-gray-50 { background-color: #1e293b !important; }
+:root[data-theme="dark"] .bg-gray-900 { background-color: #020617 !important; }
+
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-slate-800,
+:root[data-theme="dark"] .text-gray-900 { color: #f1f5f9 !important; }
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-slate-600 { color: #cbd5e1 !important; }
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .text-slate-400 { color: #94a3b8 !important; }
+
+:root[data-theme="dark"] .border-slate-100,
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-slate-300 { border-color: #334155 !important; }
+
+:root[data-theme="dark"] .bg-blue-50 { background-color: #1e3a5f !important; }
+:root[data-theme="dark"] .bg-emerald-50 { background-color: #14352b !important; }
+:root[data-theme="dark"] .bg-purple-50 { background-color: #2e1f4d !important; }
+:root[data-theme="dark"] .bg-orange-50 { background-color: #3a2412 !important; }
+:root[data-theme="dark"] .bg-red-50 { background-color: #3a1414 !important; }
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+/* ---- 핑크 모드 오버라이드 ---- */
+:root[data-theme="pink"] .bg-white,
+:root[data-theme="pink"] .bg-slate-50 { background-color: #fff5fa !important; }
+:root[data-theme="pink"] .bg-slate-100 { background-color: #ffe0ec !important; }
+:root[data-theme="pink"] .bg-slate-200 { background-color: #ffc9dd !important; }
+:root[data-theme="pink"] .bg-gray-50 { background-color: #fff5fa !important; }
+
+:root[data-theme="pink"] .text-slate-900,
+:root[data-theme="pink"] .text-slate-800,
+:root[data-theme="pink"] .text-gray-900 { color: #55293e !important; }
+:root[data-theme="pink"] .text-slate-700,
+:root[data-theme="pink"] .text-slate-600 { color: #8a4a68 !important; }
+:root[data-theme="pink"] .text-slate-500,
+:root[data-theme="pink"] .text-slate-400 { color: #c07999 !important; }
+
+:root[data-theme="pink"] .border-slate-100,
+:root[data-theme="pink"] .border-slate-200,
+:root[data-theme="pink"] .border-slate-300 { border-color: #ffd1e6 !important; }
+
+:root[data-theme="pink"] .bg-blue-600,
+:root[data-theme="pink"] .bg-blue-700 { background-color: #ec4899 !important; }
+:root[data-theme="pink"] .bg-blue-50 { background-color: #ffe4f1 !important; }
+
+:root[data-theme="pink"] input,
+:root[data-theme="pink"] select,
+:root[data-theme="pink"] textarea {
+  background-color: #fff5fa;
+  color: #55293e;
+  border-color: #ffd1e6;
+}
+
+:root[data-theme="pink"] ::selection { background: #ffb3d1; }

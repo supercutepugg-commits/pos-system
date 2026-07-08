@@ -9,6 +9,7 @@ import {
   Network, FileEdit, Hash, Images,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import ThemeToggle from './ThemeToggle'
 import type { Profile, Role } from '@/types'
 
 const ROLE_LABEL = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
@@ -251,6 +252,11 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
           ))}
         </div>
       )}
+
+      {/* 테마 */}
+      <div className="px-3 pt-3">
+        <ThemeToggle />
+      </div>
 
       {/* 새로고침 / 로그아웃 */}
       <div className="px-3 py-4 border-t border-slate-100 flex flex-col gap-1">

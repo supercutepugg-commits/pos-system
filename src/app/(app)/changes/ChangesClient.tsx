@@ -1,180 +1,359 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { useState, useTransition, useMemo, memo, Fragment } from 'react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, X } from 'lucide-react'
+import { format } from 'date-fns'
+import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
-import { formatPhone } from '@/lib/format'
+import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { deleteChangeRequests } from './actions'
-import type { ChangeRequest, ChangeRequestStatus, ChangeType, Profile } from '@/types'
-import { CHANGE_TYPE_LABEL, CHANGE_STATUS_LABEL, CHANGE_STATUS_COLOR } from '@/types'
+import type { ChangeRequest, ChangeRequestStatus, ChangeType, ChangeApplicantType, Profile } from '@/types'
+import { CHANGE_TYPE_LABEL, CHANGE_STATUS_LABEL, CHANGE_STATUS_COLOR, CHANGE_APPLICANT_TYPE_LABEL } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
-const CHANGE_TYPE_TABS: { key: ChangeType | 'all'; label: string }[] = [
-  { key: 'all', label: '전체' },
-  { key: 'bank', label: '통장변경' },
-  { key: 'name', label: '상호변경' },
-  { key: 'ceo', label: '대표자변경' },
-  { key: 'address', label: '주소변경' },
-  { key: 'category', label: '업종변경' },
-]
+const STATUS_OPTIONS = Object.keys(CHANGE_STATUS_LABEL) as ChangeRequestStatus[]
+const TYPE_OPTIONS = Object.keys(CHANGE_TYPE_LABEL) as ChangeType[]
+const APPLICANT_TYPE_OPTIONS = Object.keys(CHANGE_APPLICANT_TYPE_LABEL) as ChangeApplicantType[]
 
-const STATUS_OPTIONS: ChangeRequestStatus[] = ['pending', 'processing', 'done']
+const AUTO_FORMAT: Partial<Record<keyof ChangeRequest, (raw: string) => string>> = {
+  phone: formatPhone,
+  business_number: formatBusinessNumber,
+}
 
-const EMPTY_FORM = {
-  business_name: '',
-  phone: '',
-  change_type: 'bank' as ChangeType,
-  before_value: '',
-  after_value: '',
-  sales_id: '',
-  cs_id: '',
-  memo: '',
+function defaultCreateForm() {
+  return {
+    business_name: '',
+    owner_name: '',
+    phone: '',
+    business_number: '',
+    applicant_type: 'individual' as ChangeApplicantType,
+    change_type: 'bank' as ChangeType,
+    reception_date: new Date().toISOString().slice(0, 10),
+    payment_received: false,
+    cs_id: '',
+    memo: '',
+  }
 }
 
 interface Props {
   rows: ChangeRequest[]
-  salesProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   csProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   currentUserId: string
+  currentUserName: string
   currentUserRole: string
 }
 
-export default function ChangesClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserRole }: Props) {
-  const [tab, setTab] = useState<ChangeType | 'all'>('all')
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
+interface EditableTextProps {
+  row: ChangeRequest
+  field: keyof ChangeRequest
+  placeholder: string
+  onSave: (row: ChangeRequest, field: keyof ChangeRequest, value: string) => void
+}
+const EditableText = memo(function EditableText({ row, field, placeholder, onSave }: EditableTextProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  const autoFormat = AUTO_FORMAT[field]
+  return (
+    <input
+      value={value}
+      placeholder={placeholder}
+      onChange={e => setValue(autoFormat ? autoFormat(e.target.value) : e.target.value)}
+      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1.5 text-sm"
+    />
+  )
+})
+
+interface DateFieldProps {
+  row: ChangeRequest
+  field: keyof ChangeRequest
+  onSave: (row: ChangeRequest, field: keyof ChangeRequest, value: string) => void
+}
+const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps) {
+  const [value, setValue] = useState((row[field] as string) ?? '')
+  return (
+    <input
+      value={value}
+      placeholder="YYYY-MM-DD"
+      onChange={e => setValue(formatDateText(e.target.value))}
+      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
+      onClick={e => e.stopPropagation()}
+      className="w-full bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1.5 text-sm"
+    />
+  )
+})
+
+interface EditableMemoProps {
+  row: ChangeRequest
+  onSave: (row: ChangeRequest, field: keyof ChangeRequest, value: string) => void
+}
+const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoProps) {
+  const [value, setValue] = useState('')
+  return (
+    <div className="flex flex-col gap-1">
+      {row.memo && (
+        <pre className="whitespace-pre-wrap break-words text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 max-h-40 overflow-y-auto">{row.memo}</pre>
+      )}
+      <textarea
+        value={value}
+        placeholder="새 메모 입력..."
+        onChange={e => setValue(e.target.value)}
+        onBlur={() => { if (value.trim()) { onSave(row, 'memo', value); setValue('') } }}
+        onClick={e => e.stopPropagation()}
+        rows={2}
+        className="w-full bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1.5 text-sm resize-y"
+      />
+    </div>
+  )
+})
+
+export default function ChangesClient({ rows, csProfiles, currentUserId, currentUserName, currentUserRole }: Props) {
+  const [localRows, setLocalRows] = useState(rows)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ChangeRequestStatus | ''>('')
+  const [typeFilter, setTypeFilter] = useState<ChangeType | ''>('')
+  const [applicantTypeFilter, setApplicantTypeFilter] = useState<ChangeApplicantType | ''>('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [sortBy, setSortBy] = useState<'created_at' | 'reception_date' | 'status'>('created_at')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(defaultCreateForm())
+  const [submitting, setSubmitting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [isPending, startTransition] = useTransition()
   const toast = useToast()
   const supabase = createClient()
 
   const canDelete = currentUserRole === 'admin' || currentUserRole === 'cs'
 
-  const filtered = useMemo(
-    () => (tab === 'all' ? rows : rows.filter(r => r.change_type === tab)),
-    [rows, tab]
-  )
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const result = localRows.filter(r => {
+      if (statusFilter && r.status !== statusFilter) return false
+      if (typeFilter && r.change_type !== typeFilter) return false
+      if (applicantTypeFilter && r.applicant_type !== applicantTypeFilter) return false
+      if (dateFrom && (r.reception_date ?? '') < dateFrom) return false
+      if (dateTo && (r.reception_date ?? '') > dateTo) return false
+      if (q) {
+        const hay = `${r.business_name} ${r.owner_name ?? ''} ${r.phone ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    result.sort((a, b) => {
+      if (sortBy === 'status') return a.status.localeCompare(b.status)
+      const av = (sortBy === 'reception_date' ? a.reception_date : a.created_at) ?? ''
+      const bv = (sortBy === 'reception_date' ? b.reception_date : b.created_at) ?? ''
+      return bv.localeCompare(av)
+    })
+    return result
+  }, [localRows, search, statusFilter, typeFilter, applicantTypeFilter, dateFrom, dateTo, sortBy])
+
+  function toggleExpand(row: ChangeRequest) {
+    setExpandedId(prev => prev === row.id ? null : row.id)
+  }
+
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
+  function toggleAll() {
+    setSelected(allChecked ? new Set() : new Set(filteredRows.map(r => r.id)))
+  }
+
+  async function saveField(row: ChangeRequest, field: keyof ChangeRequest, value: string) {
+    let saveValue: string | null = value || null
+    if (field === 'memo' && value) {
+      const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+      const prev = (row.memo ?? '').trim()
+      saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
+    }
+    const { error } = await supabase.from('change_requests').update({ [field]: saveValue }).eq('id', row.id)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: saveValue ?? undefined, updated_at: new Date().toISOString() } : r))
+  }
+
+  async function updateStatus(row: ChangeRequest, status: ChangeRequestStatus) {
+    const { error } = await supabase.from('change_requests').update({ status }).eq('id', row.id)
+    if (error) { toast.error('상태 변경 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, status, updated_at: new Date().toISOString() } : r))
+  }
+
+  async function updateApplicantType(row: ChangeRequest, applicantType: ChangeApplicantType) {
+    const { error } = await supabase.from('change_requests').update({ applicant_type: applicantType }).eq('id', row.id)
+    if (error) { toast.error('사업자유형 변경 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, applicant_type: applicantType, updated_at: new Date().toISOString() } : r))
+  }
+
+  async function updateChangeType(row: ChangeRequest, changeType: ChangeType) {
+    const { error } = await supabase.from('change_requests').update({ change_type: changeType }).eq('id', row.id)
+    if (error) { toast.error('변경유형 변경 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, change_type: changeType, updated_at: new Date().toISOString() } : r))
+  }
+
+  async function updateCs(row: ChangeRequest, csId: string) {
+    const { error } = await supabase.from('change_requests').update({ cs_id: csId || null }).eq('id', row.id)
+    if (error) { toast.error('담당자 변경 실패: ' + error.message); return }
+    const cs = csId ? csProfiles.find(p => p.id === csId) ?? null : null
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, cs_id: csId || undefined, cs: cs as ChangeRequest['cs'], updated_at: new Date().toISOString() } : r))
+  }
+
+  async function updatePaymentReceived(row: ChangeRequest, received: boolean) {
+    const { error } = await supabase.from('change_requests').update({ payment_received: received }).eq('id', row.id)
+    if (error) { toast.error('입금여부 변경 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, payment_received: received, updated_at: new Date().toISOString() } : r))
+  }
 
   async function handleCreate() {
     if (!form.business_name.trim()) {
       toast.error('상호명을 입력해주세요.')
       return
     }
-    const { error } = await supabase.from('change_requests').insert({
+    setSubmitting(true)
+    const { data, error } = await supabase.from('change_requests').insert({
       business_name: form.business_name.trim(),
+      owner_name: form.owner_name.trim() || null,
       phone: form.phone.trim() || null,
+      business_number: form.business_number.trim() || null,
+      applicant_type: form.applicant_type,
       change_type: form.change_type,
-      before_value: form.before_value.trim() || null,
-      after_value: form.after_value.trim() || null,
-      sales_id: form.sales_id || null,
+      reception_date: form.reception_date || null,
+      payment_received: form.payment_received,
       cs_id: form.cs_id || null,
       memo: form.memo.trim() || null,
       created_by: currentUserId,
-    })
+    }).select('*, cs:profiles!change_requests_cs_id_fkey(id,name,role), creator:profiles!change_requests_created_by_fkey(id,name,role)').single()
+    setSubmitting(false)
     if (error) {
       toast.error(`등록 실패: ${error.message}`)
       return
     }
+    setLocalRows(prev => [data as ChangeRequest, ...prev])
     toast.success('변경 요청이 등록되었습니다.')
-    setForm(EMPTY_FORM)
+    setForm(defaultCreateForm())
     setShowForm(false)
   }
 
-  async function handleStatusChange(row: ChangeRequest, status: ChangeRequestStatus) {
-    const { error } = await supabase.from('change_requests').update({ status }).eq('id', row.id)
-    if (error) toast.error(`변경 실패: ${error.message}`)
-  }
-
-  function toggleSelect(id: string) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function handleDeleteSelected() {
+  function handleDelete() {
     if (selected.size === 0) return
-    if (!confirm(`${selected.size}건을 삭제하시겠습니까?`)) return
-    startTransition(async () => {
-      const { error } = await deleteChangeRequests([...selected])
-      if (error) {
-        toast.error(`삭제 실패: ${error}`)
-        return
-      }
-      toast.success('삭제되었습니다.')
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
+    setDeleting(true)
+    const { error } = await deleteChangeRequests([...selected])
+    setDeleting(false)
+    setDeleteConfirmOpen(false)
+    if (error) { toast.error(`삭제 실패: ${error}`); return }
+    startTransition(() => {
+      setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
       setSelected(new Set())
     })
   }
 
+  function handleExcel() {
+    import('xlsx').then(XLSX => {
+      const data = filteredRows.map(r => ({
+        접수일: r.reception_date ?? '',
+        변경유형: CHANGE_TYPE_LABEL[r.change_type],
+        사업자유형: CHANGE_APPLICANT_TYPE_LABEL[r.applicant_type],
+        상호명: r.business_name ?? '',
+        대표자: r.owner_name ?? '',
+        연락처: r.phone ?? '',
+        사업자번호: r.business_number ?? '',
+        입금여부: r.payment_received ? 'Y' : 'N',
+        등록자: r.creator?.name ?? '',
+        담당자: r.cs?.name ?? '',
+        상태: CHANGE_STATUS_LABEL[r.status],
+        메모: r.memo ?? '',
+        등록일: format(new Date(r.created_at), 'yyyy-MM-dd', { locale: ko }),
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '변경관리')
+      XLSX.writeFile(wb, `변경관리_${format(new Date(), 'yyyyMMdd')}.xlsx`)
+    })
+  }
+
   return (
-    <div className="flex flex-col gap-4 flex-1 overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-          {CHANGE_TYPE_TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === t.key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+    <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="상호명, 대표자, 연락처..."
+            className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
-        <div className="flex gap-2">
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as ChangeRequestStatus | '')}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">상태 전체</option>
+          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{CHANGE_STATUS_LABEL[s]}</option>)}
+        </select>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value as ChangeType | '')}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">변경유형 전체</option>
+          {TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_TYPE_LABEL[t]}</option>)}
+        </select>
+        <select value={applicantTypeFilter} onChange={e => setApplicantTypeFilter(e.target.value as ChangeApplicantType | '')}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">사업자유형 전체</option>
+          {APPLICANT_TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_APPLICANT_TYPE_LABEL[t]}</option>)}
+        </select>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="접수일 시작"
+          className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <span className="text-slate-400 text-xs">~</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="접수일 종료"
+          className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="created_at">등록일순</option>
+          <option value="reception_date">접수일순</option>
+          <option value="status">상태순</option>
+        </select>
+        {(search || statusFilter || typeFilter || applicantTypeFilter || dateFrom || dateTo) && (
+          <button onClick={() => { setSearch(''); setStatusFilter(''); setTypeFilter(''); setApplicantTypeFilter(''); setDateFrom(''); setDateTo('') }}
+            className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
+            초기화
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-3">
           {canDelete && selected.size > 0 && (
-            <button onClick={handleDeleteSelected} disabled={isPending}
-              className="flex items-center gap-1.5 text-red-600 text-sm px-3 py-2 rounded-lg hover:bg-red-50 font-semibold">
-              <Trash2 size={16} />선택 삭제 ({selected.size})
-            </button>
+            <>
+              <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+              <button onClick={handleDelete} disabled={deleting || isPending}
+                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
+                <Trash2 size={14} />
+                {deleting ? '삭제 중...' : '선택 삭제'}
+              </button>
+            </>
           )}
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200">
-            <Plus size={16} />변경 요청 등록
+          <div className="text-sm text-slate-500">
+            {(search || statusFilter || typeFilter || applicantTypeFilter || dateFrom || dateTo)
+              ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
+              : `전체 ${localRows.length.toLocaleString()}건`}
+          </div>
+          <button onClick={handleExcel}
+            className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors">
+            <Download size={14} />엑셀
+          </button>
+          <button onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
+            <Plus size={14} />정보 입력
           </button>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 sticky top-0">
-            <tr className="text-left text-slate-500 text-xs">
-              <th className="p-3 w-8"></th>
-              <th className="p-3">유형</th>
-              <th className="p-3">상호명</th>
-              <th className="p-3">연락처</th>
-              <th className="p-3">변경 전</th>
-              <th className="p-3">변경 후</th>
-              <th className="p-3">담당(영업/CS)</th>
-              <th className="p-3">상태</th>
-              <th className="p-3">등록일</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center text-slate-400 p-8">등록된 변경 요청이 없습니다.</td></tr>
-            ) : filtered.map(row => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="p-3">
-                  <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleSelect(row.id)} />
-                </td>
-                <td className="p-3 font-medium">{CHANGE_TYPE_LABEL[row.change_type]}</td>
-                <td className="p-3">{row.business_name}</td>
-                <td className="p-3 text-slate-500">{row.phone ? formatPhone(row.phone) : '-'}</td>
-                <td className="p-3 text-slate-500 max-w-[160px] truncate">{row.before_value || '-'}</td>
-                <td className="p-3 text-slate-500 max-w-[160px] truncate">{row.after_value || '-'}</td>
-                <td className="p-3 text-slate-500">{row.sales?.name ?? '-'} / {row.cs?.name ?? '-'}</td>
-                <td className="p-3">
-                  <select value={row.status} onChange={e => handleStatusChange(row, e.target.value as ChangeRequestStatus)}
-                    className={`text-xs px-2 py-1 rounded-md font-medium border-0 ${CHANGE_STATUS_COLOR[row.status]}`}>
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{CHANGE_STATUS_LABEL[s]}</option>)}
-                  </select>
-                </td>
-                <td className="p-3 text-slate-400 text-xs">{row.created_at.slice(0, 10)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       {showForm && (
@@ -185,40 +364,184 @@ export default function ChangesClient({ rows, salesProfiles, csProfiles, current
               <button onClick={() => setShowForm(false)}><X size={20} className="text-slate-400" /></button>
             </div>
             <div className="flex flex-col gap-3">
-              <select value={form.change_type} onChange={e => setForm({ ...form, change_type: e.target.value as ChangeType })}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                {(Object.keys(CHANGE_TYPE_LABEL) as ChangeType[]).map(t => (
-                  <option key={t} value={t}>{CHANGE_TYPE_LABEL[t]}</option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-3">
+                <select value={form.change_type} onChange={e => setForm({ ...form, change_type: e.target.value as ChangeType })}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                  {TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_TYPE_LABEL[t]}</option>)}
+                </select>
+                <select value={form.applicant_type} onChange={e => setForm({ ...form, applicant_type: e.target.value as ChangeApplicantType })}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                  {APPLICANT_TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_APPLICANT_TYPE_LABEL[t]}</option>)}
+                </select>
+              </div>
               <input placeholder="상호명" value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              <input placeholder="연락처" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+              <input placeholder="대표자명" value={form.owner_name} onChange={e => setForm({ ...form, owner_name: e.target.value })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              <input placeholder="변경 전" value={form.before_value} onChange={e => setForm({ ...form, before_value: e.target.value })}
+              <input placeholder="연락처" value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              <input placeholder="변경 후" value={form.after_value} onChange={e => setForm({ ...form, after_value: e.target.value })}
+              <input placeholder="사업자번호" value={form.business_number} onChange={e => setForm({ ...form, business_number: formatBusinessNumber(e.target.value) })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              <select value={form.sales_id} onChange={e => setForm({ ...form, sales_id: e.target.value })}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                <option value="">담당 영업 선택</option>
-                {salesProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <div className="grid grid-cols-2 gap-3 items-center">
+                <input type="date" value={form.reception_date} onChange={e => setForm({ ...form, reception_date: e.target.value })}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                <label className="flex items-center gap-2 text-sm text-slate-700 px-1">
+                  <input type="checkbox" checked={form.payment_received} onChange={e => setForm({ ...form, payment_received: e.target.checked })}
+                    className="accent-blue-600" />
+                  입금 완료 (Y)
+                </label>
+              </div>
               <select value={form.cs_id} onChange={e => setForm({ ...form, cs_id: e.target.value })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                <option value="">담당 CS 선택</option>
+                <option value="">담당자 선택</option>
                 {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <textarea placeholder="메모" value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm" rows={2} />
-              <button onClick={handleCreate}
-                className="bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 font-semibold mt-1">
-                등록
+              <button onClick={handleCreate} disabled={submitting}
+                className="bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 font-semibold mt-1">
+                {submitting ? '등록 중...' : '등록'}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white">
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-slate-50 sticky top-0 z-10">
+            <tr className="text-left text-slate-500 text-xs">
+              <th className="px-3 py-2.5 border-b border-slate-200 w-10">
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+              </th>
+              <th className="px-3 py-2.5 border-b border-slate-200 w-6"></th>
+              <th className="px-3 py-2.5 border-b border-slate-200">접수날짜</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">변경유형</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">사업자유형</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">상호명</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">대표자</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">연락처</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">등록자</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">담당자</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">상태</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">메모</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRows.length === 0 ? (
+              <tr><td colSpan={12} className="text-center text-slate-400 p-8">등록된 변경 요청이 없습니다.</td></tr>
+            ) : filteredRows.map(row => (
+              <Fragment key={row.id}>
+                <tr
+                  className="border-t border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
+                  onClick={() => toggleExpand(row)}
+                >
+                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-3 text-slate-500">
+                    {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-slate-600">{row.reception_date || '-'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <select value={row.change_type} onChange={e => updateChangeType(row, e.target.value as ChangeType)}
+                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border border-slate-200 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer">
+                      {TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_TYPE_LABEL[t]}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <select value={row.applicant_type} onChange={e => updateApplicantType(row, e.target.value as ChangeApplicantType)}
+                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border border-slate-200 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer">
+                      {APPLICANT_TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_APPLICANT_TYPE_LABEL[t]}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap max-w-[160px] overflow-hidden text-ellipsis">{row.business_name || '-'}</td>
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{row.phone ? formatPhone(row.phone) : '-'}</td>
+                  <td className="px-3 py-3 text-slate-500 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <select value={row.cs_id ?? ''} onChange={e => updateCs(row, e.target.value)}
+                      className="text-sm font-medium text-slate-700 border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer">
+                      <option value="">미배정</option>
+                      {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                    <select value={row.status} onChange={e => updateStatus(row, e.target.value as ChangeRequestStatus)}
+                      className={`text-xs px-2 py-1 rounded-md font-medium border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${CHANGE_STATUS_COLOR[row.status]}`}>
+                      {STATUS_OPTIONS.map(s => <option key={s} value={s}>{CHANGE_STATUS_LABEL[s]}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate">{row.memo || '-'}</td>
+                </tr>
+                {expandedId === row.id && (
+                  <tr className="bg-blue-50/50 border-b border-slate-100">
+                    <td colSpan={12} className="px-6 py-4">
+                      <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">상호명</label>
+                          <EditableText row={row} field="business_name" placeholder="-" onSave={saveField} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">대표자명</label>
+                          <EditableText row={row} field="owner_name" placeholder="-" onSave={saveField} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">연락처</label>
+                          <EditableText row={row} field="phone" placeholder="010-0000-0000" onSave={saveField} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">사업자번호</label>
+                          <EditableText row={row} field="business_number" placeholder="000-00-00000" onSave={saveField} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">변경유형</label>
+                          <select value={row.change_type} onChange={e => updateChangeType(row, e.target.value as ChangeType)}
+                            className="w-full bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1.5 text-sm">
+                            {TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_TYPE_LABEL[t]}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">접수일</label>
+                          <DateField row={row} field="reception_date" onSave={saveField} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-400">입금여부</label>
+                          <div className="flex items-center gap-3 h-[34px]">
+                            <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                              <input type="radio" name={`payment-${row.id}`} checked={row.payment_received} onChange={() => updatePaymentReceived(row, true)} className="accent-blue-600" />
+                              Y
+                            </label>
+                            <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                              <input type="radio" name={`payment-${row.id}`} checked={!row.payment_received} onChange={() => updatePaymentReceived(row, false)} className="accent-blue-600" />
+                              N
+                            </label>
+                          </div>
+                        </div>
+                        <div className="col-span-4">
+                          <label className="text-xs font-semibold text-slate-400">메모</label>
+                          <EditableMemo row={row} onSave={saveField} />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <BulkConfirmDialog
+        open={deleteConfirmOpen}
+        title="선택 항목 삭제"
+        busy={deleting}
+        confirmText="삭제"
+        confirmColor="red"
+        items={localRows.filter(r => selected.has(r.id)).map(r => ({ id: r.id, label: r.business_name }))}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

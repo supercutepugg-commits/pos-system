@@ -304,16 +304,22 @@ export const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {
 }
 
 export type ChangeType = 'bank' | 'name' | 'ceo' | 'address' | 'category'
-export type ChangeRequestStatus = 'pending' | 'processing' | 'done'
+export type ChangeRequestStatus = 'waiting_docs' | 'docs_incomplete' | 'done'
+export type ChangeApplicantType = 'individual' | 'corporate'
 
 export interface ChangeRequest {
   id: string
   merchant_id?: string
   business_name: string
+  owner_name?: string
   phone?: string
+  business_number?: string
+  applicant_type: ChangeApplicantType
   change_type: ChangeType
   before_value?: string
   after_value?: string
+  reception_date?: string
+  payment_received: boolean
   status: ChangeRequestStatus
   memo?: string
   sales_id?: string
@@ -334,14 +340,19 @@ export const CHANGE_TYPE_LABEL: Record<ChangeType, string> = {
   category: '업종변경',
 }
 
+export const CHANGE_APPLICANT_TYPE_LABEL: Record<ChangeApplicantType, string> = {
+  individual: '개인사업자',
+  corporate: '법인사업자',
+}
+
 export const CHANGE_STATUS_LABEL: Record<ChangeRequestStatus, string> = {
-  pending: '접수',
-  processing: '처리중',
-  done: '완료',
+  waiting_docs: '서류대기',
+  docs_incomplete: '서류미비',
+  done: '접수완료',
 }
 
 export const CHANGE_STATUS_COLOR: Record<ChangeRequestStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  processing: 'bg-blue-100 text-blue-700',
+  waiting_docs: 'bg-yellow-100 text-yellow-700',
+  docs_incomplete: 'bg-red-100 text-red-700',
   done: 'bg-emerald-100 text-emerald-700',
 }

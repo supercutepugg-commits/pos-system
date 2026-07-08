@@ -7,12 +7,11 @@ export default async function ChangesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: rows, error }, { data: salesProfiles }, { data: csProfiles }, { data: currentProfile }] = await Promise.all([
+  const [{ data: rows, error }, { data: csProfiles }, { data: currentProfile }] = await Promise.all([
     supabase
       .from('change_requests')
-      .select('*, sales:profiles!change_requests_sales_id_fkey(id,name,role), cs:profiles!change_requests_cs_id_fkey(id,name,role), creator:profiles!change_requests_created_by_fkey(id,name,role)')
+      .select('*, cs:profiles!change_requests_cs_id_fkey(id,name,role), creator:profiles!change_requests_created_by_fkey(id,name,role)')
       .order('created_at', { ascending: false }),
-    supabase.from('profiles').select('id,name,role').in('role', ['sales', 'admin']).order('name'),
     supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin']).order('name'),
     supabase.from('profiles').select('name,role').eq('id', user.id).single(),
   ])
@@ -28,9 +27,9 @@ export default async function ChangesPage() {
       ) : (
         <ChangesClient
           rows={rows ?? []}
-          salesProfiles={salesProfiles ?? []}
           csProfiles={csProfiles ?? []}
           currentUserId={user.id}
+          currentUserName={currentProfile?.name ?? ''}
           currentUserRole={currentProfile?.role ?? ''}
         />
       )}

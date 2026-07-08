@@ -138,6 +138,7 @@ export interface FranchiseApplication {
   created_by?: string
   status: FranchiseStatus
   applicant_type: ApplicantType
+  change_type?: string
   doc_template?: string
   memo?: string
   sort_order?: number | null

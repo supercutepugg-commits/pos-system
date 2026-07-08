@@ -355,6 +355,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [statusFilter, setStatusFilter] = useState('')
   const [techFilter, setTechFilter] = useState('')
   const [showRejected, setShowRejected] = useState(false)
+  const [showCompleted, setShowCompleted] = useState(false)
   const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deliveryTab, setDeliveryTab] = useState<'all' | 'install' | 'delivery' | 'as'>('all')
@@ -866,6 +867,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       if (deliveryTab === 'delivery' && (i as any).delivery_type !== 'delivery') return false
       if (deliveryTab === 'as' && (i as any).delivery_type !== 'as') return false
       if (!showRejected && i.status === 'rejected') return false
+      if (!showCompleted && i.status === 'completed' && statusFilter !== 'completed') return false
       if (statusFilter && i.status !== statusFilter) return false
       if (techFilter && i.assigned_to !== techFilter) return false
       if (dateFrom && i.created_at < dateFrom) return false
@@ -877,9 +879,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       )) return false
       return true
     })
-  }, [installs, search, statusFilter, techFilter, showRejected, deliveryTab, dateFrom, dateTo])
+  }, [installs, search, statusFilter, techFilter, showRejected, showCompleted, deliveryTab, dateFrom, dateTo])
 
-  const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected
+  const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected && !showCompleted
 
   const columns = mineOnly ? MAIN_COLUMNS.filter(col => col.key !== 'status') : MAIN_COLUMNS
 
@@ -1203,6 +1205,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         <button onClick={() => setShowRejected(v => !v)}
           className={`text-xs font-medium px-3 py-1 rounded-full border transition-all ${showRejected ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white border-slate-200 text-slate-400'}`}>
           {showRejected ? '반려건 포함' : '반려건 숨김'}
+        </button>
+        <button onClick={() => setShowCompleted(v => !v)}
+          className={`text-xs font-medium px-3 py-1 rounded-full border transition-all ${showCompleted ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white border-slate-200 text-slate-400'}`}>
+          {showCompleted ? '완료건 포함' : '완료건 숨김'}
         </button>
       </div>
 

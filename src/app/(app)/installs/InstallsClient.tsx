@@ -900,7 +900,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected && !showCompleted
 
-  const columns = mineOnly ? MAIN_COLUMNS.filter(col => col.key !== 'status') : MAIN_COLUMNS
+  const columns = MAIN_COLUMNS
 
   const reorderInstalls = useCallback((dragId: string, dropId: string) => {
     if (dragId === dropId) return
@@ -1493,7 +1493,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" title={inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : undefined}>
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </td>
-                    {!mineOnly && (
                     <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
@@ -1506,7 +1505,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </span>
                       )}
                     </td>
-                    )}
                     <td className={`px-4 py-3 whitespace-nowrap ${inst.assigned_to === profile.id ? 'animate-pulse bg-yellow-100' : ''}`} onClick={e => e.stopPropagation()}>
                       {canEdit ? (
                         <select value={inst.assigned_to || ''} onChange={e => handleAssign(inst.id, e.target.value)}

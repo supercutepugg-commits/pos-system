@@ -333,10 +333,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={e => {
-                  setCompletePhotos(prev => [...prev, ...Array.from(e.target.files ?? [])])
-                  e.target.value = ''
-                }}
+                onChange={e => setCompletePhotos(Array.from(e.target.files ?? []))}
                 className="w-full text-sm text-slate-600 rounded-lg border border-blue-200 bg-blue-50 file:mr-3 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-sm file:font-medium file:cursor-pointer"
               />
               {completePhotos.length > 0 && (

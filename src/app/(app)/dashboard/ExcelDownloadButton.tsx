@@ -60,7 +60,7 @@ export default function ExcelDownloadButton() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const queries: { label: string; result: Promise<{ data: any[] | null; error: any }> }[] = [
+      const queries: { label: string; result: PromiseLike<{ data: any[] | null; error: any }> }[] = [
         { label: '가맹접수', result: supabase.from('franchise_applications')
           .select('*, sales:profiles!franchise_applications_sales_id_fkey(name), cs:profiles!franchise_applications_cs_id_fkey(name)')
           .order('created_at', { ascending: false }) },

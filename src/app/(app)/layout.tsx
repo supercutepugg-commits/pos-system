@@ -198,6 +198,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <RealtimeNotification userId={user.id} initialCount={unreadCount ?? 0} />
         <ScheduleAlertBanner alerts={scheduleAlerts} />
         <SlackPopupNotifier />
+      </div>
     </ToastProvider>
   )
 }

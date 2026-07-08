@@ -292,20 +292,20 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
         <ul className="flex flex-col gap-1">
           {items.map(i => (
             <li key={i.name} className="flex items-center justify-between text-xs bg-white border border-slate-200 rounded px-2 py-1 gap-2">
-              <span className="flex-1">{i.name}</span>
+              <span className="flex-1 min-w-0 truncate">{i.name}</span>
               <QtyStepper size="sm" value={i.quantity} onChange={q => setQuantity(i.name, q)} />
-              <button type="button" onClick={() => remove(i.name)} className="text-slate-400 hover:text-red-500">✕</button>
+              <button type="button" onClick={() => remove(i.name)} className="shrink-0 text-slate-400 hover:text-red-500">✕</button>
             </li>
           ))}
         </ul>
       )}
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         <select value={product} onChange={e => { setProduct(e.target.value); setCustomName('') }}
-          className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none">
+          className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none">
           {PRODUCT_CATALOG.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <QtyStepper size="sm" value={qty} onChange={setQty} />
-        <button type="button" onClick={add} className="px-2.5 py-1 bg-slate-800 text-white text-xs rounded hover:bg-slate-700">추가</button>
+        <button type="button" onClick={add} className="shrink-0 px-2.5 py-1 bg-slate-800 text-white text-xs rounded hover:bg-slate-700">추가</button>
       </div>
       <input value={customName} onChange={e => setCustomName(e.target.value)} placeholder="목록에 없는 제품은 직접 입력"
         className="border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none" />

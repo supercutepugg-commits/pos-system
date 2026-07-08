@@ -13,7 +13,8 @@ export default async function InventoryPage() {
   const { data: items } = await supabase
     .from('inventory_items')
     .select('*')
-    .order('category', { ascending: true })
+    .order('major_category', { ascending: true })
+    .order('mid_category', { ascending: true })
 
   const { data: logs } = await supabase
     .from('inventory_logs')

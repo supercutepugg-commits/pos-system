@@ -6,11 +6,33 @@ import { Plus, Trash2, Search, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 
-const CATEGORIES = ['포스기', '키오스크', '프린터', '카드단말기', '네트워크장비', '케이블', '소모품', '기타']
+const CATEGORY_TREE: Record<string, Record<string, string[]>> = {
+  '포스장비': {
+    '포스기': [
+      'J100 화이트', 'J100 블랙', 'J200 화이트', 'J200 블랙',
+      'T100 화이트', 'T100 블랙', 'T200 화이트', 'T200 블랙',
+      'G250 화이트', 'G250 블랙', '윙포스 화이트',
+    ],
+  },
+  '주변기기': {
+    '영수증프린터': ['ZPP-3000 화이트', 'ZPP-3000 블랙'],
+    '금전함': ['금전함'],
+    '테블릿 PC': ['테블릿 PC'],
+    '테이블 오더 브라켓': ['테이블 오더 브라켓'],
+  },
+  '결제장비': {
+    '프론트': ['프론트'],
+    '카드리더기': ['코세스/코밴 SDR-300'],
+    '블루투스 스와이프 단말기': ['코세스/코밴 KRE-C100+'],
+  },
+}
+const MAJOR_CATEGORIES = Object.keys(CATEGORY_TREE)
 
 interface InventoryItem {
   id: string
   name: string
+  major_category: string
+  mid_category: string
   category: string
   quantity: number
   unit: string
@@ -33,7 +55,9 @@ interface InventoryLog {
 
 const EMPTY_FORM = {
   name: '',
-  category: CATEGORIES[0],
+  major_category: MAJOR_CATEGORIES[0],
+  mid_category: Object.keys(CATEGORY_TREE[MAJOR_CATEGORIES[0]])[0],
+  category: CATEGORY_TREE[MAJOR_CATEGORIES[0]][Object.keys(CATEGORY_TREE[MAJOR_CATEGORIES[0]])[0]][0],
   quantity: 0,
   unit: '개',
   min_quantity: 0,
@@ -56,7 +80,7 @@ export default function InventoryClient({
   const [items, setItems] = useState(initialItems)
   const [logs, setLogs] = useState(initialLogs)
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [majorFilter, setMajorFilter] = useState('')
   const [lowStockOnly, setLowStockOnly] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -73,6 +97,8 @@ export default function InventoryClient({
     setSubmitting(true)
     const { data, error } = await supabase.from('inventory_items').insert({
       name: form.name,
+      major_category: form.major_category,
+      mid_category: form.mid_category,
       category: form.category,
       quantity: form.quantity,
       unit: form.unit || '개',
@@ -146,10 +172,10 @@ export default function InventoryClient({
 
   const filtered = useMemo(() => {
     const result = items.filter(item => {
-      if (categoryFilter && item.category !== categoryFilter) return false
+      if (majorFilter && item.major_category !== majorFilter) return false
       if (lowStockOnly && item.quantity > item.min_quantity) return false
       const term = search.trim().toLowerCase()
-      if (term && !`${item.name} ${item.category} ${item.location}`.toLowerCase().includes(term)) return false
+      if (term && !`${item.name} ${item.major_category} ${item.mid_category} ${item.category} ${item.location}`.toLowerCase().includes(term)) return false
       return true
     })
     // 부족 품목 상단 자동 정렬
@@ -158,15 +184,18 @@ export default function InventoryClient({
       const bLow = b.quantity <= b.min_quantity ? 0 : 1
       return aLow - bLow
     })
-  }, [items, search, categoryFilter, lowStockOnly])
+  }, [items, search, majorFilter, lowStockOnly])
 
   const lowCount = items.filter(i => i.quantity <= i.min_quantity).length
 
   const grouped = useMemo(() => {
-    const g: Record<string, InventoryItem[]> = {}
+    const g: Record<string, Record<string, InventoryItem[]>> = {}
     for (const item of filtered) {
-      if (!g[item.category]) g[item.category] = []
-      g[item.category].push(item)
+      const major = item.major_category || '기타'
+      const mid = item.mid_category || item.category
+      if (!g[major]) g[major] = {}
+      if (!g[major][mid]) g[major][mid] = []
+      g[major][mid].push(item)
     }
     return g
   }, [filtered])
@@ -208,10 +237,33 @@ export default function InventoryClient({
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">분류</label>
-            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+            <label className="text-xs font-medium text-slate-500">대분류</label>
+            <select value={form.major_category} onChange={e => {
+              const major = e.target.value
+              const mid = Object.keys(CATEGORY_TREE[major])[0]
+              const minor = CATEGORY_TREE[major][mid][0]
+              setForm({ ...form, major_category: major, mid_category: mid, category: minor })
+            }}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {MAJOR_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">중분류</label>
+            <select value={form.mid_category} onChange={e => {
+              const mid = e.target.value
+              const minor = CATEGORY_TREE[form.major_category][mid][0]
+              setForm({ ...form, mid_category: mid, category: minor })
+            }}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {Object.keys(CATEGORY_TREE[form.major_category]).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">소분류</label>
+            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {CATEGORY_TREE[form.major_category][form.mid_category].map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -279,10 +331,10 @@ export default function InventoryClient({
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="품목명, 위치..."
                 className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+            <select value={majorFilter} onChange={e => setMajorFilter(e.target.value)}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">분류 전체</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {MAJOR_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
               <input type="checkbox" checked={lowStockOnly} onChange={e => setLowStockOnly(e.target.checked)} className="w-4 h-4 accent-blue-600" />
@@ -291,9 +343,12 @@ export default function InventoryClient({
             <span className="ml-auto text-sm text-slate-500">{filtered.length}개 품목</span>
           </div>
 
-          {Object.entries(grouped).map(([category, catItems]) => (
-            <div key={category} className="mb-5">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{category}</h2>
+          {Object.entries(grouped).map(([major, midGroups]) => (
+            <div key={major} className="mb-6">
+              <h2 className="text-sm font-bold text-slate-700 mb-2">{major}</h2>
+              {Object.entries(midGroups).map(([mid, catItems]) => (
+                <div key={mid} className="mb-5 pl-1">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{mid}</h3>
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm border-collapse">
                   <thead className="bg-slate-50">
@@ -364,6 +419,8 @@ export default function InventoryClient({
                   </tbody>
                 </table>
               </div>
+                </div>
+              ))}
             </div>
           ))}
 

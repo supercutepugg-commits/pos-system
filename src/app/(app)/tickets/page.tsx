@@ -32,6 +32,7 @@ export default async function TicketsPage({ searchParams }: Props) {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
   const p = profile as Profile
+  const userId = user.id
 
   function buildQuery() {
     let q = supabase
@@ -40,9 +41,9 @@ export default async function TicketsPage({ searchParams }: Props) {
       .order('created_at', { ascending: false })
 
     // 역할별 필터
-    if (p.role === 'sales') q = q.eq('sales_id', user.id)
-    if (p.role === 'cs') q = q.eq('cs_id', user.id)
-    if (p.role === 'tech') q = q.eq('tech_id', user.id)
+    if (p.role === 'sales') q = q.eq('sales_id', userId)
+    if (p.role === 'cs') q = q.eq('cs_id', userId)
+    if (p.role === 'tech') q = q.eq('tech_id', userId)
 
     // 탭별 상태 필터
     if (params.status) {

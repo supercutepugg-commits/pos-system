@@ -1372,7 +1372,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 ))}
               </colgroup>
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
+                <tr className="border-b border-slate-200 divide-x divide-slate-200 bg-slate-50">
                   {profile.role === 'admin' && (
                     <th className="px-3 py-3">
                       <input type="checkbox"
@@ -1396,10 +1396,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 </tr>
               </thead>
               <tbody>
-                {pagedInstalls.map(inst => (
+                {pagedInstalls.map((inst, idx) => (
                 <Fragment key={inst.id}>
                   <tr
-                    className={`border-b border-slate-50 hover:bg-slate-50 transition cursor-pointer ${rowDragId === inst.id ? 'opacity-40' : ''}`}
+                    className={`border-b border-slate-200 divide-x divide-slate-100 hover:bg-blue-50/40 transition cursor-pointer ${idx % 2 === 1 ? 'bg-slate-50/60' : ''} ${rowDragId === inst.id ? 'opacity-40' : ''}`}
                     onClick={() => setDetailInst(prev => prev?.id === inst.id ? null : inst)}
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
@@ -1511,7 +1511,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap font-mono">
                       {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>

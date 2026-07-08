@@ -385,11 +385,11 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
               <div className="grid grid-cols-2 gap-3 items-center">
                 <input type="date" value={form.reception_date} onChange={e => setForm({ ...form, reception_date: e.target.value })}
                   className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                <label className="flex items-center gap-2 text-sm text-slate-700 px-1">
-                  <input type="checkbox" checked={form.payment_received} onChange={e => setForm({ ...form, payment_received: e.target.checked })}
-                    className="accent-blue-600" />
-                  입금 완료 (Y)
-                </label>
+                <select value={form.payment_received ? 'Y' : 'N'} onChange={e => setForm({ ...form, payment_received: e.target.value === 'Y' })}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="N">입금여부: N</option>
+                  <option value="Y">입금여부: Y</option>
+                </select>
               </div>
               <select value={form.cs_id} onChange={e => setForm({ ...form, cs_id: e.target.value })}
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
@@ -423,13 +423,14 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
               <th className="px-3 py-2.5 border-b border-slate-200">연락처</th>
               <th className="px-3 py-2.5 border-b border-slate-200">등록자</th>
               <th className="px-3 py-2.5 border-b border-slate-200">담당자</th>
+              <th className="px-3 py-2.5 border-b border-slate-200">입금</th>
               <th className="px-3 py-2.5 border-b border-slate-200">상태</th>
               <th className="px-3 py-2.5 border-b border-slate-200">메모</th>
             </tr>
           </thead>
           <tbody>
             {filteredRows.length === 0 ? (
-              <tr><td colSpan={12} className="text-center text-slate-400 p-8">등록된 변경 요청이 없습니다.</td></tr>
+              <tr><td colSpan={13} className="text-center text-slate-400 p-8">등록된 변경 요청이 없습니다.</td></tr>
             ) : filteredRows.map(row => (
               <Fragment key={row.id}>
                 <tr
@@ -466,6 +467,13 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                       {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    <select value={row.payment_received ? 'Y' : 'N'} onChange={e => updatePaymentReceived(row, e.target.value === 'Y')}
+                      className={`text-xs px-2 py-1 rounded-md font-semibold border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${row.payment_received ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      <option value="N">N</option>
+                      <option value="Y">Y</option>
+                    </select>
+                  </td>
                   <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                     <select value={row.status} onChange={e => updateStatus(row, e.target.value as ChangeRequestStatus)}
                       className={`text-xs px-2 py-1 rounded-md font-medium border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${CHANGE_STATUS_COLOR[row.status]}`}>
@@ -476,7 +484,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                 </tr>
                 {expandedId === row.id && (
                   <tr className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={12} className="px-6 py-4">
+                    <td colSpan={13} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -507,16 +515,11 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-400">입금여부</label>
-                          <div className="flex items-center gap-3 h-[34px]">
-                            <label className="flex items-center gap-1.5 text-sm text-slate-700">
-                              <input type="radio" name={`payment-${row.id}`} checked={row.payment_received} onChange={() => updatePaymentReceived(row, true)} className="accent-blue-600" />
-                              Y
-                            </label>
-                            <label className="flex items-center gap-1.5 text-sm text-slate-700">
-                              <input type="radio" name={`payment-${row.id}`} checked={!row.payment_received} onChange={() => updatePaymentReceived(row, false)} className="accent-blue-600" />
-                              N
-                            </label>
-                          </div>
+                          <select value={row.payment_received ? 'Y' : 'N'} onChange={e => updatePaymentReceived(row, e.target.value === 'Y')}
+                            className="w-full bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1.5 text-sm">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                          </select>
                         </div>
                         <div className="col-span-4">
                           <label className="text-xs font-semibold text-slate-400">메모</label>

@@ -196,6 +196,11 @@ export async function sendFranchiseStatusUpdate({
   const biz = businessName || ownerName || name
   const text = `[가맹 진행 안내]\n${name}님, "${biz}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
   const variables: Record<string, string> = { '#{고객명}': name, '#{상호명}': biz }
+  // 카카오 템플릿이 아직 승인/등록 전이라 env가 비어있을 수 있음 — 그 경우 조용히 스킵 (오발송/에러 방지, 상태 변경 자체는 정상 반영됨)
+  if (!process.env[FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status]]) {
+    console.warn(`[solapi] 가맹 상태(${status}) 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)`)
+    return
+  }
   const ko = kakaoOptions(FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status], variables)
   if (!ko) return
   await solapiSend({

@@ -11,6 +11,7 @@ import { STATUS_LABEL, STATUS_COLOR, TYPE_LABEL, PRIORITY_COLOR, PRIORITY_LABEL,
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
 interface Ticket {
   id: string
@@ -29,6 +30,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const allChecked = tickets.length > 0 && selected.size === tickets.length
 
@@ -44,12 +46,16 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
     })
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (selected.size === 0) return
-    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
     setDeleting(true)
     const { error } = await deleteTickets([...selected])
     setDeleting(false)
+    setDeleteConfirmOpen(false)
     if (error) { alert('삭제 실패: ' + error); return }
     setSelected(new Set())
     startTransition(() => router.refresh())
@@ -119,6 +125,17 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
           </div>
         ))}
       </div>
+
+      <BulkConfirmDialog
+        open={deleteConfirmOpen}
+        title="선택 항목 삭제"
+        busy={deleting}
+        confirmText="삭제"
+        confirmColor="red"
+        items={tickets.filter(t => selected.has(t.id)).map(t => ({ id: t.id, label: t.title }))}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

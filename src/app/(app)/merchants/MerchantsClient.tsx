@@ -9,6 +9,7 @@ import { MapPin, Phone } from 'lucide-react'
 import { deleteMerchants } from './actions'
 import EmptyState from '@/components/ui/EmptyState'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
 interface Merchant {
   id: string
@@ -26,6 +27,7 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const allChecked = merchants.length > 0 && selected.size === merchants.length
 
@@ -41,12 +43,16 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
     })
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (selected.size === 0) return
-    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?\n해당 가맹점의 작업 내역도 함께 삭제됩니다.`)) return
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
     setDeleting(true)
     const { error } = await deleteMerchants([...selected])
     setDeleting(false)
+    setDeleteConfirmOpen(false)
     if (error) { alert('삭제 실패: ' + error); return }
     setSelected(new Set())
     startTransition(() => router.refresh())
@@ -107,6 +113,17 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
           </div>
         ))}
       </div>
+
+      <BulkConfirmDialog
+        open={deleteConfirmOpen}
+        title="선택 항목 삭제"
+        busy={deleting}
+        confirmText="삭제"
+        confirmColor="red"
+        items={merchants.filter(m => selected.has(m.id)).map(m => ({ id: m.id, label: m.business_name }))}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

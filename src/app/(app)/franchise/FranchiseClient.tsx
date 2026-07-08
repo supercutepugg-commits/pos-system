@@ -14,6 +14,7 @@ import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseAppli
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import type { DocCase } from '@/lib/solapi'
 import { useToast } from '@/components/ui/Toast'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
 const DOC_CASE_LABEL: Record<DocCase, string> = {
   both: '대표자명+상호명',
@@ -492,6 +493,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
+  const [bulkStatusConfirmOpen, setBulkStatusConfirmOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [transferTab, setTransferTab] = useState<'all' | 'internet' | 'transferred' | 'rejected' | 'completed'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -716,18 +719,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return counts
   }, [localRows])
 
-  const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
+  const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
 
   const toggleAll = useCallback(() => {
     setSelected(prev => {
       if (allChecked) {
         const next = new Set(prev)
-        filteredRows.forEach(r => next.delete(r.id))
+        pagedRows.forEach(r => next.delete(r.id))
         return next
       }
-      return new Set([...prev, ...filteredRows.map(r => r.id)])
+      return new Set([...prev, ...pagedRows.map(r => r.id)])
     })
-  }, [allChecked, filteredRows])
+  }, [allChecked, pagedRows])
 
   const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
@@ -737,16 +740,20 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
   }, [])
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (selected.size === 0) return
-    if (!confirm(`선택한 ${selected.size}건을 삭제하시겠습니까?`)) return
+    setDeleteConfirmOpen(true)
+  }, [selected])
+
+  const confirmDelete = useCallback(async () => {
     setDeleting(true)
     const { error } = await deleteFranchiseRows([...selected])
     setDeleting(false)
+    setDeleteConfirmOpen(false)
     if (error) { toast.error('삭제 실패: ' + error); return }
     setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
     setSelected(new Set())
-  }, [selected])
+  }, [selected, toast])
 
   async function handleCreate(form: typeof EMPTY_FORM): Promise<boolean> {
     // 중복 접수 경고 (전화, 상호명, 사업자번호)
@@ -1248,7 +1255,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               ))}
             </select>
             <div className="flex flex-col gap-2">
-              <button onClick={handleBulkStatusChange} disabled={!bulkStatus || bulkChanging}
+              <button onClick={() => setBulkStatusConfirmOpen(true)} disabled={!bulkStatus || bulkChanging}
                 className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                 {bulkChanging ? '변경 중...' : '변경 확정'}
               </button>
@@ -1258,6 +1265,34 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </div>
         </div>
       )}
+
+      <BulkConfirmDialog
+        open={bulkStatusConfirmOpen}
+        title="일괄 상태 변경"
+        busy={bulkChanging}
+        confirmText="변경"
+        items={localRows.filter(r => selected.has(r.id)).map(r => ({
+          id: r.id,
+          label: r.business_name || r.owner_name || r.id,
+          detail: bulkStatus ? `${FRANCHISE_STATUS_LABEL[r.status]} → ${FRANCHISE_STATUS_LABEL[bulkStatus]}` : undefined,
+        }))}
+        onCancel={() => setBulkStatusConfirmOpen(false)}
+        onConfirm={async () => { setBulkStatusConfirmOpen(false); await handleBulkStatusChange() }}
+      />
+
+      <BulkConfirmDialog
+        open={deleteConfirmOpen}
+        title="선택 항목 삭제"
+        busy={deleting}
+        confirmText="삭제"
+        confirmColor="red"
+        items={localRows.filter(r => selected.has(r.id)).map(r => ({
+          id: r.id,
+          label: r.business_name || r.owner_name || r.id,
+        }))}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+      />
 
       {statusConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

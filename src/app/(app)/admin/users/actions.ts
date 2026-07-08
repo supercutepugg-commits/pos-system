@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth/require-admin'
 
 const ROLES = ['admin', 'sales', 'cs', 'tech']
@@ -45,6 +46,26 @@ export async function createUserAccount(form: { name: string; phone: string; pas
     await supabase.auth.admin.deleteUser(authData.user.id)
     return { error: '프로필 생성 실패: ' + profileError.message }
   }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
+export async function deleteUserAccount(userId: string) {
+  const authError = await requireAdmin()
+  if (authError) return { error: authError }
+
+  const sessionClient = await createClient()
+  const { data: { user } } = await sessionClient.auth.getUser()
+  if (user?.id === userId) return { error: '본인 계정은 삭제할 수 없습니다.' }
+
+  const supabase = createAdminClient()
+
+  const { error: profileError } = await supabase.from('profiles').delete().eq('id', userId)
+  if (profileError) return { error: '프로필 삭제 실패: ' + profileError.message }
+
+  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
+  if (authDeleteError) return { error: '계정 삭제 실패: ' + authDeleteError.message }
 
   revalidatePath('/admin/users')
   return { error: null }

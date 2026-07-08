@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ROLE_LABEL_KR } from './constants'
 import CreateUserForm from './CreateUserForm'
 import DeletePermissionToggle from './DeletePermissionToggle'
+import DeleteUserButton from './DeleteUserButton'
 
 const ROLE_COLOR: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-700',
@@ -71,6 +72,9 @@ export default async function UsersPage() {
                     </span>
                     {u.role !== 'admin' && (
                       <DeletePermissionToggle userId={u.id} initialCanDelete={!!u.can_delete} />
+                    )}
+                    {u.id !== user.id && (
+                      <DeleteUserButton userId={u.id} userName={u.name} />
                     )}
                   </div>
                 ))}

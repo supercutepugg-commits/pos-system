@@ -51,6 +51,7 @@ interface Props {
   currentUserName: string
   currentUserRole: string
   initialStatusFilter?: string
+  initialHighlightId?: string
   linkedInstalls?: Record<string, { id: string; status: string }>
   linkedInternets?: Record<string, { id: string; status: string | null; category: string | null }>
 }
@@ -455,7 +456,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
   )
 })
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', linkedInstalls = {}, linkedInternets = {} }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', initialHighlightId, linkedInstalls = {}, linkedInternets = {} }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
@@ -700,6 +701,33 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, transferTab, dateFrom, dateTo])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const highlightAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!initialHighlightId || highlightAppliedRef.current) return
+    const target = localRows.find(r => r.id === initialHighlightId)
+    if (!target) return
+    highlightAppliedRef.current = true
+    setSearch('')
+    setStatusFilter('')
+    setApplicantTypeFilter('')
+    setChannelFilter('')
+    setVanFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setTransferTab('all')
+    toggleExpand(target)
+  }, [initialHighlightId, localRows])
+
+  useEffect(() => {
+    if (!initialHighlightId) return
+    const idx = filteredRows.findIndex(r => r.id === initialHighlightId)
+    if (idx === -1) return
+    setPage(Math.floor(idx / PAGE_SIZE) + 1)
+    setTimeout(() => {
+      document.getElementById(`franchise-row-${initialHighlightId}`)?.scrollIntoView({ block: 'center' })
+    }, 50)
+  }, [initialHighlightId, filteredRows])
 
   const canReorder = sortBy === 'manual' && !search.trim() && !statusFilter && !applicantTypeFilter
     && !channelFilter && !vanFilter && !dateFrom && !dateTo && transferTab === 'all'
@@ -1184,7 +1212,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {/* 키보드 단축키 도움말 */}
       {showShortcuts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowShortcuts(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
             <p className="text-sm font-bold text-slate-800">⌨️ 단축키 안내</p>
             {[
               ['N', '신규 접수 폼 열기/닫기'],
@@ -1204,7 +1232,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {/* 일괄 배정 모달 */}
       {bulkAssignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">{selected.size}건 일괄 담당자 배정</p>
             <div className="flex flex-col gap-2">
               <label className="text-xs text-slate-500">담당 CS</label>
@@ -1237,7 +1265,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {/* 일괄 상태 변경 모달 */}
       {bulkStatusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">{selected.size}건 일괄 상태 변경</p>
             <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as FranchiseStatus)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -1288,7 +1316,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
       {statusConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
             <p className="text-sm text-slate-700 leading-relaxed">{statusConfirm.msg}</p>
             {statusConfirm.newStatus === 'doc_waiting' && statusConfirm.docCase && (
               <div className="flex flex-col gap-1">
@@ -1515,6 +1543,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             {pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
+                  id={`franchise-row-${row.id}`}
                   className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
                   onClick={() => toggleExpand(row)}
                   onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
@@ -1560,7 +1589,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis" title={row.business_name || undefined}>
                     <div className="flex items-center gap-1.5">
                       <span>{row.business_name || '-'}</span>
                       {(() => { const pct = completeness(row); return pct < 100 ? (
@@ -1568,7 +1597,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       ) : null })()}
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" title={row.owner_name || undefined}>{row.owner_name || '-'}</td>
                   <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">
                     {row.phone ? (
                       <button
@@ -1622,7 +1651,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate">{row.memo || '-'}</td>
+                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate" title={row.memo || undefined}>{row.memo || '-'}</td>
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">

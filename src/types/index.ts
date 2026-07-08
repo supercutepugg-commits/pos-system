@@ -302,3 +302,46 @@ export const APPLICANT_TYPE_LABEL: Record<ApplicantType, string> = {
   giga_individual: '기가맹 개인 사업자',
   giga_corporate: '기가맹 법인 사업자',
 }
+
+export type ChangeType = 'bank' | 'name' | 'ceo' | 'address' | 'category'
+export type ChangeRequestStatus = 'pending' | 'processing' | 'done'
+
+export interface ChangeRequest {
+  id: string
+  merchant_id?: string
+  business_name: string
+  phone?: string
+  change_type: ChangeType
+  before_value?: string
+  after_value?: string
+  status: ChangeRequestStatus
+  memo?: string
+  sales_id?: string
+  cs_id?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
+  sales?: Profile
+  cs?: Profile
+  creator?: Profile
+}
+
+export const CHANGE_TYPE_LABEL: Record<ChangeType, string> = {
+  bank: '통장변경',
+  name: '상호변경',
+  ceo: '대표자변경',
+  address: '주소변경',
+  category: '업종변경',
+}
+
+export const CHANGE_STATUS_LABEL: Record<ChangeRequestStatus, string> = {
+  pending: '접수',
+  processing: '처리중',
+  done: '완료',
+}
+
+export const CHANGE_STATUS_COLOR: Record<ChangeRequestStatus, string> = {
+  pending: 'bg-yellow-100 text-yellow-700',
+  processing: 'bg-blue-100 text-blue-700',
+  done: 'bg-emerald-100 text-emerald-700',
+}

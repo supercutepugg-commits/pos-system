@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
   CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, RefreshCw, FileText,
-  Network,
+  Network, FileEdit,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, Role } from '@/types'
@@ -42,6 +42,7 @@ const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] 
     icon: Headset,
     items: [
       { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
+      { href: '/changes', label: '변경 관리', icon: FileEdit },
       { href: '/woo', label: '우국상 관리', icon: BookUser },
       { href: '/internet', label: '인터넷 관리', icon: Wifi },
     ],

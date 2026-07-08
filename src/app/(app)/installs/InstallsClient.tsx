@@ -1241,9 +1241,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 </button>
                 {expanded && (
                   <div className="px-4 pb-4 border-t border-slate-100 pt-3" onClick={e => e.stopPropagation()}>
-                    <div className="text-sm text-slate-700">
-                      {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
-                    </div>
+                    {canEdit ? (
+                      <InstallItemsEditor items={inst.items ?? []} onChange={items => saveInstallItems(inst.id, items)} />
+                    ) : (
+                      <div className="text-sm text-slate-700">
+                        {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
+                      </div>
+                    )}
                     <p className="mt-2 text-xs text-slate-400">등록 {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}</p>
                     <div className="mt-2">
                       <NotificationHistory entityType="install" entityId={inst.id} labelMap={STATUS_LABELS} />

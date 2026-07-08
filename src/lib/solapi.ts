@@ -188,13 +188,26 @@ const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, strin
   toss_review_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DONE',
 }
 
+// 토스심사완료는 "장비 선택" 웹링크 버튼이 붙은 별도 템플릿을 쓴다 (equipmentSelectToken 없으면 기존 버튼 없는 템플릿으로 발송)
+const FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_TOSS_REVIEW_DONE_LINK'
+
 export async function sendFranchiseStatusUpdate({
-  phone, ownerName, businessName, status,
-}: { phone: string; ownerName?: string | null; businessName?: string | null; status: FranchiseStatusUpdateKind }) {
+  phone, ownerName, businessName, status, equipmentSelectToken,
+}: { phone: string; ownerName?: string | null; businessName?: string | null; status: FranchiseStatusUpdateKind; equipmentSelectToken?: string }) {
   if (!phone) return
   const name = ownerName || businessName || '고객'
   const biz = businessName || ownerName || name
   const text = `[가맹 진행 안내]\n${name}님, "${biz}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
+
+  if (status === 'toss_review_done' && equipmentSelectToken && process.env[FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV]) {
+    // 버튼(WL)은 템플릿에 "https://#{링크}" 형태로 등록되어 있으므로, 프로토콜을 뺀 나머지 주소만 변수로 전달한다
+    const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/equipment-select/${equipmentSelectToken}`
+    const ko = kakaoOptions(FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV, { '#{고객명}': name, '#{상호명}': biz, '#{링크}': linkNoProtocol })
+    if (!ko) return
+    await solapiSend({ to: phone, from: process.env.SOLAPI_SENDER!, text, kakaoOptions: ko })
+    return
+  }
+
   const variables: Record<string, string> = { '#{고객명}': name, '#{상호명}': biz }
   // 카카오 템플릿이 아직 승인/등록 전이라 env가 비어있을 수 있음 — 그 경우 조용히 스킵 (오발송/에러 방지, 상태 변경 자체는 정상 반영됨)
   if (!process.env[FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status]]) {

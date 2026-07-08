@@ -143,6 +143,9 @@ export interface FranchiseApplication {
   doc_template?: string
   memo?: string
   sort_order?: number | null
+  equipment_select_token?: string
+  selected_equipment?: string[]
+  equipment_selected_at?: string
   created_at: string
   updated_at: string
   sales?: Profile

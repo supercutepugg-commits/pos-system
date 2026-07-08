@@ -11,13 +11,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { type, ownerName, businessName, applicantType, status, docCase } = body
+    const { type, ownerName, businessName, applicantType, status, docCase, equipmentSelectToken } = body
     const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : ''
 
     if (type === 'doc_request') {
       await sendFranchiseDocRequest({ phone, ownerName, businessName, applicantType, docCase })
     } else if (type === 'status_update') {
-      await sendFranchiseStatusUpdate({ phone, ownerName, businessName, status })
+      await sendFranchiseStatusUpdate({ phone, ownerName, businessName, status, equipmentSelectToken })
     } else {
       return NextResponse.json({ ok: false, error: 'unknown type' }, { status: 400 })
     }

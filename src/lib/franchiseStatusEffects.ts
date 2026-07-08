@@ -201,7 +201,7 @@ export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEff
     } else if (status === 'card_internet_apply_done') {
       await notifyAndLogFranchiseStatus(row.id, 'card_apply_done', { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: 'card_apply_done' }, currentUserId, toast)
     } else {
-      await notifyAndLogFranchiseStatus(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status }, currentUserId, toast)
+      await notifyAndLogFranchiseStatus(row.id, status, { type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status, equipmentSelectToken: row.equipment_select_token }, currentUserId, toast)
     }
   }
 

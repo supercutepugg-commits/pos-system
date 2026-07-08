@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/auth/require-admin'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,6 +20,11 @@ const USERS = [
 ]
 
 export async function GET() {
+  const authError = await requireAdmin()
+  if (authError) {
+    return NextResponse.json({ error: authError }, { status: 403 })
+  }
+
   const results = []
 
   for (const u of USERS) {

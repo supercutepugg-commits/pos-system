@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,13 +9,19 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    const authClient = await createServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
     const formData = await req.formData()
     const file = formData.get('file') as File
     const title = formData.get('title') as string
     const signerName = formData.get('signerName') as string
     const signerEmail = formData.get('signerEmail') as string
     const signerPhone = formData.get('signerPhone') as string
-    const createdBy = formData.get('createdBy') as string
+    const createdBy = user.id
 
     // Storage 업로드
     const ext = file.name.split('.').pop() ?? 'pdf'

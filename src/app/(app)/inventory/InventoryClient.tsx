@@ -128,12 +128,11 @@ export default function InventoryClient({
   async function handleAdjust() {
     if (!adjustModal) return
     const { item, delta, reason } = adjustModal
-    const newQty = Math.max(0, item.quantity + delta)
-    const { error } = await supabase.from('inventory_items').update({
-      quantity: newQty,
-      last_checked: new Date().toISOString().slice(0, 10),
-    }).eq('id', item.id)
+    const { data: updated, error } = await supabase
+      .rpc('adjust_inventory_quantity', { p_item_id: item.id, p_delta: delta })
+      .single()
     if (error) { alert('수량 변경 실패: ' + error.message); return }
+    const newQty = (updated as InventoryItem).quantity
 
     await supabase.from('inventory_logs').insert({
       item_id: item.id,
@@ -157,14 +156,14 @@ export default function InventoryClient({
 
   async function saveInlineQty(item: InventoryItem, newQtyStr: string) {
     setInlineEdit(null)
-    const newQty = Math.max(0, Number(newQtyStr))
-    if (isNaN(newQty) || newQty === item.quantity) return
-    const delta = newQty - item.quantity
-    const { error } = await supabase.from('inventory_items').update({
-      quantity: newQty,
-      last_checked: new Date().toISOString().slice(0, 10),
-    }).eq('id', item.id)
+    const target = Math.max(0, Number(newQtyStr))
+    if (isNaN(target) || target === item.quantity) return
+    const delta = target - item.quantity
+    const { data: updated, error } = await supabase
+      .rpc('adjust_inventory_quantity', { p_item_id: item.id, p_delta: delta })
+      .single()
     if (error) return
+    const newQty = (updated as InventoryItem).quantity
     await supabase.from('inventory_logs').insert({
       item_id: item.id,
       item_name: item.name,

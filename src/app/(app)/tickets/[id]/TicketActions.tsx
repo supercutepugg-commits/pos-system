@@ -48,14 +48,6 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
       })
     }
 
-    // 카카오 알림톡 (API 라우트 통해)
-    if (targets.length > 0) {
-      fetch('/api/notifications/kakao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticketId: ticket.id, newStatus, targets }),
-      }).catch(() => {})
-    }
   }
 
   async function updateStatus(newStatus: string, extra?: Record<string, unknown>) {

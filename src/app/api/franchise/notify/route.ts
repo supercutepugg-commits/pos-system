@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendFranchiseDocRequest, sendFranchiseStatusUpdate } from '@/lib/solapi'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   try {
+    const authClient = await createServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ ok: false, error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { type, ownerName, businessName, applicantType, status, docCase } = body
-    const phone = (body.phone ?? '').replace(/\D/g, '')
+    const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : ''
 
     if (type === 'doc_request') {
       await sendFranchiseDocRequest({ phone, ownerName, businessName, applicantType, docCase })

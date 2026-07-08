@@ -18,6 +18,14 @@ export async function POST(req: NextRequest) {
     if (!token || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
     }
+    const MAX_ITEMS = 20
+    const MAX_DATA_URL_LENGTH = 5 * 1024 * 1024 // base64 문자열 기준 약 5MB
+    if (items.length > MAX_ITEMS) {
+      return NextResponse.json({ error: '서명/도장 항목이 너무 많습니다.' }, { status: 400 })
+    }
+    if (items.some((item) => typeof item.dataUrl !== 'string' || item.dataUrl.length > MAX_DATA_URL_LENGTH)) {
+      return NextResponse.json({ error: '이미지 크기가 너무 큽니다.' }, { status: 400 })
+    }
 
     const supabase = createAdminClient()
 

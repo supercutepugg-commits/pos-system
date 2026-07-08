@@ -23,7 +23,9 @@ interface Install {
 export default function InstallStatusClient({ install }: { install: Install }) {
   const [wantsDateChange, setWantsDateChange] = useState(false)
   const [requestedDate, setRequestedDate] = useState(install.requested_date ?? '')
-  const [timeSlot, setTimeSlot] = useState(install.requested_time_slot ?? '')
+  const isPresetSlot = TIME_SLOTS.some(s => s.value === install.requested_time_slot)
+  const [timeSlot, setTimeSlot] = useState(isPresetSlot ? install.requested_time_slot ?? '' : (install.requested_time_slot ? 'custom' : ''))
+  const [customTime, setCustomTime] = useState(isPresetSlot ? '' : install.requested_time_slot ?? '')
   const [note, setNote] = useState(install.schedule_request_note ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(!!install.schedule_request_at)
@@ -37,7 +39,7 @@ export default function InstallStatusClient({ install }: { install: Install }) {
         body: JSON.stringify({
           token: install.status_token,
           requestedDate: wantsDateChange ? requestedDate || null : null,
-          timeSlot: timeSlot || null,
+          timeSlot: timeSlot === 'custom' ? (customTime.trim() || null) : (timeSlot || null),
           note: note || null,
         }),
       })
@@ -95,7 +97,21 @@ export default function InstallStatusClient({ install }: { install: Install }) {
                 className={`text-xs font-medium rounded-lg border px-3 py-2 ${timeSlot === s.value ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200'}`}
               >{s.label}</button>
             ))}
+            <button
+              type="button"
+              onClick={() => setTimeSlot('custom')}
+              className={`text-xs font-medium rounded-lg border px-3 py-2 col-span-2 ${timeSlot === 'custom' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200'}`}
+            >직접 입력</button>
           </div>
+          {timeSlot === 'custom' && (
+            <input
+              type="text"
+              value={customTime}
+              onChange={e => setCustomTime(e.target.value)}
+              placeholder="예: 오후 2시 30분"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

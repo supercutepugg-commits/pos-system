@@ -23,12 +23,17 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const STATUS_ORDER_INSTALL = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
 const STATUS_ORDER_DELIVERY = ['received', 'preparing', 'delivery_sent', 'completed']
+// AS는 외근(방문) 여부만 추적하면 되므로 접수/제품준비 없이 3단계로 단순화
+const STATUS_ORDER_AS = ['scheduled', 'in_transit', 'completed']
 function statusOrderFor(deliveryType?: string) {
-  return deliveryType === 'delivery' ? STATUS_ORDER_DELIVERY : STATUS_ORDER_INSTALL
+  if (deliveryType === 'delivery') return STATUS_ORDER_DELIVERY
+  if (deliveryType === 'as') return STATUS_ORDER_AS
+  return STATUS_ORDER_INSTALL
 }
 // 예전에 만들어진 택배발송 건은 실제 status 값이 in_transit으로 저장돼 있으므로, 표시할 때만 보정한다
 function statusLabel(status: string, deliveryType?: string) {
   if (status === 'in_transit' && deliveryType === 'delivery') return '택배발송'
+  if (status === 'completed' && deliveryType === 'as') return 'AS완료'
   return STATUS_LABELS[status] ?? status
 }
 const STATUS_COLORS: Record<string, string> = {
@@ -458,7 +463,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function handleStatusChange(id: string, status: string) {
     if (status === 'completed') {
       const inst = installs.find(i => i.id === id)
-      setChecklistItems([
+      setChecklistItems(inst?.delivery_type === 'as' ? [] : [
         { label: '전원 정상 확인', checked: false },
         { label: '영수증 프린터 테스트', checked: false },
         { label: '카드단말기 연결', checked: false },
@@ -1639,7 +1644,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {completeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 max-w-full max-h-[85vh] overflow-y-auto flex flex-col gap-4">
-            <h3 className="text-sm font-semibold text-slate-800">설치 완료 처리</h3>
+            <h3 className="text-sm font-semibold text-slate-800">
+              {installs.find(i => i.id === completeModal.id)?.delivery_type === 'as' ? 'AS 완료 처리' : '설치 완료 처리'}
+            </h3>
             {checklistItems.length > 0 && (
               <div className="flex flex-col gap-1">
                 <p className="text-xs text-slate-500 font-medium">완료 전 체크리스트</p>

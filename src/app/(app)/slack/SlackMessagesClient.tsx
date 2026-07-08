@@ -37,7 +37,7 @@ export default function SlackMessagesClient({ initialMessages, initialError }: P
   }, [])
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto border border-slate-200 rounded-lg overflow-hidden">
       <div className="bg-[#3e6d9c] px-5 py-4 flex items-center justify-between">
         <h1 className="text-white font-bold text-lg flex items-center gap-2">
           <Hash size={18} />

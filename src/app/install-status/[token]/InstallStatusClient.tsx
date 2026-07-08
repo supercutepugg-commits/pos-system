@@ -46,7 +46,7 @@ export default function InstallStatusClient({ install }: { install: Install }) {
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-sm max-w-sm w-full">
+        <div className="text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-sm max-w-sm w-full">
           <p className="text-2xl font-bold text-green-600 mb-2">전달되었습니다</p>
           <p className="text-slate-500 text-sm">담당자가 확인 후 일정을 조율해드리겠습니다.</p>
         </div>
@@ -56,7 +56,7 @@ export default function InstallStatusClient({ install }: { install: Install }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="bg-white rounded-2xl shadow-sm max-w-sm w-full p-6 flex flex-col gap-5">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm max-w-sm w-full p-6 flex flex-col gap-5">
         <div>
           <h1 className="text-lg font-bold text-slate-900">설치 일정 확인</h1>
           <p className="text-sm text-slate-500 mt-1">{install.customer_name}님, 설치 전 일정을 확인해주세요.</p>

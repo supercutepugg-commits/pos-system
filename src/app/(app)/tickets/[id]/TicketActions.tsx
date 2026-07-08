@@ -325,7 +325,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
 
       {completeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 w-80 flex flex-col gap-4">
             <h3 className="text-sm font-semibold text-gray-800">설치 완료 처리</h3>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">설치완료사진 (필수, 여러 장 가능)</label>

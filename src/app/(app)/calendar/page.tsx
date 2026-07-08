@@ -7,7 +7,7 @@ export default async function CalendarPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: tickets }, { data: franchiseRows }, { data: wooRows }] = await Promise.all([
+  const [{ data: tickets }, { data: franchiseRows }, { data: wooRows }, { data: manualEvents }] = await Promise.all([
     supabase
       .from('tickets')
       .select('id, title, type, status, scheduled_at, install_date, open_date, card_apply_date, merchant:merchants(business_name), tech:profiles!tickets_tech_id_fkey(name), sales:profiles!tickets_sales_id_fkey(name)')
@@ -22,6 +22,9 @@ export default async function CalendarPage() {
       .from('woo_customers')
       .select('id, business_name, manager, open_date')
       .not('open_date', 'is', null),
+    supabase
+      .from('calendar_events')
+      .select('id, date, title, memo'),
   ])
 
   return (
@@ -31,7 +34,7 @@ export default async function CalendarPage() {
         <p className="text-sm text-slate-500 mt-0.5">설치·일정 관리</p>
       </div>
       <div className="flex-1 overflow-hidden">
-        <CalendarClient tickets={(tickets ?? []) as any} franchiseRows={(franchiseRows ?? []) as any} wooRows={(wooRows ?? []) as any} />
+        <CalendarClient tickets={(tickets ?? []) as any} franchiseRows={(franchiseRows ?? []) as any} wooRows={(wooRows ?? []) as any} manualEvents={(manualEvents ?? []) as any} />
       </div>
     </div>
   )

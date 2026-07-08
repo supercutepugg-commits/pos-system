@@ -9,6 +9,7 @@ import { ko } from 'date-fns/locale'
 import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
@@ -1263,7 +1264,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           defaultValue={inst.notes ?? ''}
                           onBlur={e => saveNotes(inst.id, e.target.value)}
                           placeholder="비고 추가..."
-                          rows={2}
+                          rows={4}
                           className="w-full text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none resize-none"
                         />
                       </div>
@@ -1546,7 +1547,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                                 defaultValue={inst.notes ?? ''}
                                 onClick={e => e.stopPropagation()}
                                 onBlur={e => { if (e.target.value !== (inst.notes ?? '')) saveInstallField(inst.id, 'notes', e.target.value) }}
-                                rows={2}
+                                rows={4}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                               />
                             ) : (
@@ -1646,7 +1647,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 value={completeModal.notes}
                 onChange={e => setCompleteModal(prev => prev ? { ...prev, notes: e.target.value } : prev)}
                 placeholder="현장 비고를 남겨주세요"
-                rows={3}
+                rows={6}
                 className={INPUT + ' resize-none'}
               />
             </div>
@@ -1670,6 +1671,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           </div>
         </div>
       )}
+
+      <BulkConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        title="선택 항목 삭제"
+        busy={deletingSelected}
+        confirmText="삭제"
+        confirmColor="red"
+        items={installs.filter(i => selected.has(i.id)).map(i => ({ id: i.id, label: i.customer_name || i.id }))}
+        onCancel={() => setBulkDeleteConfirmOpen(false)}
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }

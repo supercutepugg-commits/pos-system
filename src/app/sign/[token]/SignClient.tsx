@@ -250,6 +250,7 @@ export default function SignClient({ contract }: Props) {
         signerPhone: contract.signer_phone ?? '',
         signerName: contract.signer_name,
         contractTitle: contract.title,
+        contractId: contract.id,
       }),
     }).then(async res => {
       if (!res.ok) {

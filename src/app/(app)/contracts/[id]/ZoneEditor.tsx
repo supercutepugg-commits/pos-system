@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Save, ArrowLeft, Send } from 'lucide-react'
 import Link from 'next/link'
+import { NotificationHistory } from '@/components/ui/NotificationHistory'
 
 interface Zone {
   id: string
@@ -132,6 +133,7 @@ export default function ZoneEditor({ contract }: Props) {
           signerName: contract.signer_name,
           contractTitle: contract.title,
           signToken: contract.sign_token,
+          contractId: contract.id,
         }),
       })
       if (!res.ok) {
@@ -195,6 +197,13 @@ export default function ZoneEditor({ contract }: Props) {
               ))}
             </ul>
           )}
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <NotificationHistory
+              entityType="contract"
+              entityId={contract.id}
+              labelMap={{ sign_request: '서명 요청', sign_complete: '서명 완료 안내' }}
+            />
+          </div>
         </div>
 
         {/* PDF + 오버레이 */}

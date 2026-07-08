@@ -10,6 +10,7 @@ import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown } 
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+import { NotificationHistory, logNotification } from '@/components/ui/NotificationHistory'
 
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
@@ -437,13 +438,16 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       const data = await res.json()
       if (!data.ok) {
         toast.error('알림톡 발송 실패: ' + data.error)
+        await logNotification({ entityType: 'install', entityId: id, templateKey: notifyStatus, status: 'failed', error: data.error })
         return
       }
       const sentAt = new Date().toISOString()
       await supabase.from('installations').update({ last_notify_status: notifyStatus, last_notify_at: sentAt }).eq('id', id)
       setInstalls(prev => prev.map(i => i.id === id ? { ...i, last_notify_status: notifyStatus, last_notify_at: sentAt } : i))
+      await logNotification({ entityType: 'install', entityId: id, templateKey: notifyStatus, status: 'sent' })
     } catch (e: any) {
       toast.error('알림톡 발송 실패: ' + (e?.message ?? '알 수 없는 오류'))
+      await logNotification({ entityType: 'install', entityId: id, templateKey: notifyStatus, status: 'failed', error: e?.message })
     }
   }
 
@@ -590,6 +594,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
     // 가맹이관 건이면 CS/영업에게 완료 알림 + 가맹접수 상태 업데이트 + 이관 로그
     const inst = installs.find(i => i.id === id)
+
+    // 설치완료 시 배정된 장비를 재고에서 자동 차감 (이미 완료 처리된 건은 중복 차감 방지)
+    if (inst && inst.status !== 'completed' && inst.items?.length) {
+      const { data: unmatched, error: deductError } = await supabase.rpc('deduct_inventory_on_install', {
+        p_items: inst.items,
+        p_install_id: id,
+        p_note: `설치완료 자동차감 (${inst.customer_name})`,
+      })
+      if (deductError) {
+        toast.error('재고 자동차감 실패: ' + deductError.message)
+      } else if (unmatched && unmatched.length > 0) {
+        toast.warning('재고에서 찾지 못해 차감되지 않은 품목: ' + unmatched.map((u: { unmatched_name: string }) => u.unmatched_name).join(', '))
+      }
+    }
     if (inst?.franchise_application_id) {
       const { data: fa } = await supabase
         .from('franchise_applications')
@@ -1227,11 +1245,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       {inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}
                     </div>
                     <p className="mt-2 text-xs text-slate-400">등록 {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {inst.last_notify_at
-                        ? `마지막 알림톡: ${statusLabel(inst.last_notify_status ?? '', inst.delivery_type)} (${format(new Date(inst.last_notify_at), 'M/d HH:mm', { locale: ko })})`
-                        : '알림톡 발송 이력 없음'}
-                    </p>
+                    <div className="mt-2">
+                      <NotificationHistory entityType="install" entityId={inst.id} labelMap={STATUS_LABELS} />
+                    </div>
                     {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
                       <div className="flex gap-1 mt-2">
                         {inst.completion_photo_urls.map(url => (
@@ -1532,13 +1548,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             <p className="text-xs font-semibold text-slate-400">등록일</p>
                             <p className="text-slate-800">{format(new Date(inst.created_at), 'yyyy-M-d HH:mm', { locale: ko })}</p>
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400">알림톡 발송</p>
-                            <p className="text-slate-800">
-                              {inst.last_notify_at
-                                ? `${statusLabel(inst.last_notify_status ?? '', inst.delivery_type)} · ${format(new Date(inst.last_notify_at), 'M/d HH:mm', { locale: ko })}`
-                                : '발송 이력 없음'}
-                            </p>
+                          <div className="col-span-4">
+                            <NotificationHistory entityType="install" entityId={inst.id} labelMap={STATUS_LABELS} />
                           </div>
                           <div className="col-span-4">
                             <p className="text-xs font-semibold text-slate-400 mb-1">비고</p>

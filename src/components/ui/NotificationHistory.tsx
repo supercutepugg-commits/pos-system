@@ -1,0 +1,91 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+
+type NotificationLog = {
+  id: string
+  template_key: string
+  status: string
+  error: string | null
+  created_at: string
+  user: { name: string } | null
+}
+
+// 알림톡 발송이력 — entity_type(설치/가맹/계약/티켓 등) + entity_id 로 조회.
+// 모든 탭에서 공통으로 쓰기 위한 컴포넌트 (notification_logs 테이블 기반).
+export function NotificationHistory({
+  entityType,
+  entityId,
+  labelMap,
+}: {
+  entityType: string
+  entityId: string
+  labelMap?: Record<string, string>
+}) {
+  const [logs, setLogs] = useState<NotificationLog[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLogs(null)
+    const supabase = createClient()
+    supabase
+      .from('notification_logs')
+      .select('id, template_key, status, error, created_at, user:profiles(name)')
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled) setLogs((data as unknown as NotificationLog[]) ?? [])
+      })
+    return () => { cancelled = true }
+  }, [entityType, entityId])
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-400 mb-1.5">알림톡 발송이력</p>
+      {logs === null ? (
+        <p className="text-xs text-slate-400">불러오는 중...</p>
+      ) : logs.length === 0 ? (
+        <p className="text-xs text-slate-400">발송 이력이 없습니다.</p>
+      ) : (
+        <ul className="space-y-1">
+          {logs.map(log => (
+            <li
+              key={log.id}
+              className={`text-xs ${log.status === 'failed' ? 'text-red-500' : 'text-blue-500'}`}
+            >
+              {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
+              {labelMap?.[log.template_key] ?? log.template_key}
+              {log.status === 'failed' ? ` (실패${log.error ? `: ${log.error}` : ''})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+export async function logNotification({
+  entityType,
+  entityId,
+  templateKey,
+  status = 'sent',
+  error,
+}: {
+  entityType: string
+  entityId: string
+  templateKey: string
+  status?: 'sent' | 'failed'
+  error?: string
+}) {
+  const supabase = createClient()
+  await supabase.from('notification_logs').insert({
+    entity_type: entityType,
+    entity_id: entityId,
+    template_key: templateKey,
+    status,
+    error: error ?? null,
+    user_id: (await supabase.auth.getUser()).data.user?.id ?? null,
+  })
+}

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Ticket, Profile } from '@/types'
 import { STATUS_LABEL } from '@/types'
 import { ArrowRight, UserCheck, Calendar, CheckCircle } from 'lucide-react'
+import { NotificationHistory } from '@/components/ui/NotificationHistory'
 
 interface Props {
   ticket: Ticket & { merchant: any; sales: any; cs: any; tech: any }
@@ -275,6 +276,10 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
             취소
           </button>
         )}
+      </div>
+
+      <div className="pt-2 border-t border-gray-100">
+        <NotificationHistory entityType="ticket" entityId={ticket.id} labelMap={STATUS_LABEL as Record<string, string>} />
       </div>
 
       {completeOpen && (

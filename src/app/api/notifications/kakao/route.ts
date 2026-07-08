@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const phone = user.phone.replace(/-/g, '')
 
-    await fetch('https://kakaoapi.aligo.in/akv10/alimtalk/send/', {
+    const sendOk = await fetch('https://kakaoapi.aligo.in/akv10/alimtalk/send/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -59,7 +59,12 @@ export async function POST(req: NextRequest) {
         subject_1: '[POS 전산] 작업 알림',
         message_1: `[POS 전산 시스템]\n${user.name}님, ${message}\n\n가맹점: ${merchant?.business_name}\n작업: ${ticket.title}\n주소: ${merchant?.address}`,
       }),
-    }).catch(() => {})
+    }).then(() => true).catch(() => false)
+
+    await supabase.from('notification_logs').insert({
+      entity_type: 'ticket', entity_id: ticketId, template_key: newStatus,
+      status: sendOk ? 'sent' : 'failed',
+    })
   }
 
   return NextResponse.json({ ok: true })

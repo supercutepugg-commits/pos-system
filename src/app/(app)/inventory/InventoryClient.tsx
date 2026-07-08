@@ -55,7 +55,6 @@ interface InventoryLog {
 }
 
 const EMPTY_FORM = {
-  name: '',
   major_category: MAJOR_CATEGORIES[0],
   mid_category: Object.keys(CATEGORY_TREE[MAJOR_CATEGORIES[0]])[0],
   category: CATEGORY_TREE[MAJOR_CATEGORIES[0]][Object.keys(CATEGORY_TREE[MAJOR_CATEGORIES[0]])[0]][0],
@@ -94,10 +93,10 @@ export default function InventoryClient({
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.name) return
+    if (!form.category) return
     setSubmitting(true)
     const { data, error } = await supabase.from('inventory_items').insert({
-      name: form.name,
+      name: form.category,
       major_category: form.major_category,
       mid_category: form.mid_category,
       category: form.category,
@@ -232,11 +231,6 @@ export default function InventoryClient({
 
       {showForm && canEdit && (
         <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-5 flex flex-wrap gap-3 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">품목명 *</label>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">대분류</label>
             <select value={form.major_category} onChange={e => {

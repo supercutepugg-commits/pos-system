@@ -3,11 +3,11 @@ import { redirect } from 'next/navigation'
 import FranchiseClient from './FranchiseClient'
 
 interface Props {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; highlight?: string }>
 }
 
 export default async function FranchisePage({ searchParams }: Props) {
-  const { status } = await searchParams
+  const { status, highlight } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -64,7 +64,7 @@ export default async function FranchisePage({ searchParams }: Props) {
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} currentUserName={currentProfile?.name ?? ''} currentUserRole={currentProfile?.role ?? ''} initialStatusFilter={status ?? ''} linkedInstalls={linkedInstalls} linkedInternets={linkedInternets} />
+        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} currentUserName={currentProfile?.name ?? ''} currentUserRole={currentProfile?.role ?? ''} initialStatusFilter={status ?? ''} initialHighlightId={highlight} linkedInstalls={linkedInstalls} linkedInternets={linkedInternets} />
       )}
     </div>
   )

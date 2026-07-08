@@ -1383,11 +1383,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       {/* 이관 탭 */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
         {([
-          ['all', '전체', localRows.length - transferredIds.size - completedIds.size],
-          ['internet', '인터넷', internetIds.size],
-          ['transferred', '기술지원 이관', transferredIds.size],
-          ['rejected', '반려됨', rejectedIds.size],
-          ['completed', '완료', completedIds.size],
+          ['all', '전체', tabCounts.all],
+          ['internet', '인터넷', tabCounts.internet],
+          ['transferred', '기술지원 이관', tabCounts.transferred],
+          ['rejected', '반려됨', tabCounts.rejected],
+          ['completed', '완료', tabCounts.completed],
         ] as const).map(([tab, label, count]) => (
           <button key={tab} onClick={() => setTransferTab(tab)}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${transferTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -1406,17 +1406,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         ))}
       </div>
 
-      {/* 접수채널 통계 */}
+      {/* 접수채널 통계 (channelFilter 자신을 뺀 나머지 필터 기준 카운트 — statusCounts와 동일 원칙) */}
       {(() => {
-        const channelCounts: Record<string, number> = {}
-        for (const row of localRows) {
-          const ch = row.reception_channel || '미지정'
-          channelCounts[ch] = (channelCounts[ch] ?? 0) + 1
-        }
-        const total = localRows.length
+        const total = Object.values(channelCounts).reduce((sum, n) => sum + n, 0)
         return total > 0 ? (
           <div className="flex flex-wrap gap-2 mb-2">
-            {Object.entries(channelCounts).sort((a, b) => b[1] - a[1]).map(([ch, cnt]) => (
+            {Object.entries(channelCounts).filter(([, cnt]) => cnt > 0).sort((a, b) => b[1] - a[1]).map(([ch, cnt]) => (
               <button key={ch} onClick={() => setChannelFilter(channelFilter === ch ? '' : ch)}
                 className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border transition-colors ${channelFilter === ch ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-transparent text-slate-500 hover:border-slate-200'}`}>
                 <span className="font-medium text-slate-700">{ch}</span>

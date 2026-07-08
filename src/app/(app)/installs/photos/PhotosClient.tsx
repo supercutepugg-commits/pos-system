@@ -78,8 +78,8 @@ export default function PhotosClient({ installs }: Props) {
                 {inst.assignee?.name ?? '미배정'} · {format(new Date(inst.created_at), 'yyyy.M.d HH:mm', { locale: ko })}
               </p>
               <div className="grid grid-cols-3 gap-2">
-                {inst.completion_photo_urls.map(url => (
-                  <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                {inst.completion_photo_urls.map((url, idx) => (
+                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
                     <img src={url} alt={inst.customer_name} className="w-full aspect-square object-cover rounded-lg border border-slate-200" />
                   </a>
                 ))}

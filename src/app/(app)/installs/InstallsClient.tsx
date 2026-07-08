@@ -427,6 +427,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if (!inst?.customer_phone) return
     // 택배발송 건은 방문 일정을 잡을 일이 없으므로 제품준비 단계의 알림은 보내지 않는다
     if (inst.delivery_type === 'delivery' && status === 'preparing') return
+    // AS는 일정확정/완료 알림톡까지는 필요 없고, 이동중(방문 예정) 알림만 필요에 따라 보내면 된다
+    if (inst.delivery_type === 'as' && status !== 'in_transit') return
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
     if (!['preparing', 'scheduled', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
     try {
@@ -581,13 +583,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     completingRef.current = true
     setCompleting(true)
     const { id, notes } = completeModal
-    const targetInst = installs.find(i => i.id === id)
-    const safeName = (targetInst?.customer_name || '고객').replace(/[\/\\]/g, '_').trim()
 
     const photoUrls: string[] = []
     for (const [i, file] of completePhotos.entries()) {
       const ext = file.name.split('.').pop() ?? 'jpg'
-      const path = `${id}/${safeName} ${i + 1}.${ext}`
+      // Supabase Storage 키는 ASCII만 허용해서 한글 상호명을 그대로 쓰면 "Invalid key" 오류가 난다.
+      // 실제 저장 경로는 안전하게 두고, 사람이 보는 파일명은 다운로드 시 <a download>로 붙여준다.
+      const path = `${id}/${Date.now()}-${i}.${ext}`
       const { error: uploadError } = await supabase.storage.from('install-photos').upload(path, file)
       if (uploadError) { toast.error('사진 업로드 실패: ' + uploadError.message); setCompleting(false); completingRef.current = false; return }
       const { data: { publicUrl } } = supabase.storage.from('install-photos').getPublicUrl(path)
@@ -1286,8 +1288,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     </div>
                     {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
                       <div className="flex gap-1 mt-2">
-                        {inst.completion_photo_urls.map(url => (
-                          <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                        {inst.completion_photo_urls.map((url, idx) => (
+                          <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
                             <img src={url} alt="설치완료사진" className="w-10 h-10 object-cover rounded border border-slate-200" />
                           </a>
                         ))}
@@ -1482,8 +1484,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       )}
                       {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
                         <div className="flex gap-1 mt-1">
-                          {inst.completion_photo_urls.map(url => (
-                            <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                          {inst.completion_photo_urls.map((url, idx) => (
+                            <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
                               <img src={url} alt="설치완료사진" className="w-8 h-8 object-cover rounded border border-slate-200" />
                             </a>
                           ))}
@@ -1605,8 +1607,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             <div className="col-span-4">
                               <p className="text-xs font-semibold text-slate-400 mb-1">설치완료 사진</p>
                               <div className="flex gap-2 flex-wrap">
-                                {inst.completion_photo_urls.map(url => (
-                                  <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                                {inst.completion_photo_urls.map((url, idx) => (
+                                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
                                     <img src={url} alt="설치완료사진" className="w-20 h-20 object-cover rounded border border-slate-200" />
                                   </a>
                                 ))}

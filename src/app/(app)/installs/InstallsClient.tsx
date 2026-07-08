@@ -23,8 +23,8 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const STATUS_ORDER_INSTALL = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
 const STATUS_ORDER_DELIVERY = ['received', 'preparing', 'delivery_sent', 'completed']
-// AS는 외근(방문) 여부만 추적하면 되므로 접수/제품준비 없이 3단계로 단순화
-const STATUS_ORDER_AS = ['scheduled', 'in_transit', 'completed']
+// AS는 외근(방문) 여부만 추적하면 되므로 제품준비 단계 없이 접수/일정확정/이동중/AS완료로 단순화
+const STATUS_ORDER_AS = ['received', 'scheduled', 'in_transit', 'completed']
 function statusOrderFor(deliveryType?: string) {
   if (deliveryType === 'delivery') return STATUS_ORDER_DELIVERY
   if (deliveryType === 'as') return STATUS_ORDER_AS

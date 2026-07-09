@@ -3,10 +3,13 @@ import { sendSignRequest, sendSignComplete } from '@/lib/solapi'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { type, signerPhone, signerName, contractTitle, signToken, contractId } = body
-
+  let contractId: string | undefined
+  let type: string | undefined
   try {
+    const body = await req.json()
+    let signerPhone, signerName, contractTitle, signToken
+    ;({ type, signerPhone, signerName, contractTitle, signToken, contractId } = body)
+
     if (type === 'sign_request') {
       await sendSignRequest({ signerPhone, signerName, contractTitle, signToken })
     } else if (type === 'sign_complete') {

@@ -118,7 +118,7 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
       <td className="px-3 py-3 font-medium text-slate-900 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="business_name" onSave={onSave} /></td>
       <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="owner_name" onSave={onSave} /></td>
       <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[120px]"><EditableCell row={row} field="phone" onSave={onSave} /></td>
-      <td className="px-3 py-3 text-slate-700 max-w-[200px]"><EditableCell row={row} field="address" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 min-w-[320px]"><EditableCell row={row} field="address" onSave={onSave} /></td>
       <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="delivery_note" onSave={onSave} /></td>
       <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="requested_at" onSave={onSave} /></td>
       <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[80px]"><EditableCell row={row} field="shipped_at" onSave={onSave} /></td>
@@ -171,7 +171,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
           <input
             value={(form as any)[key]}
             onChange={e => setForm({ ...form, [key]: e.target.value })}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${key === 'address' ? 'w-80' : 'w-36'}`}
           />
         </div>
       ))}

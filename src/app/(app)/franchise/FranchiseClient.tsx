@@ -673,8 +673,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
     if (!skip.skipChannel && channelFilter && (row.reception_channel || '미지정') !== channelFilter) return false
     if (vanFilter && !row.van_company?.split(',').map(s => s.trim()).includes(vanFilter)) return false
-    if (dateFrom && row.created_at < dateFrom) return false
-    if (dateTo && row.created_at > dateTo + 'T23:59:59') return false
+    if (dateFrom || dateTo) {
+      const createdLocalDate = format(new Date(row.created_at), 'yyyy-MM-dd')
+      if (dateFrom && createdLocalDate < dateFrom) return false
+      if (dateTo && createdLocalDate > dateTo) return false
+    }
     return true
   }, [transferTab, transferredIds, rejectedIds, completedIds, isHiddenInAllTab, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
 
@@ -774,6 +777,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setSalesFilter(preset.filters.salesFilter ?? '')
     setCsFilter(preset.filters.csFilter ?? '')
     setSortBy((preset.filters.sortBy as typeof sortBy) ?? 'updated_at')
+  }
+
+  function removeFilterPreset(name: string) {
+    if (!confirm(`'${name}' 프리셋을 삭제하시겠습니까?`)) return
+    const next = savedFilters.filter(f => f.name !== name)
+    setSavedFilters(next)
+    localStorage.setItem('franchise_saved_filters', JSON.stringify(next))
   }
 
   async function handleBulkAssign() {
@@ -1456,11 +1466,20 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           저장
         </button>
         {savedFilters.length > 0 && (
-          <select defaultValue="" onChange={e => { const p = savedFilters.find(f => f.name === e.target.value); if (p) loadFilterPreset(p) }}
-            className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">필터 프리셋</option>
-            {savedFilters.map(f => <option key={f.name} value={f.name}>{f.name}</option>)}
-          </select>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {savedFilters.map(f => (
+              <span key={f.name}
+                className="flex items-center gap-1 text-sm border border-slate-200 rounded-lg pl-2 pr-1 py-1 bg-white">
+                <button onClick={() => loadFilterPreset(f)} className="text-slate-600 hover:text-blue-600">
+                  {f.name}
+                </button>
+                <button onClick={() => removeFilterPreset(f.name)} title="프리셋 삭제"
+                  className="text-slate-300 hover:text-red-500 px-1">
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
         )}
 
         <div className="ml-auto flex items-center gap-3">

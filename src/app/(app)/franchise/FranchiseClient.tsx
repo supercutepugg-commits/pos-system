@@ -240,18 +240,53 @@ function parseMemoEntries(memo: string | undefined, fallbackAt: string): { at: s
   })
   return entries
 }
+
+// parseMemoEntries와 동일한 순서로 원본 텍스트(스탬프 포함)를 블록 단위로 쪼갠다.
+function splitMemoBlocks(memo: string | undefined | null): string[] {
+  if (!memo?.trim()) return []
+  const re = /\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]/g
+  const matches = [...memo.matchAll(re)]
+  if (matches.length === 0) return [memo.trim()]
+  const blocks: string[] = []
+  const leading = memo.slice(0, matches[0].index).trim()
+  if (leading) blocks.push(leading)
+  matches.forEach((m, i) => {
+    const start = m.index!
+    const end = i + 1 < matches.length ? matches[i + 1].index! : memo.length
+    const block = memo.slice(start, end).trim()
+    if (block) blocks.push(block)
+  })
+  return blocks
+}
+function removeMemoEntry(memo: string | undefined | null, index: number): string {
+  const blocks = splitMemoBlocks(memo)
+  return blocks.filter((_, i) => i !== index).join('\n')
+}
+
 // 비고 + 상태 변경 이력을 한 화면(플로팅 창)에서 시간순으로 합쳐 보여준다
 interface HistoryPanelProps {
   row: FranchiseApplication
   logs: FranchiseApplicationLog[] | undefined
   onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
+  onDeleteMemo: (row: FranchiseApplication, newMemo: string) => void
   onClose: () => void
 }
-const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: HistoryPanelProps) {
+const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMemo, onClose }: HistoryPanelProps) {
+  function deleteMemoEntry(index: number) {
+    if (!confirm('이 메모를 삭제하시겠습니까?')) return
+    onDeleteMemo(row, removeMemoEntry(row.memo, index))
+  }
+
   const timeline = [
-    ...parseMemoEntries(row.memo, row.created_at).map(entry => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200">
-        <div className="text-slate-400">{new Date(entry.at).toLocaleString('ko-KR')} · {entry.user}</div>
+    ...parseMemoEntries(row.memo, row.created_at).map((entry, i) => ({ at: entry.at, node: (
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200 group">
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-slate-400">{new Date(entry.at).toLocaleString('ko-KR')} · {entry.user}</div>
+          <button onClick={() => deleteMemoEntry(i)} aria-label="메모 삭제"
+            className="shrink-0 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Trash2 size={14} />
+          </button>
+        </div>
         <div>{entry.text}</div>
       </li>
     ) })),
@@ -1112,10 +1147,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, sales_id: salesId || undefined, sales: sales as FranchiseApplication['sales'], updated_at: new Date().toISOString() } : r))
   }
 
-  const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
+  const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string, raw?: boolean) => {
     const supabase = createClient()
     let saveValue: string | null = value || null
-    if (field === 'memo' && value) {
+    if (field === 'memo' && value && !raw) {
       const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
       const prev = (row.memo ?? '').trim()
       saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
@@ -1947,6 +1982,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             row={row}
             logs={logsByRow[row.id]}
             onSave={saveField}
+            onDeleteMemo={(r, newMemo) => saveField(r, 'memo', newMemo, true)}
             onClose={() => setHistoryOpenId(null)}
           />
         )

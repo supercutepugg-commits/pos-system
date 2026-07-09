@@ -438,6 +438,7 @@ export default function PaperOrdersClient({ rows }: Props) {
             memo={row.memo}
             createdAt={row.created_at}
             onAddMemo={(value) => saveField(row, 'memo', `${(row.memo ?? '').trim()}${(row.memo ?? '').trim() ? '\n' : ''}${value}`)}
+            onDeleteMemo={(newMemo) => saveField(row, 'memo', newMemo)}
             onClose={() => setHistoryOpenId(null)}
           />
         )

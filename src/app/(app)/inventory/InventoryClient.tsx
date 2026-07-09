@@ -201,6 +201,12 @@ export default function InventoryClient({
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: newNotes } : i))
   }
 
+  async function deleteMemoEntry(item: InventoryItem, newNotes: string) {
+    const { error } = await supabase.from('inventory_items').update({ notes: newNotes || null }).eq('id', item.id)
+    if (error) { toast.error('메모 삭제 실패: ' + error.message); return }
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: newNotes } : i))
+  }
+
   async function deleteItem(id: string, name: string) {
     if (!confirm(`"${name}"을 삭제하시겠습니까?`)) return
     const { error } = await supabase.from('inventory_items').delete().eq('id', id)
@@ -494,7 +500,7 @@ export default function InventoryClient({
                                   className="text-xs px-1.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100">
                                   +10
                                 </button>
-                                <HistoryButton onClick={() => setHistoryOpenId(item.id)} />
+                                <HistoryButton size="small" onClick={() => setHistoryOpenId(item.id)} />
                                 <button onClick={() => deleteItem(item.id, item.name)}
                                   className="text-slate-300 hover:text-red-500 p-1 transition-colors">
                                   <Trash2 size={13} />
@@ -570,6 +576,7 @@ export default function InventoryClient({
             memo={item.notes}
             createdAt={item.created_at}
             onAddMemo={(value) => addMemo(item, value)}
+            onDeleteMemo={(newMemo) => deleteMemoEntry(item, newMemo)}
             onClose={() => setHistoryOpenId(null)}
           />
         )

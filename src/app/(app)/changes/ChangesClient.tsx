@@ -216,9 +216,9 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
     setSelected(new Set(filteredRows.map(r => r.id)))
   }
 
-  async function saveField(row: ChangeRequest, field: keyof ChangeRequest, value: string) {
+  async function saveField(row: ChangeRequest, field: keyof ChangeRequest, value: string, raw?: boolean) {
     let saveValue: string | null = value || null
-    if (field === 'memo' && value) {
+    if (field === 'memo' && value && !raw) {
       const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
       const prev = (row.memo ?? '').trim()
       saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
@@ -617,6 +617,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
             memo={row.memo}
             createdAt={row.created_at}
             onAddMemo={value => saveField(row, 'memo', value)}
+            onDeleteMemo={newMemo => saveField(row, 'memo', newMemo, true)}
             onClose={() => setHistoryOpenId(null)}
           />
         )

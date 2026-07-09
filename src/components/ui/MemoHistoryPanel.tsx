@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import HistoryIcon from './HistoryIcon'
 import { createClient } from '@/lib/supabase/client'
 
@@ -38,18 +38,43 @@ export function parseMemoEntries(memo: string | undefined | null, fallbackAt: st
   return entries
 }
 
+// parseMemoEntries와 동일한 순서로 원본 텍스트(스탬프 포함)를 블록 단위로 쪼갠다.
+// 특정 인덱스를 제외하고 다시 합치면 해당 메모 항목만 삭제된 원본 메모 문자열을 얻을 수 있다.
+function splitMemoBlocks(memo: string | undefined | null): string[] {
+  if (!memo?.trim()) return []
+  const re = /\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]/g
+  const matches = [...memo.matchAll(re)]
+  if (matches.length === 0) return [memo.trim()]
+  const blocks: string[] = []
+  const leading = memo.slice(0, matches[0].index).trim()
+  if (leading) blocks.push(leading)
+  matches.forEach((m, i) => {
+    const start = m.index!
+    const end = i + 1 < matches.length ? matches[i + 1].index! : memo.length
+    const block = memo.slice(start, end).trim()
+    if (block) blocks.push(block)
+  })
+  return blocks
+}
+
+export function removeMemoEntry(memo: string | undefined | null, index: number): string {
+  const blocks = splitMemoBlocks(memo)
+  return blocks.filter((_, i) => i !== index).join('\n')
+}
+
 interface Props {
   title: string
   memo: string | undefined | null
   createdAt: string
   onAddMemo: (value: string) => void
+  onDeleteMemo?: (newMemo: string) => void
   onClose: () => void
   entityType?: string
   entityId?: string
   labelMap?: Record<string, string>
 }
 
-export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, onClose, entityType, entityId, labelMap }: Props) {
+export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, onDeleteMemo, onClose, entityType, entityId, labelMap }: Props) {
   const [value, setValue] = useState('')
   const [notifLogs, setNotifLogs] = useState<NotificationLog[]>([])
 
@@ -69,13 +94,27 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
     return () => { cancelled = true }
   }, [entityType, entityId])
 
+  function deleteMemoEntry(index: number) {
+    if (!onDeleteMemo) return
+    if (!confirm('이 메모를 삭제하시겠습니까?')) return
+    onDeleteMemo(removeMemoEntry(memo, index))
+  }
+
   const timeline = [
-    ...parseMemoEntries(memo, createdAt).map(entry => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200">
-        <div className="text-slate-400">
-          {new Date(entry.at).toLocaleString('ko-KR')}
-          {' · '}
-          <span className="font-semibold text-blue-300">{entry.user}</span>
+    ...parseMemoEntries(memo, createdAt).map((entry, i) => ({ at: entry.at, node: (
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200 group">
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-slate-400">
+            {new Date(entry.at).toLocaleString('ko-KR')}
+            {' · '}
+            <span className="font-semibold text-blue-300">{entry.user}</span>
+          </div>
+          {onDeleteMemo && (
+            <button onClick={() => deleteMemoEntry(i)} aria-label="메모 삭제"
+              className="shrink-0 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
         <div>{entry.text}</div>
       </li>

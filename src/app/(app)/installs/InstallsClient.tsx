@@ -675,11 +675,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     }
   }
 
-  async function saveNotes(id: string, notes: string) {
+  async function saveNotes(id: string, notes: string, raw?: boolean) {
     const prev = installs.find(i => i.id === id)
     const prevNotes = (prev?.notes ?? '').trim()
     let saveValue: string | null = notes || null
-    if (notes && prevNotes) {
+    if (raw) {
+      // 메모 삭제 등 이미 완성된 원본 텍스트를 그대로 저장할 때는 스탬프 로직을 건너뛴다
+    } else if (notes && prevNotes) {
 
 
       if (notes.startsWith(prevNotes)) {
@@ -1784,6 +1786,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             memo={row.notes}
             createdAt={row.created_at}
             onAddMemo={(value) => saveNotes(row.id, `${(row.notes ?? '').trim()}${(row.notes ?? '').trim() ? '\n' : ''}${value}`)}
+            onDeleteMemo={(newMemo) => saveNotes(row.id, newMemo, true)}
             onClose={() => setHistoryOpenId(null)}
             entityType="install"
             entityId={row.id}

@@ -405,10 +405,10 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
     setLocalRows(prev => [data, ...prev])
   }, [currentUserId, toast])
 
-  const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
+  const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string, raw?: boolean) => {
     const supabase = createClient()
     let saveValue: string | null = value || null
-    if (field === 'memo' && value) {
+    if (field === 'memo' && value && !raw) {
       const currentUserName = techProfiles.find(p => p.id === currentUserId)?.name ?? '사용자'
       const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
       const prev = (row.memo ?? '').trim()
@@ -663,6 +663,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
             memo={row.memo}
             createdAt={row.created_at}
             onAddMemo={(value) => saveField(row, 'memo', value)}
+            onDeleteMemo={(newMemo) => saveField(row, 'memo', newMemo, true)}
             onClose={() => setHistoryOpenId(null)}
           />
         )

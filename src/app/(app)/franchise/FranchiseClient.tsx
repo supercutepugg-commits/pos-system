@@ -200,9 +200,15 @@ const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoPro
   return (
     <textarea
       value={value}
-      placeholder="새 비고 입력..."
+      placeholder="새 히스토리 입력..."
       onChange={e => setValue(e.target.value)}
       onBlur={() => { if (value.trim()) { onSave(row, 'memo', value); setValue('') } }}
+      onKeyDown={e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          if (value.trim()) { onSave(row, 'memo', value); setValue('') }
+        }
+      }}
       onClick={e => e.stopPropagation()}
       rows={2}
       className="w-full bg-transparent border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1 text-sm resize-y"
@@ -293,7 +299,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
         </button>
       </div>
       <div className="px-5 py-4 border-b border-slate-700">
-        <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
+        <label className="text-xs font-semibold text-slate-400">히스토리 추가</label>
         <EditableMemo row={row} onSave={onSave} />
       </div>
       <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">

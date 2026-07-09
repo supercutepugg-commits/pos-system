@@ -201,8 +201,8 @@ export async function sendFranchiseStatusUpdate({
 
   if (status === 'toss_review_done' && equipmentSelectToken && process.env[FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV]) {
     
-    const link = `${origin()}/equipment-select/${equipmentSelectToken}`
-    const ko = kakaoOptions(FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV, { '#{고객명}': name, '#{상호명}': biz, '#{링크}': link })
+    const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/equipment-select/${equipmentSelectToken}`
+    const ko = kakaoOptions(FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV, { '#{고객명}': name, '#{상호명}': biz, '#{링크}': linkNoProtocol })
     if (!ko) return
     await solapiSend({ to: phone, from: process.env.SOLAPI_SENDER!, text, kakaoOptions: ko })
     return

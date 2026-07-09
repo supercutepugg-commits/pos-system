@@ -27,7 +27,8 @@ export async function middleware(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname === '/login'
   const isPublicPage = request.nextUrl.pathname.startsWith('/sign/') ||
-    request.nextUrl.pathname.startsWith('/install-status/')
+    request.nextUrl.pathname.startsWith('/install-status/') ||
+    request.nextUrl.pathname.startsWith('/equipment-select/')
 
   if (!user && !isLoginPage && !isPublicPage) {
     return NextResponse.redirect(new URL('/login', request.url))

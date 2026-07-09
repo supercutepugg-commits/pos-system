@@ -488,7 +488,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
-  const [activeTabByRow, setActiveTabByRow] = useState<Record<string, 'details' | 'history'>>({})
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
@@ -1687,22 +1686,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
                     <td colSpan={14} className="px-6 py-4">
-                      <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
-                        {(['details', 'history'] as const).map(tab => (
-                          <button
-                            key={tab}
-                            onClick={() => setActiveTabByRow(prev => ({ ...prev, [row.id]: tab }))}
-                            className={`text-xs font-semibold px-3 py-1.5 -mb-px border-b-2 transition-colors ${
-                              (activeTabByRow[row.id] ?? 'details') === tab
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-slate-400 hover:text-slate-600'
-                            }`}
-                          >
-                            {tab === 'details' ? '상세' : '히스토리'}
-                          </button>
-                        ))}
-                      </div>
-                      {(activeTabByRow[row.id] ?? 'details') === 'details' && (
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1766,7 +1749,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <VanMultiSelect value={row.van_company ?? ''} onChange={v => saveField(row, 'van_company', v)} />
                         </div>
                       </div>
-                      )}
                       <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <button onClick={() => shareLink(row.id)}
                           className="text-xs text-slate-400 hover:text-blue-500 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-colors">
@@ -1830,7 +1812,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           </button>
                         )}
                       </div>
-                      {(activeTabByRow[row.id] ?? 'details') === 'history' && (
                       <div>
                         <div className="mb-3">
                           <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
@@ -1881,7 +1862,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           </ul>
                         )}
                       </div>
-                      )}
                     </td>
                   </tr>
                 )}

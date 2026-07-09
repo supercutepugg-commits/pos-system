@@ -591,7 +591,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function submitCompletion(skipCompleteSend?: boolean) {
     if (!completeModal) return
-    if (completePhotos.length === 0) { toast.warning('설치완료사진을 최소 1장 첨부해주세요.'); return }
     // completing 상태(state)는 리렌더 이후에만 disabled에 반영되므로, 같은 이벤트 루프 틱 안에서
     // 버튼이 두 번 눌리면(더블클릭) 두 번 다 통과해서 재고가 이중 차감될 수 있다.
     // ref로 즉시(동기적으로) 재진입을 막는다.
@@ -1711,7 +1710,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               </div>
             )}
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500">설치완료사진 (필수, 여러 장 가능)</label>
+              <label className="text-xs text-slate-500">설치완료사진 (선택, 여러 장 가능)</label>
               <input
                 type="file"
                 accept="image/*"

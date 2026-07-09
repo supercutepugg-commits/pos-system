@@ -71,7 +71,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
 
   const timeline = [
     ...parseMemoEntries(memo, createdAt).map(entry => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-[18pt] text-slate-200">
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200">
         <div className="text-slate-400">
           {new Date(entry.at).toLocaleString('ko-KR')}
           {' · '}
@@ -81,7 +81,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
       </li>
     ) })),
     ...notifLogs.map(log => ({ at: log.created_at, node: (
-      <li key={`notif-${log.id}`} className="text-[18pt] text-blue-400">
+      <li key={`notif-${log.id}`} className="text-[15pt] text-blue-400">
         <div className="text-slate-400">
           {new Date(log.created_at).toLocaleString('ko-KR')}
           {' · '}
@@ -125,7 +125,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
       </div>
       <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
         {timeline.length === 0 ? (
-          <p className="text-[18pt] text-slate-400">이력이 없습니다.</p>
+          <p className="text-[15pt] text-slate-400">이력이 없습니다.</p>
         ) : (
           <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}

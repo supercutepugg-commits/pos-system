@@ -250,7 +250,7 @@ interface HistoryPanelProps {
 const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: HistoryPanelProps) {
   const timeline = [
     ...parseMemoEntries(row.memo, row.created_at).map(entry => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-[18pt] text-slate-200">
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200">
         <div className="text-slate-400">{new Date(entry.at).toLocaleString('ko-KR')} · {entry.user}</div>
         <div>{entry.text}</div>
       </li>
@@ -261,7 +261,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
       if (isAlimtalk) {
         const key = log.to_status!.replace('alimtalk:', '')
         return { at: log.created_at, node: (
-          <li key={log.id} className="text-[18pt] text-blue-400">
+          <li key={log.id} className="text-[15pt] text-blue-400">
             <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
             <div>알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})</div>
           </li>
@@ -269,14 +269,14 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
       }
       if (isInstallEvent) {
         return { at: log.created_at, node: (
-          <li key={log.id} className="text-[18pt] text-purple-400 font-medium">
+          <li key={log.id} className="text-[15pt] text-purple-400 font-medium">
             <div className="text-slate-400 font-normal">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
             <div>{INSTALL_LOG_LABEL[log.to_status!]}</div>
           </li>
         ) }
       }
       return { at: log.created_at, node: (
-        <li key={log.id} className="text-[18pt] text-slate-300">
+        <li key={log.id} className="text-[15pt] text-slate-300">
           <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
           <div>
             {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
@@ -304,9 +304,9 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
       </div>
       <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
         {!logs ? (
-          <p className="text-[18pt] text-slate-400">불러오는 중...</p>
+          <p className="text-[15pt] text-slate-400">불러오는 중...</p>
         ) : timeline.length === 0 ? (
-          <p className="text-[18pt] text-slate-400">이력이 없습니다.</p>
+          <p className="text-[15pt] text-slate-400">이력이 없습니다.</p>
         ) : (
           <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}

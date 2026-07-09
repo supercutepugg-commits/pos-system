@@ -208,18 +208,27 @@ const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoPro
 })
 
 
-function parseMemoEntries(memo?: string): { at: string; user: string; text: string }[] {
-  if (!memo) return []
+// 스탬프(`[이름 MM. DD. HH:mm]`)가 붙은 항목뿐 아니라, 스탬프 도입 전에 저장된 맨 텍스트도 하나의 항목으로 살려서 반환한다
+function parseMemoEntries(memo: string | undefined, fallbackAt: string): { at: string; user: string; text: string }[] {
+  if (!memo?.trim()) return []
+  const re = /\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]/g
+  const matches = [...memo.matchAll(re)]
+  if (matches.length === 0) {
+    return [{ at: fallbackAt, user: '-', text: memo.trim() }]
+  }
   const entries: { at: string; user: string; text: string }[] = []
-  const re = /\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]\s*([\s\S]*?)(?=\n\[.+? \d{2}\. \d{2}\. \d{2}:\d{2}\]|$)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(memo))) {
-    const [, user, month, day, hour, minute, text] = m
-    if (!text.trim()) continue
+  const leading = memo.slice(0, matches[0].index).trim()
+  if (leading) entries.push({ at: fallbackAt, user: '-', text: leading })
+  matches.forEach((m, i) => {
+    const [, user, month, day, hour, minute] = m
+    const start = m.index! + m[0].length
+    const end = i + 1 < matches.length ? matches[i + 1].index! : memo.length
+    const text = memo.slice(start, end).trim()
+    if (!text) return
     const now = new Date()
     const at = new Date(now.getFullYear(), Number(month) - 1, Number(day), Number(hour), Number(minute)).toISOString()
-    entries.push({ at, user, text: text.trim() })
-  }
+    entries.push({ at, user, text })
+  })
   return entries
 }
 // 비고 + 상태 변경 이력을 한 화면(플로팅 창)에서 시간순으로 합쳐 보여준다
@@ -231,7 +240,7 @@ interface HistoryPanelProps {
 }
 const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: HistoryPanelProps) {
   const timeline = [
-    ...parseMemoEntries(row.memo).map(entry => ({ at: entry.at, node: (
+    ...parseMemoEntries(row.memo, row.created_at).map(entry => ({ at: entry.at, node: (
       <li key={`memo-${entry.at}-${entry.text}`} className="text-sm text-slate-200">
         {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
       </li>

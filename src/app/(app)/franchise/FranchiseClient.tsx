@@ -245,7 +245,8 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
   const timeline = [
     ...parseMemoEntries(row.memo, row.created_at).map(entry => ({ at: entry.at, node: (
       <li key={`memo-${entry.at}-${entry.text}`} className="text-[21pt] text-slate-200">
-        {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
+        <div className="text-slate-400">{new Date(entry.at).toLocaleString('ko-KR')} · {entry.user}</div>
+        <div>{entry.text}</div>
       </li>
     ) })),
     ...(logs ?? []).map(log => {
@@ -255,22 +256,26 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
         const key = log.to_status!.replace('alimtalk:', '')
         return { at: log.created_at, node: (
           <li key={log.id} className="text-[21pt] text-blue-400">
-            {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
+            <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
+            <div>알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})</div>
           </li>
         ) }
       }
       if (isInstallEvent) {
         return { at: log.created_at, node: (
           <li key={log.id} className="text-[21pt] text-purple-400 font-medium">
-            {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
+            <div className="text-slate-400 font-normal">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
+            <div>{INSTALL_LOG_LABEL[log.to_status!]}</div>
           </li>
         ) }
       }
       return { at: log.created_at, node: (
         <li key={log.id} className="text-[21pt] text-slate-300">
-          {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
-          {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
-          {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+          <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
+          <div>
+            {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
+            {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+          </div>
         </li>
       ) }
     }),
@@ -280,7 +285,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
     <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[95vh] max-h-[95vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
         <p className="flex items-center gap-2 text-base font-semibold">
-          <HistoryIcon size={20} />
+          <HistoryIcon size={32} />
           히스토리 · {row.business_name || row.owner_name || '-'}
         </p>
         <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors" aria-label="닫기">

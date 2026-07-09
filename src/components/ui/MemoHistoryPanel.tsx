@@ -50,7 +50,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
     <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[85vh] max-h-[85vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
         <p className="flex items-center gap-2 text-base font-semibold">
-          <HistoryIcon size={20} />
+          <HistoryIcon size={32} />
           히스토리 · {title}
         </p>
         <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors" aria-label="닫기">
@@ -75,11 +75,12 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
           <ul className="space-y-2.5">
             {timeline.map(entry => (
               <li key={`${entry.at}-${entry.text}`} className="text-[21pt] text-slate-200">
-                <span className="text-slate-400">{new Date(entry.at).toLocaleString('ko-KR')}</span>
-                {' · '}
-                <span className="font-semibold text-blue-300">{entry.user}</span>
-                {' · '}
-                {entry.text}
+                <div className="text-slate-400">
+                  {new Date(entry.at).toLocaleString('ko-KR')}
+                  {' · '}
+                  <span className="font-semibold text-blue-300">{entry.user}</span>
+                </div>
+                <div>{entry.text}</div>
               </li>
             ))}
           </ul>

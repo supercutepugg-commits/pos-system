@@ -1686,6 +1686,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
                     <td colSpan={14} className="px-6 py-4">
+                      <div className="flex gap-6 items-start">
+                      <div className="flex-1 min-w-0">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1812,7 +1814,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           </button>
                         )}
                       </div>
-                      <div>
+                      </div>
+                      <div className="w-80 shrink-0 border-l border-slate-200 pl-6">
                         <div className="mb-3">
                           <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
                           <EditableMemo row={row} onSave={saveField} />
@@ -1861,6 +1864,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                               .map(entry => entry.node)}
                           </ul>
                         )}
+                      </div>
                       </div>
                     </td>
                   </tr>

@@ -14,6 +14,14 @@ type NotificationLog = {
   user: { name: string } | null
 }
 
+type FranchiseLog = {
+  id: string
+  from_status: string | null
+  to_status: string | null
+  created_at: string
+  user: { name: string } | null
+}
+
 // 스탬프(`[이름 MM. DD. HH:mm]`)가 붙은 항목뿐 아니라, 스탬프 도입 전에 저장된 맨 텍스트도 하나의 항목으로 살려서 반환한다
 export function parseMemoEntries(memo: string | undefined | null, fallbackAt: string): { at: string; user: string; text: string }[] {
   if (!memo?.trim()) return []
@@ -72,11 +80,14 @@ interface Props {
   entityType?: string
   entityId?: string
   labelMap?: Record<string, string>
+  franchiseApplicationId?: string
+  franchiseStatusLabelMap?: Record<string, string>
 }
 
-export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, onDeleteMemo, onClose, entityType, entityId, labelMap }: Props) {
+export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, onDeleteMemo, onClose, entityType, entityId, labelMap, franchiseApplicationId, franchiseStatusLabelMap }: Props) {
   const [value, setValue] = useState('')
   const [notifLogs, setNotifLogs] = useState<NotificationLog[]>([])
+  const [franchiseLogs, setFranchiseLogs] = useState<FranchiseLog[]>([])
 
   useEffect(() => {
     if (!entityType || !entityId) return
@@ -93,6 +104,21 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
       })
     return () => { cancelled = true }
   }, [entityType, entityId])
+
+  useEffect(() => {
+    if (!franchiseApplicationId) return
+    let cancelled = false
+    const supabase = createClient()
+    supabase
+      .from('franchise_application_logs')
+      .select('id, from_status, to_status, created_at, user:profiles(name)')
+      .eq('franchise_application_id', franchiseApplicationId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled) setFranchiseLogs((data as unknown as FranchiseLog[]) ?? [])
+      })
+    return () => { cancelled = true }
+  }, [franchiseApplicationId])
 
   function deleteMemoEntry(index: number) {
     if (!onDeleteMemo) return
@@ -129,6 +155,20 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
         <div>
           알림톡 발송 ({labelMap?.[log.template_key] ?? log.template_key})
           {log.status === 'failed' ? ` (실패${log.error ? `: ${log.error}` : ''})` : ''}
+        </div>
+      </li>
+    ) })),
+    ...franchiseLogs.map(log => ({ at: log.created_at, node: (
+      <li key={`franchise-${log.id}`} className="text-[15pt] text-purple-300">
+        <div className="text-slate-400">
+          {new Date(log.created_at).toLocaleString('ko-KR')}
+          {' · '}
+          <span className="font-semibold text-blue-300">{log.user?.name ?? '알수없음'}</span>
+          {' · 가맹접수'}
+        </div>
+        <div>
+          {log.from_status ? franchiseStatusLabelMap?.[log.from_status] ?? log.from_status : '-'} →{' '}
+          {log.to_status ? franchiseStatusLabelMap?.[log.to_status] ?? log.to_status : '-'}
         </div>
       </li>
     ) })),

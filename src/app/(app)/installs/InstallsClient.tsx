@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown } from 'lucide-react'
 import type { Profile, FranchiseApplication } from '@/types'
+import { FRANCHISE_STATUS_LABEL } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import { autoRegisterMerchant } from '@/lib/franchiseStatusEffects'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
@@ -1791,6 +1792,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             entityType="install"
             entityId={row.id}
             labelMap={STATUS_LABELS}
+            franchiseApplicationId={row.franchise_application_id}
+            franchiseStatusLabelMap={FRANCHISE_STATUS_LABEL as Record<string, string>}
           />
         )
       })()}

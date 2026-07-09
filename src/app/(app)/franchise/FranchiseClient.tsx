@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
@@ -222,7 +222,72 @@ function parseMemoEntries(memo?: string): { at: string; user: string; text: stri
   }
   return entries
 }
+// 비고 + 상태 변경 이력을 한 화면(플로팅 창)에서 시간순으로 합쳐 보여준다
+interface HistoryPanelProps {
+  row: FranchiseApplication
+  logs: FranchiseApplicationLog[] | undefined
+  onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
+  onClose: () => void
+}
+const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: HistoryPanelProps) {
+  const timeline = [
+    ...parseMemoEntries(row.memo).map(entry => ({ at: entry.at, node: (
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-xs text-slate-200">
+        {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
+      </li>
+    ) })),
+    ...(logs ?? []).map(log => {
+      const isAlimtalk = log.to_status?.startsWith('alimtalk:')
+      const isInstallEvent = log.to_status && INSTALL_LOG_LABEL[log.to_status]
+      if (isAlimtalk) {
+        const key = log.to_status!.replace('alimtalk:', '')
+        return { at: log.created_at, node: (
+          <li key={log.id} className="text-xs text-blue-400">
+            {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
+          </li>
+        ) }
+      }
+      if (isInstallEvent) {
+        return { at: log.created_at, node: (
+          <li key={log.id} className="text-xs text-purple-400 font-medium">
+            {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
+          </li>
+        ) }
+      }
+      return { at: log.created_at, node: (
+        <li key={log.id} className="text-xs text-slate-300">
+          {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
+          {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
+          {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+        </li>
+      ) }
+    }),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
+  return (
+    <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[70vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+        <p className="text-sm font-semibold">히스토리 · {row.business_name || row.owner_name || '-'}</p>
+        <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors" aria-label="닫기">
+          <X size={16} />
+        </button>
+      </div>
+      <div className="px-4 py-3 border-b border-slate-700">
+        <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
+        <EditableMemo row={row} onSave={onSave} />
+      </div>
+      <div className="px-4 py-3 overflow-y-auto">
+        {!logs ? (
+          <p className="text-xs text-slate-400">불러오는 중...</p>
+        ) : timeline.length === 0 ? (
+          <p className="text-xs text-slate-400">이력이 없습니다.</p>
+        ) : (
+          <ul className="space-y-1.5">{timeline.map(entry => entry.node)}</ul>
+        )}
+      </div>
+    </div>
+  )
+})
 
 interface DateFieldProps {
   row: FranchiseApplication
@@ -488,6 +553,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
@@ -1494,30 +1560,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          {selected.size > 0 && (
-            <>
-              <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
-              {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
-                <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
-                  필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
-                </button>
-              )}
-              <button onClick={() => setBulkStatusModal(true)}
-                className="text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors">
-                일괄 상태 변경
-              </button>
-              <button onClick={() => setBulkAssignModal(true)}
-                className="text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-colors">
-                일괄 배정
-              </button>
-              <button onClick={handleDelete} disabled={deleting}
-                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
-                <Trash2 size={14} />
-                {deleting ? '삭제 중...' : '선택 삭제'}
-              </button>
-            </>
-          )}
           <div className="text-sm text-slate-500">
             {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo)
               ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
@@ -1538,6 +1580,34 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </button>
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
+          <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+          {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
+            <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
+              className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+              필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
+            </button>
+          )}
+          <button onClick={() => setBulkStatusModal(true)}
+            className="text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors">
+            일괄 상태 변경
+          </button>
+          <button onClick={() => setBulkAssignModal(true)}
+            className="text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-colors">
+            일괄 배정
+          </button>
+          <button onClick={handleDelete} disabled={deleting}
+            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
+            <Trash2 size={14} />
+            {deleting ? '삭제 중...' : '선택 삭제'}
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 hover:text-slate-700">
+            취소
+          </button>
+        </div>
+      )}
 
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 
@@ -1686,8 +1756,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
                     <td colSpan={14} className="px-6 py-4">
-                      <div className="flex gap-6 items-start">
-                      <div className="flex-1 min-w-0">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1813,58 +1881,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                             {linkingInternetId === row.id ? '처리 중...' : '인터넷 등록'}
                           </button>
                         )}
-                      </div>
-                      </div>
-                      <div className="w-80 shrink-0 border-l border-slate-200 pl-6">
-                        <div className="mb-3">
-                          <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
-                          <EditableMemo row={row} onSave={saveField} />
-                        </div>
-                        <p className="text-xs font-semibold text-slate-400 mb-1.5">히스토리</p>
-                        {!logsByRow[row.id] ? (
-                          <p className="text-xs text-slate-400">불러오는 중...</p>
-                        ) : logsByRow[row.id].length === 0 && parseMemoEntries(row.memo).length === 0 ? (
-                          <p className="text-xs text-slate-400">이력이 없습니다.</p>
-                        ) : (
-                          <ul className="space-y-1">
-                            {[
-                              ...parseMemoEntries(row.memo).map(entry => ({ at: entry.at, node: (
-                                <li key={`memo-${entry.at}-${entry.text}`} className="text-xs text-slate-700">
-                                  {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
-                                </li>
-                              ) })),
-                              ...logsByRow[row.id].map(log => {
-                                const isAlimtalk = log.to_status?.startsWith('alimtalk:')
-                                const isInstallEvent = log.to_status && INSTALL_LOG_LABEL[log.to_status]
-                                if (isAlimtalk) {
-                                  const key = log.to_status!.replace('alimtalk:', '')
-                                  return { at: log.created_at, node: (
-                                    <li key={log.id} className="text-xs text-blue-500">
-                                      {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
-                                    </li>
-                                  ) }
-                                }
-                                if (isInstallEvent) {
-                                  return { at: log.created_at, node: (
-                                    <li key={log.id} className="text-xs text-purple-600 font-medium">
-                                      {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
-                                    </li>
-                                  ) }
-                                }
-                                return { at: log.created_at, node: (
-                                  <li key={log.id} className="text-xs text-slate-500">
-                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
-                                    {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
-                                    {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
-                                  </li>
-                                ) }
-                              }),
-                            ]
-                              .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-                              .map(entry => entry.node)}
-                          </ul>
-                        )}
-                      </div>
+                        <button
+                          onClick={() => setHistoryOpenId(row.id)}
+                          className="text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          히스토리
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1897,6 +1919,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
         </div>
       )}
+      {historyOpenId && (() => {
+        const row = localRows.find(r => r.id === historyOpenId)
+        if (!row) return null
+        return (
+          <HistoryPanel
+            row={row}
+            logs={logsByRow[row.id]}
+            onSave={saveField}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

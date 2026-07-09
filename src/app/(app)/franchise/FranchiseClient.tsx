@@ -211,7 +211,7 @@ const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoPro
 function parseMemoEntries(memo?: string): { at: string; user: string; text: string }[] {
   if (!memo) return []
   const entries: { at: string; user: string; text: string }[] = []
-  const re = /\[(.+?) (\d{2})\/(\d{2}) (\d{2}):(\d{2})\]\s*([\s\S]*?)(?=\n\[.+? \d{2}\/\d{2} \d{2}:\d{2}\]|$)/g
+  const re = /\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]\s*([\s\S]*?)(?=\n\[.+? \d{2}\. \d{2}\. \d{2}:\d{2}\]|$)/g
   let m: RegExpExecArray | null
   while ((m = re.exec(memo))) {
     const [, user, month, day, hour, minute, text] = m

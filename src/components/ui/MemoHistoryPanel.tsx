@@ -1,8 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import HistoryIcon from './HistoryIcon'
+import { createClient } from '@/lib/supabase/client'
+
+type NotificationLog = {
+  id: string
+  template_key: string
+  status: string
+  error: string | null
+  created_at: string
+  user: { name: string } | null
+}
 
 // 스탬프(`[이름 MM. DD. HH:mm]`)가 붙은 항목뿐 아니라, 스탬프 도입 전에 저장된 맨 텍스트도 하나의 항목으로 살려서 반환한다
 export function parseMemoEntries(memo: string | undefined | null, fallbackAt: string): { at: string; user: string; text: string }[] {
@@ -34,11 +44,56 @@ interface Props {
   createdAt: string
   onAddMemo: (value: string) => void
   onClose: () => void
+  entityType?: string
+  entityId?: string
+  labelMap?: Record<string, string>
 }
 
-export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, onClose }: Props) {
+export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, onClose, entityType, entityId, labelMap }: Props) {
   const [value, setValue] = useState('')
-  const timeline = parseMemoEntries(memo, createdAt).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+  const [notifLogs, setNotifLogs] = useState<NotificationLog[]>([])
+
+  useEffect(() => {
+    if (!entityType || !entityId) return
+    let cancelled = false
+    const supabase = createClient()
+    supabase
+      .from('notification_logs')
+      .select('id, template_key, status, error, created_at, user:profiles(name)')
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled) setNotifLogs((data as unknown as NotificationLog[]) ?? [])
+      })
+    return () => { cancelled = true }
+  }, [entityType, entityId])
+
+  const timeline = [
+    ...parseMemoEntries(memo, createdAt).map(entry => ({ at: entry.at, node: (
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-[21pt] text-slate-200">
+        <div className="text-slate-400">
+          {new Date(entry.at).toLocaleString('ko-KR')}
+          {' · '}
+          <span className="font-semibold text-blue-300">{entry.user}</span>
+        </div>
+        <div>{entry.text}</div>
+      </li>
+    ) })),
+    ...notifLogs.map(log => ({ at: log.created_at, node: (
+      <li key={`notif-${log.id}`} className="text-[21pt] text-blue-400">
+        <div className="text-slate-400">
+          {new Date(log.created_at).toLocaleString('ko-KR')}
+          {' · '}
+          <span className="font-semibold text-blue-300">{log.user?.name ?? '알수없음'}</span>
+        </div>
+        <div>
+          알림톡 발송 ({labelMap?.[log.template_key] ?? log.template_key})
+          {log.status === 'failed' ? ` (실패${log.error ? `: ${log.error}` : ''})` : ''}
+        </div>
+      </li>
+    ) })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
   function submit() {
     if (!value.trim()) return
@@ -72,18 +127,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
         {timeline.length === 0 ? (
           <p className="text-[21pt] text-slate-400">이력이 없습니다.</p>
         ) : (
-          <ul className="space-y-2.5">
-            {timeline.map(entry => (
-              <li key={`${entry.at}-${entry.text}`} className="text-[21pt] text-slate-200">
-                <div className="text-slate-400">
-                  {new Date(entry.at).toLocaleString('ko-KR')}
-                  {' · '}
-                  <span className="font-semibold text-blue-300">{entry.user}</span>
-                </div>
-                <div>{entry.text}</div>
-              </li>
-            ))}
-          </ul>
+          <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}
       </div>
     </div>

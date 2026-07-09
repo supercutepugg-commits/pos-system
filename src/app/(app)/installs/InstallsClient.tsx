@@ -1785,6 +1785,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             createdAt={row.created_at}
             onAddMemo={(value) => saveNotes(row.id, `${(row.notes ?? '').trim()}${(row.notes ?? '').trim() ? '\n' : ''}${value}`)}
             onClose={() => setHistoryOpenId(null)}
+            entityType="install"
+            entityId={row.id}
+            labelMap={STATUS_LABELS}
           />
         )
       })()}

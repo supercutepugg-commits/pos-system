@@ -13,6 +13,9 @@ import type { ChangeRequest, ChangeRequestStatus, ChangeType, ChangeApplicantTyp
 import { CHANGE_TYPE_LABEL, CHANGE_STATUS_LABEL, CHANGE_STATUS_COLOR, CHANGE_APPLICANT_TYPE_LABEL } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 const PAGE_SIZE = 50
 
@@ -130,6 +133,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
   const [submitting, setSubmitting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const toast = useToast()
   const supabase = createClient()
@@ -409,12 +413,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-slate-900">변경 요청 등록</h2>
-              <button onClick={() => setShowForm(false)}><X size={20} className="text-slate-400" /></button>
-            </div>
+        <FormModal title="변경 요청 등록" onClose={() => setShowForm(false)}>
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <select value={form.change_type} onChange={e => setForm({ ...form, change_type: e.target.value as ChangeType })}
@@ -455,8 +454,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                 {submitting ? '등록 중...' : '등록'}
               </button>
             </div>
-          </div>
-        </div>
+        </FormModal>
       )}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white">
@@ -578,6 +576,9 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                           <EditableMemo row={row} onSave={saveField} />
                         </div>
                       </div>
+                      <div className="flex justify-end">
+                        <HistoryButton onClick={() => setHistoryOpenId(row.id)} />
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -606,6 +607,20 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
         onCancel={() => setDeleteConfirmOpen(false)}
         onConfirm={confirmDelete}
       />
+
+      {historyOpenId && (() => {
+        const row = localRows.find(r => r.id === historyOpenId)
+        if (!row) return null
+        return (
+          <MemoHistoryPanel
+            title={row.business_name || '-'}
+            memo={row.memo}
+            createdAt={row.created_at}
+            onAddMemo={value => saveField(row, 'memo', value)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

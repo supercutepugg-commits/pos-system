@@ -6,6 +6,9 @@ import { Plus, Search, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 function calcUnitStandard(count: string | null, revenue: string | null): string {
   const c = parseFloat((count ?? '').replace(/,/g, ''))
@@ -85,8 +88,9 @@ interface TableRowProps {
   onDragStart: (id: string) => void
   onDragEnd: () => void
   onDropOn: (id: string) => void
+  onOpenHistory: (id: string) => void
 }
-const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShipped, onSave, canReorder, isDragging, onDragStart, onDragEnd, onDropOn }: TableRowProps) {
+const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShipped, onSave, canReorder, isDragging, onDragStart, onDragEnd, onDropOn, onOpenHistory }: TableRowProps) {
   return (
     <tr
       className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${row.shipped ? '' : 'bg-yellow-50/40'} ${isDragging ? 'opacity-40' : ''}`}
@@ -126,7 +130,12 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
       <td className="px-3 py-3 text-slate-700 whitespace-nowrap min-w-[100px]">
         <span className="text-sm px-1">{row.unit_standard || calcUnitStandard(row.count, row.revenue)}</span>
       </td>
-      <td className="px-3 py-3 text-slate-700 max-w-[150px]"><EditableCell row={row} field="memo" onSave={onSave} /></td>
+      <td className="px-3 py-3 text-slate-700 max-w-[150px]">
+        <div className="flex items-center gap-1">
+          <div className="flex-1 min-w-0"><EditableCell row={row} field="memo" onSave={onSave} /></div>
+          <div className="shrink-0"><HistoryButton onClick={() => onOpenHistory(row.id)} label="" /></div>
+        </div>
+      </td>
     </tr>
   )
 })
@@ -134,8 +143,9 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
   submitting: boolean
+  onClose: () => void
 }
-const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
+const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: CreateFormProps) {
   const [form, setForm] = useState(EMPTY_FORM)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -145,7 +155,8 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+    <FormModal title="발주 정보 입력" onClose={onClose} maxWidthClassName="max-w-3xl">
+    <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
       <div className="flex flex-col gap-1 justify-end">
         <label className="text-xs font-medium text-slate-500">발송완료</label>
         <div className="flex items-center h-9">
@@ -184,6 +195,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
         {submitting ? '등록 중...' : '등록'}
       </button>
     </form>
+    </FormModal>
   )
 })
 
@@ -204,6 +216,7 @@ export default function PaperOrdersClient({ rows }: Props) {
   const [shippedFilter, setShippedFilter] = useState<'all' | 'shipped' | 'pending'>('all')
   const [page, setPage] = useState(1)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -354,7 +367,7 @@ export default function PaperOrdersClient({ rows }: Props) {
         <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
       )}
 
-      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
+      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse min-w-[1400px]">
@@ -386,6 +399,7 @@ export default function PaperOrdersClient({ rows }: Props) {
                 onDragStart={setRowDragId}
                 onDragEnd={() => setRowDragId(null)}
                 onDropOn={dropId => { if (rowDragId) reorderRows(rowDragId, dropId) }}
+                onOpenHistory={setHistoryOpenId}
               />
             ))}
             {pagedRows.length === 0 && (
@@ -414,6 +428,20 @@ export default function PaperOrdersClient({ rows }: Props) {
           </button>
         </div>
       )}
+
+      {historyOpenId && (() => {
+        const row = localRows.find(r => r.id === historyOpenId)
+        if (!row) return null
+        return (
+          <MemoHistoryPanel
+            title={row.business_name || row.owner_name || '발주'}
+            memo={row.memo}
+            createdAt={row.created_at}
+            onAddMemo={(value) => saveField(row, 'memo', `${(row.memo ?? '').trim()}${(row.memo ?? '').trim() ? '\n' : ''}${value}`)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

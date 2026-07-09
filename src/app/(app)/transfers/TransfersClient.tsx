@@ -12,6 +12,9 @@ import type { FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Pr
 import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 import {
   docCaseOf,
   buildFranchiseStatusPatch,
@@ -170,8 +173,9 @@ interface CreateFormProps {
   techProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
   submitting: boolean
+  onClose: () => void
 }
-const CreateForm = memo(function CreateForm({ techProfiles, onSubmit, submitting }: CreateFormProps) {
+const CreateForm = memo(function CreateForm({ techProfiles, onSubmit, submitting, onClose }: CreateFormProps) {
   const [form, setForm] = useState(EMPTY_FORM)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -181,7 +185,8 @@ const CreateForm = memo(function CreateForm({ techProfiles, onSubmit, submitting
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+    <FormModal title="정보 입력" onClose={onClose} maxWidthClassName="max-w-3xl">
+    <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-slate-500">고객명</label>
         <input value={form.owner_name} onChange={e => setForm({ ...form, owner_name: e.target.value })}
@@ -247,6 +252,7 @@ const CreateForm = memo(function CreateForm({ techProfiles, onSubmit, submitting
         {submitting ? '등록 중...' : '등록'}
       </button>
     </form>
+    </FormModal>
   )
 })
 
@@ -264,6 +270,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
   const [manualSort, setManualSort] = useState(false)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
@@ -400,10 +407,17 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
 
   const saveField = useCallback(async (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => {
     const supabase = createClient()
-    const { error } = await supabase.from('franchise_applications').update({ [field]: value || null }).eq('id', row.id)
+    let saveValue: string | null = value || null
+    if (field === 'memo' && value) {
+      const currentUserName = techProfiles.find(p => p.id === currentUserId)?.name ?? '사용자'
+      const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+      const prev = (row.memo ?? '').trim()
+      saveValue = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
+    }
+    const { error } = await supabase.from('franchise_applications').update({ [field]: saveValue }).eq('id', row.id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
-    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() } : r))
-  }, [toast])
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: saveValue ?? undefined, updated_at: new Date().toISOString() } : r))
+  }, [toast, techProfiles, currentUserId])
 
 
 
@@ -480,7 +494,7 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
         <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
       )}
 
-      {showForm && <CreateForm techProfiles={techProfiles} onSubmit={handleCreate} submitting={submitting} />}
+      {showForm && <CreateForm techProfiles={techProfiles} onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -617,6 +631,9 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
                           </ul>
                         )}
                       </div>
+                      <div className="flex justify-end mt-3">
+                        <HistoryButton onClick={() => setHistoryOpenId(row.id)} />
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -637,6 +654,19 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
             className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
         </div>
       )}
+      {historyOpenId && (() => {
+        const row = localRows.find(r => r.id === historyOpenId)
+        if (!row) return null
+        return (
+          <MemoHistoryPanel
+            title={row.business_name || row.owner_name || '-'}
+            memo={row.memo}
+            createdAt={row.created_at}
+            onAddMemo={(value) => saveField(row, 'memo', value)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

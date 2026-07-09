@@ -15,6 +15,9 @@ import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } 
 import type { DocCase } from '@/lib/solapi'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import HistoryIcon from '@/components/ui/HistoryIcon'
 import {
   docCaseOf,
   createLinkedInstallTicket as createLinkedInstallTicketShared,
@@ -241,7 +244,7 @@ interface HistoryPanelProps {
 const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: HistoryPanelProps) {
   const timeline = [
     ...parseMemoEntries(row.memo, row.created_at).map(entry => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-sm text-slate-200">
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-[21pt] text-slate-200">
         {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
       </li>
     ) })),
@@ -251,20 +254,20 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
       if (isAlimtalk) {
         const key = log.to_status!.replace('alimtalk:', '')
         return { at: log.created_at, node: (
-          <li key={log.id} className="text-sm text-blue-400">
+          <li key={log.id} className="text-[21pt] text-blue-400">
             {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
           </li>
         ) }
       }
       if (isInstallEvent) {
         return { at: log.created_at, node: (
-          <li key={log.id} className="text-sm text-purple-400 font-medium">
+          <li key={log.id} className="text-[21pt] text-purple-400 font-medium">
             {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
           </li>
         ) }
       }
       return { at: log.created_at, node: (
-        <li key={log.id} className="text-sm text-slate-300">
+        <li key={log.id} className="text-[21pt] text-slate-300">
           {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
           {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
           {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
@@ -276,7 +279,10 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
   return (
     <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[95vh] max-h-[95vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
-        <p className="text-base font-semibold">히스토리 · {row.business_name || row.owner_name || '-'}</p>
+        <p className="flex items-center gap-2 text-base font-semibold">
+          <HistoryIcon size={20} />
+          히스토리 · {row.business_name || row.owner_name || '-'}
+        </p>
         <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors" aria-label="닫기">
           <X size={20} />
         </button>
@@ -287,9 +293,9 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
       </div>
       <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
         {!logs ? (
-          <p className="text-sm text-slate-400">불러오는 중...</p>
+          <p className="text-[21pt] text-slate-400">불러오는 중...</p>
         ) : timeline.length === 0 ? (
-          <p className="text-sm text-slate-400">이력이 없습니다.</p>
+          <p className="text-[21pt] text-slate-400">이력이 없습니다.</p>
         ) : (
           <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}
@@ -427,8 +433,9 @@ const PAGE_SIZE = 50
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<boolean>
   submitting: boolean
+  onClose: () => void
 }
-const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
+const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: CreateFormProps) {
   const [form, setForm] = useState(defaultCreateForm)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -438,7 +445,8 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+    <FormModal title="프랜차이즈 정보 입력" onClose={onClose} maxWidthClassName="max-w-3xl">
+    <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-slate-500">접수날짜</label>
         <DateFormField value={form.reception_date} onChange={v => setForm({ ...form, reception_date: v })} />
@@ -538,6 +546,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
         </button>
       </div>
     </form>
+    </FormModal>
   )
 })
 
@@ -1455,28 +1464,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
       {}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
-        {([
-          ['all', '전체', tabCounts.all],
-          ['transferred', '기술지원 이관', tabCounts.transferred],
-          ['rejected', '반려됨', tabCounts.rejected],
-          ['completed', '완료', tabCounts.completed],
-        ] as const).map(([tab, label, count]) => (
-          <button key={tab} onClick={() => setTransferTab(tab)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${transferTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
-            {label} {count > 0 && <span className="ml-0.5 opacity-70">({count})</span>}
-          </button>
-        ))}
-      </div>
-
-      {}
-      <div className="flex flex-nowrap gap-1.5 mb-2 overflow-x-auto">
-        {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
-          <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors whitespace-nowrap flex-shrink-0 ${statusFilter === s ? FRANCHISE_STATUS_COLOR[s] + ' border-current' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-            {FRANCHISE_STATUS_LABEL[s]} {statusCounts[s]}
-          </button>
-        ))}
+      <div className="mb-2">
+        <select value={transferTab} onChange={e => setTransferTab(e.target.value as typeof transferTab)}
+          className="text-sm font-semibold border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {([
+            ['all', '전체', tabCounts.all],
+            ['transferred', '기술지원 이관', tabCounts.transferred],
+            ['rejected', '반려됨', tabCounts.rejected],
+            ['completed', '완료', tabCounts.completed],
+          ] as const).map(([tab, label, count]) => (
+            <option key={tab} value={tab}>{label}{count > 0 ? ` (${count})` : ''}</option>
+          ))}
+        </select>
       </div>
 
       {}
@@ -1511,8 +1510,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">상태 전체</option>
-          {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).map(s => (
-            <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
+          {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
+            <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]} ({statusCounts[s]})</option>
           ))}
         </select>
         <select value={applicantTypeFilter} onChange={e => setApplicantTypeFilter(e.target.value)}
@@ -1618,7 +1617,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
 
-      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
+      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse min-w-[1250px]" style={{ tableLayout: 'fixed' }}>
@@ -1892,12 +1891,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                         )}
                       </div>
                       <div className="flex justify-end">
-                        <button
-                          onClick={() => setHistoryOpenId(row.id)}
-                          className="text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors"
-                        >
-                          히스토리
-                        </button>
+                        <HistoryButton onClick={() => setHistoryOpenId(row.id)} />
                       </div>
                     </td>
                   </tr>

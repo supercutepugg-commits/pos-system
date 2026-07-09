@@ -11,6 +11,9 @@ import { deleteInternetRows } from './actions'
 import type { InternetManagement } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 interface Props {
   rows: InternetManagement[]
@@ -221,8 +224,9 @@ const SpeedFormField = memo(function SpeedFormField({ value, onChange }: SpeedFo
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
   submitting: boolean
+  onClose: () => void
 }
-const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateFormProps) {
+const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: CreateFormProps) {
   const [form, setForm] = useState(EMPTY_FORM)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -232,7 +236,8 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
+    <FormModal title="인터넷 정보 입력" onClose={onClose} maxWidthClassName="max-w-3xl">
+    <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
       {COLUMNS.map(col => {
         const options = SELECT_OPTIONS[col.key]
         return (
@@ -259,6 +264,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting }: CreateForm
         {submitting ? '등록 중...' : '등록'}
       </button>
     </form>
+    </FormModal>
   )
 })
 
@@ -276,6 +282,7 @@ export default function InternetClient({ rows }: Props) {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
@@ -495,7 +502,7 @@ export default function InternetClient({ rows }: Props) {
         </div>
       )}
 
-      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
+      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -586,6 +593,9 @@ export default function InternetClient({ rows }: Props) {
                           )
                         })}
                       </div>
+                      <div className="flex justify-end mt-3">
+                        <HistoryButton onClick={() => setHistoryOpenId(row.id)} />
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -606,6 +616,19 @@ export default function InternetClient({ rows }: Props) {
             className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
         </div>
       )}
+      {historyOpenId && (() => {
+        const row = localRows.find(r => r.id === historyOpenId)
+        if (!row) return null
+        return (
+          <MemoHistoryPanel
+            title={row.business_name || row.owner_name || ''}
+            memo={row.memo}
+            createdAt={row.created_at}
+            onAddMemo={(value) => saveField(row, 'memo', `${(row.memo ?? '').trim()}${(row.memo ?? '').trim() ? '\n' : ''}${value}`)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

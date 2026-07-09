@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus, Trash2, Search, Phone } from 'lucide-react'
 import { formatPhone } from '@/lib/format'
 import { useToast } from '@/components/ui/Toast'
+import FormModal from '@/components/ui/FormModal'
 
 const SPECIALTIES = ['포스기', '키오스크', '네트워크', '카드단말기', '인터넷', '전기', '기타']
 
@@ -147,7 +148,8 @@ export default function ExternalTechsClient({
       </div>
 
       {showForm && canEdit && (
-        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-5 flex flex-wrap gap-3 items-end">
+        <FormModal title="기사 등록" onClose={() => setShowForm(false)} maxWidthClassName="max-w-3xl">
+        <form onSubmit={handleCreate} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">이름 *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required
@@ -190,6 +192,7 @@ export default function ExternalTechsClient({
             </button>
           </div>
         </form>
+        </FormModal>
       )}
 
       <div className="flex flex-wrap items-center gap-2 mb-4">

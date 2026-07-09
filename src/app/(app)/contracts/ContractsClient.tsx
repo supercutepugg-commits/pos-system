@@ -8,6 +8,7 @@ import { ko } from 'date-fns/locale'
 import { Plus, Copy, ExternalLink, Trash2, FileText, PenLine, Search } from 'lucide-react'
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import FormModal from '@/components/ui/FormModal'
 
 const PAGE_SIZE = 50
 
@@ -145,8 +146,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
 
       {}
       {canEdit && showForm && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <h2 className="text-sm font-bold text-slate-800 mb-4">계약서 등록</h2>
+        <FormModal title="새 계약서 등록" onClose={() => setShowForm(false)} maxWidthClassName="max-w-3xl">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -185,7 +185,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
               </button>
             </div>
           </form>
-        </div>
+        </FormModal>
       )}
 
       {}

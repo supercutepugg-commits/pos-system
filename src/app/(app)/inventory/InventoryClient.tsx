@@ -6,6 +6,9 @@ import { Plus, Trash2, Search, AlertTriangle, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { useToast } from '@/components/ui/Toast'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 const CATEGORY_TREE: Record<string, Record<string, string[]>> = {
   '포스장비': {
@@ -100,6 +103,7 @@ export default function InventoryClient({
   const [showLogs, setShowLogs] = useState(false)
   const [inlineEdit, setInlineEdit] = useState<{ id: string; value: string } | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -186,6 +190,15 @@ export default function InventoryClient({
   function quickAdjust(item: InventoryItem, delta: number) {
     const target = Math.max(0, item.quantity + delta)
     saveInlineQty(item, String(target))
+  }
+
+  async function addMemo(item: InventoryItem, value: string) {
+    const stamp = `[${currentUserName} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+    const prev = (item.notes ?? '').trim()
+    const newNotes = prev ? `${prev}\n${stamp} ${value}` : `${stamp} ${value}`
+    const { error } = await supabase.from('inventory_items').update({ notes: newNotes }).eq('id', item.id)
+    if (error) { toast.error('메모 저장 실패: ' + error.message); return }
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: newNotes } : i))
   }
 
   async function deleteItem(id: string, name: string) {
@@ -284,7 +297,8 @@ export default function InventoryClient({
       )}
 
       {showForm && canEdit && (
-        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-xl p-4 mb-5 flex flex-wrap gap-3 items-end">
+        <FormModal title="품목 등록" onClose={() => setShowForm(false)} maxWidthClassName="max-w-3xl">
+        <form onSubmit={handleCreate} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">대분류</label>
             <select value={form.major_category} onChange={e => {
@@ -345,6 +359,7 @@ export default function InventoryClient({
             {submitting ? '등록 중...' : '등록'}
           </button>
         </form>
+        </FormModal>
       )}
 
       {showLogs ? (
@@ -479,6 +494,7 @@ export default function InventoryClient({
                                   className="text-xs px-1.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100">
                                   +10
                                 </button>
+                                <HistoryButton onClick={() => setHistoryOpenId(item.id)} />
                                 <button onClick={() => deleteItem(item.id, item.name)}
                                   className="text-slate-300 hover:text-red-500 p-1 transition-colors">
                                   <Trash2 size={13} />
@@ -544,6 +560,20 @@ export default function InventoryClient({
           </div>
         </div>
       )}
+
+      {historyOpenId && (() => {
+        const item = items.find(i => i.id === historyOpenId)
+        if (!item) return null
+        return (
+          <MemoHistoryPanel
+            title={item.name}
+            memo={item.notes}
+            createdAt={item.created_at}
+            onAddMemo={(value) => addMemo(item, value)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

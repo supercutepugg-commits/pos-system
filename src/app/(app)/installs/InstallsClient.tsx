@@ -12,6 +12,9 @@ import { useToast } from '@/components/ui/Toast'
 import { autoRegisterMerchant } from '@/lib/franchiseStatusEffects'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import { NotificationHistory, logNotification } from '@/components/ui/NotificationHistory'
+import FormModal from '@/components/ui/FormModal'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
@@ -145,8 +148,9 @@ interface CreateFormProps {
   }) => Promise<void>
   submitting: boolean
   onCancel: () => void
+  onClose: () => void
 }
-const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel }: CreateFormProps) {
+const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel, onClose }: CreateFormProps) {
   const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
   const [deliveryType, setDeliveryType] = useState<'install' | 'delivery' | 'as'>('install')
   const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
@@ -182,8 +186,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5">
-      <h2 className="text-sm font-bold text-slate-800 mb-4">새 설치건 등록</h2>
+    <FormModal title="새 설치건 등록" onClose={onClose} maxWidthClassName="max-w-3xl">
       <form onSubmit={handleSubmit} className="space-y-4">
         {}
         <div className="flex gap-2">
@@ -254,7 +257,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
           </button>
         </div>
       </form>
-    </div>
+    </FormModal>
   )
 })
 
@@ -379,6 +382,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [showMonthlyStats, setShowMonthlyStats] = useState(false)
   const [skipNotify, setSkipNotify] = useState(false)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
 
   const supabase = createClient()
@@ -1151,7 +1155,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
       {}
       {canEdit && !mineOnly && showForm && (
-        <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} />
+        <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} onClose={() => setShowForm(false)} />
       )}
 
       {}
@@ -1656,13 +1660,16 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             </div>
                           )}
                         </div>
-                        {inst.franchise_application_id && (
-                          <button
-                            onClick={() => openFranchiseDetail(inst.franchise_application_id!)}
-                            className="text-xs text-purple-600 border border-purple-200 px-2.5 py-1 rounded-lg hover:bg-purple-50">
-                            가맹접수 원본 보기
-                          </button>
-                        )}
+                        <div className="flex items-center justify-between mt-1">
+                          {inst.franchise_application_id ? (
+                            <button
+                              onClick={() => openFranchiseDetail(inst.franchise_application_id!)}
+                              className="text-xs text-purple-600 border border-purple-200 px-2.5 py-1 rounded-lg hover:bg-purple-50">
+                              가맹접수 원본 보기
+                            </button>
+                          ) : <span />}
+                          <HistoryButton onClick={() => setHistoryOpenId(inst.id)} />
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -1767,6 +1774,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         onCancel={() => setBulkDeleteConfirmOpen(false)}
         onConfirm={confirmBulkDelete}
       />
+
+      {historyOpenId && (() => {
+        const row = installs.find(i => i.id === historyOpenId)
+        if (!row) return null
+        return (
+          <MemoHistoryPanel
+            title={row.customer_name}
+            memo={row.notes}
+            createdAt={row.created_at}
+            onAddMemo={(value) => saveNotes(row.id, `${(row.notes ?? '').trim()}${(row.notes ?? '').trim() ? '\n' : ''}${value}`)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -232,7 +232,7 @@ interface HistoryPanelProps {
 const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: HistoryPanelProps) {
   const timeline = [
     ...parseMemoEntries(row.memo).map(entry => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-xs text-slate-200">
+      <li key={`memo-${entry.at}-${entry.text}`} className="text-sm text-slate-200">
         {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
       </li>
     ) })),
@@ -242,20 +242,20 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
       if (isAlimtalk) {
         const key = log.to_status!.replace('alimtalk:', '')
         return { at: log.created_at, node: (
-          <li key={log.id} className="text-xs text-blue-400">
+          <li key={log.id} className="text-sm text-blue-400">
             {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
           </li>
         ) }
       }
       if (isInstallEvent) {
         return { at: log.created_at, node: (
-          <li key={log.id} className="text-xs text-purple-400 font-medium">
+          <li key={log.id} className="text-sm text-purple-400 font-medium">
             {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
           </li>
         ) }
       }
       return { at: log.created_at, node: (
-        <li key={log.id} className="text-xs text-slate-300">
+        <li key={log.id} className="text-sm text-slate-300">
           {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
           {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
           {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
@@ -265,24 +265,24 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[70vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-        <p className="text-sm font-semibold">히스토리 · {row.business_name || row.owner_name || '-'}</p>
+    <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] max-h-[85vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+        <p className="text-base font-semibold">히스토리 · {row.business_name || row.owner_name || '-'}</p>
         <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors" aria-label="닫기">
-          <X size={16} />
+          <X size={20} />
         </button>
       </div>
-      <div className="px-4 py-3 border-b border-slate-700">
+      <div className="px-5 py-4 border-b border-slate-700">
         <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
         <EditableMemo row={row} onSave={onSave} />
       </div>
-      <div className="px-4 py-3 overflow-y-auto">
+      <div className="px-5 py-4 overflow-y-auto">
         {!logs ? (
-          <p className="text-xs text-slate-400">불러오는 중...</p>
+          <p className="text-sm text-slate-400">불러오는 중...</p>
         ) : timeline.length === 0 ? (
-          <p className="text-xs text-slate-400">이력이 없습니다.</p>
+          <p className="text-sm text-slate-400">이력이 없습니다.</p>
         ) : (
-          <ul className="space-y-1.5">{timeline.map(entry => entry.node)}</ul>
+          <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}
       </div>
     </div>
@@ -1881,6 +1881,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                             {linkingInternetId === row.id ? '처리 중...' : '인터넷 등록'}
                           </button>
                         )}
+                      </div>
+                      <div className="flex justify-end">
                         <button
                           onClick={() => setHistoryOpenId(row.id)}
                           className="text-xs font-semibold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors"

@@ -92,12 +92,11 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
             className="w-4 h-4 accent-blue-600 cursor-pointer"
           />
           <span className="text-xs text-slate-400 font-medium">전체 선택</span>
-          {selected.size > 0 && (
-            <div className="flex items-center gap-3 ml-2">
-              <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
-            </div>
-          )}
         </div>
+      )}
+
+      {selected.size > 0 && (
+        <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
       )}
 
       {filteredMerchants.length === 0 && <EmptyState message={search.trim() ? '검색 결과가 없습니다' : '등록된 가맹점이 없습니다'} />}

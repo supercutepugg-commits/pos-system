@@ -372,22 +372,6 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          {canDelete && selected.size > 0 && (
-            <>
-              <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
-              {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
-                <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
-                  필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
-                </button>
-              )}
-              <button onClick={handleDelete} disabled={deleting || isPending}
-                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
-                <Trash2 size={14} />
-                {deleting ? '삭제 중...' : '선택 삭제'}
-              </button>
-            </>
-          )}
           <div className="text-sm text-slate-500">
             {(search || statusFilter || typeFilter || applicantTypeFilter || dateFrom || dateTo)
               ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
@@ -403,6 +387,26 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
           </button>
         </div>
       </div>
+
+      {canDelete && selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
+          <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
+          {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
+            <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
+              className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+              필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
+            </button>
+          )}
+          <button onClick={handleDelete} disabled={deleting || isPending}
+            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
+            <Trash2 size={14} />
+            {deleting ? '삭제 중...' : '선택 삭제'}
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 hover:text-slate-700">
+            취소
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">

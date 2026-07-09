@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
-import { Plus, Trash2, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
@@ -9,6 +9,7 @@ import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { deleteWooRows } from './actions'
 import type { WooCustomer } from '@/types'
 import { useToast } from '@/components/ui/Toast'
+import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
 
 interface Props {
   rows: WooCustomer[]
@@ -461,16 +462,6 @@ export default function WooClient({ rows }: Props) {
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          {selected.size > 0 && (
-            <>
-              <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
-              <button onClick={handleDelete} disabled={deleting}
-                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
-                <Trash2 size={14} />
-                {deleting ? '삭제 중...' : '선택 삭제'}
-              </button>
-            </>
-          )}
           <div className="text-sm text-slate-500">전체 {filteredRows.length.toLocaleString()}건</div>
           <button onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
@@ -479,6 +470,10 @@ export default function WooClient({ rows }: Props) {
           </button>
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
+      )}
 
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} />}
 

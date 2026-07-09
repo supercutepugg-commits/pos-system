@@ -89,11 +89,8 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
         </div>
       </div>
 
-      {}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100">
-          <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
-        </div>
+        <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
       )}
 
       {filteredTickets.length === 0 && <EmptyState message={search.trim() ? '검색 결과가 없습니다' : '작업이 없습니다'} />}

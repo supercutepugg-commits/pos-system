@@ -62,7 +62,7 @@ export default function TrashClient({ tickets, isAdmin }: { tickets: TrashTicket
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
           <span className="text-sm text-blue-700 font-medium">{selected.size}건 선택</span>
           <button
             onClick={handleRestore}

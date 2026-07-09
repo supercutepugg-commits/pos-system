@@ -9,7 +9,7 @@ interface Props {
 
 export default function BulkDeleteActions({ count, deleting, onDelete, onCancel }: Props) {
   return (
-    <>
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
       <span className="text-sm font-semibold text-blue-700">{count}건 선택됨</span>
       <button
         onClick={onDelete}
@@ -25,6 +25,6 @@ export default function BulkDeleteActions({ count, deleting, onDelete, onCancel 
       >
         취소
       </button>
-    </>
+    </div>
   )
 }

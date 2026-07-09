@@ -265,7 +265,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] max-h-[85vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
+    <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[95vh] max-h-[95vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
         <p className="text-base font-semibold">히스토리 · {row.business_name || row.owner_name || '-'}</p>
         <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors" aria-label="닫기">
@@ -276,7 +276,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onClose }: 
         <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
         <EditableMemo row={row} onSave={onSave} />
       </div>
-      <div className="px-5 py-4 overflow-y-auto">
+      <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
         {!logs ? (
           <p className="text-sm text-slate-400">불러오는 중...</p>
         ) : timeline.length === 0 ? (

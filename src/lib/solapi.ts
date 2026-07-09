@@ -189,8 +189,6 @@ const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, strin
 }
 
 
-const FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_TOSS_REVIEW_DONE_LINK'
-
 export async function sendFranchiseStatusUpdate({
   phone, ownerName, businessName, status, equipmentSelectToken,
 }: { phone: string; ownerName?: string | null; businessName?: string | null; status: FranchiseStatusUpdateKind; equipmentSelectToken?: string }) {
@@ -199,17 +197,11 @@ export async function sendFranchiseStatusUpdate({
   const biz = businessName || ownerName || name
   const text = `[가맹 진행 안내]\n${name}님, "${biz}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
 
-  if (status === 'toss_review_done' && equipmentSelectToken && process.env[FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV]) {
-    
-    const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/equipment-select/${equipmentSelectToken}`
-    const ko = kakaoOptions(FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV, { '#{고객명}': name, '#{상호명}': biz, '#{링크}': linkNoProtocol })
-    if (!ko) return
-    await solapiSend({ to: phone, from: process.env.SOLAPI_SENDER!, text, kakaoOptions: ko })
-    return
+  const variables: Record<string, string> = { '#{고객명}': name, '#{상호명}': biz }
+  if (status === 'toss_review_done' && equipmentSelectToken) {
+    variables['#{링크}'] = `${origin().replace(/^https?:\/\//, '')}/equipment-select/${equipmentSelectToken}`
   }
 
-  const variables: Record<string, string> = { '#{고객명}': name, '#{상호명}': biz }
-  
   if (!process.env[FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status]]) {
     console.warn(`[solapi] 가맹 상태(${status}) 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)`)
     return

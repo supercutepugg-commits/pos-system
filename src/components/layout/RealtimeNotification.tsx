@@ -120,18 +120,11 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
 
   return (
     <>
-      {/* 뱃지 */}
-      {count > 0 && !modal && (
-        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-          {count > 9 ? '9+' : count}
-        </span>
-      )}
-
       {/* 시스템 알림 가운데 모달 */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
             <div className="bg-blue-600 px-5 py-4 flex items-center gap-3">
               <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
                 <Bell size={18} className="text-white" />

@@ -39,7 +39,7 @@ async function solapiSend(params: { to: string; from: string; text: string; kaka
   }
 }
 
-const origin = () => (process.env.NEXT_PUBLIC_APP_URL || 'https://pos-system.vercel.app').replace(/\/$/, '')
+const origin = () => (process.env.NEXT_PUBLIC_APP_URL || 'https://pos-system-beta-eight.vercel.app').replace(/\/$/, '')
 
 export async function sendSignRequest({
   signerPhone, signerName, contractTitle, signToken,

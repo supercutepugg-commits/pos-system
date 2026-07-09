@@ -166,6 +166,7 @@ type FranchiseStatusUpdateKind =
   | 'internet_apply_done'
   | 'card_done'
   | 'internet_done'
+  | 'toss_review_apply_done'
   | 'toss_review_done'
 
 const FRANCHISE_STATUS_TEXT: Record<FranchiseStatusUpdateKind, string> = {
@@ -175,6 +176,7 @@ const FRANCHISE_STATUS_TEXT: Record<FranchiseStatusUpdateKind, string> = {
   internet_apply_done: '인터넷 가입 접수가 완료되었습니다.',
   card_done: '카드가맹이 완료되었습니다.',
   internet_done: '인터넷 가입이 완료되었습니다.',
+  toss_review_apply_done: '토스 심사 접수가 완료되었습니다. 심사가 진행됩니다.',
   toss_review_done: '토스 심사가 완료되었습니다. 곧 기술지원팀에서 설치 일정을 안내드립니다.',
 }
 
@@ -185,6 +187,7 @@ const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, strin
   internet_apply_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_INTERNET_APPLY_DONE',
   card_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_CARD_DONE',
   internet_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_INTERNET_DONE',
+  toss_review_apply_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_TOSSAPPLY_DONE',
   toss_review_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISEDONE',
 }
 

@@ -66,7 +66,7 @@ export interface Ticket {
   cs_id?: string
   tech_id?: string
   memo?: string
-  // 영업/CS 추가 필드
+  
   business_type?: string
   reception_channel?: string
   progress_note?: string

@@ -75,7 +75,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      {/* 검색 */}
+      {}
       <div className="px-6 py-3 border-b border-slate-100">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -89,7 +89,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
         </div>
       </div>
 
-      {/* 선택 시 상단 액션바 */}
+      {}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 px-6 py-3 bg-blue-50 border-b border-blue-100">
           <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
@@ -130,7 +130,7 @@ export default function TicketsClient({ tickets }: { tickets: Ticket[] }) {
                   </Badge>
                   <span className="text-xs text-slate-600 font-medium">{TYPE_LABEL[ticket.type as TicketType]}</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-900 truncate">{ticket.title}</p>
+                <p className="text-sm font-semibold text-slate-900 break-words">{ticket.title}</p>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
                   <span className="font-medium">{ticket.merchant?.business_name || <span className="text-slate-400">-</span>}</span>
                   {ticket.scheduled_at && (

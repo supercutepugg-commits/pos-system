@@ -68,8 +68,8 @@ export default function PhotosClient({ installs }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(inst => (
             <div key={inst.id} className="bg-white rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="font-semibold text-slate-900 truncate">{inst.customer_name}</span>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <span className="font-semibold text-slate-900 break-words">{inst.customer_name}</span>
                 <span className={`text-xs font-medium rounded-lg border px-2 py-0.5 shrink-0 ${(inst.delivery_type ?? 'install') === 'as' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                   {(inst.delivery_type ?? 'install') === 'as' ? 'AS' : '설치'}
                 </span>

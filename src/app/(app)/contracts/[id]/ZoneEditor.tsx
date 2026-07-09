@@ -169,7 +169,7 @@ export default function ZoneEditor({ contract }: Props) {
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      {/* 상단 바 */}
+      {}
       <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-4 flex-shrink-0">
         <Link href="/contracts" className="text-slate-500 hover:text-slate-700">
           <ArrowLeft size={20} />
@@ -197,7 +197,7 @@ export default function ZoneEditor({ contract }: Props) {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* 사이드 패널 */}
+        {}
         <div className="w-56 bg-white border-r border-slate-200 p-4 flex-shrink-0 overflow-y-auto">
           <p className="text-xs font-semibold text-slate-500 mb-3">지정된 서명 위치</p>
           {zones.length === 0 ? (
@@ -224,12 +224,12 @@ export default function ZoneEditor({ contract }: Props) {
           </div>
         </div>
 
-        {/* PDF + 오버레이 */}
+        {}
         <div className="flex-1 overflow-auto p-4">
           <div className="relative inline-block shadow-lg bg-white">
             <iframe src={contract.pdf_url} className="block" style={{ width: 800, height: '90vh', minHeight: 600 }} />
 
-            {/* 드래그 오버레이 */}
+            {}
             <div
               ref={overlayRef}
               className="absolute inset-0"
@@ -238,7 +238,7 @@ export default function ZoneEditor({ contract }: Props) {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
             >
-              {/* 기존 존 표시 */}
+              {}
               {zones.map(z => (
                 <div key={z.id} style={{ position: 'absolute', left: z.x, top: z.y, width: z.width, height: z.height }}
                   className="border-2 border-blue-500 bg-blue-50/40 flex items-center justify-center">
@@ -246,7 +246,7 @@ export default function ZoneEditor({ contract }: Props) {
                 </div>
               ))}
 
-              {/* 드래그 중인 박스 */}
+              {}
               {currentRect && (
                 <div style={{ position: 'absolute', left: currentRect.x, top: currentRect.y, width: currentRect.width, height: currentRect.height }}
                   className="border-2 border-dashed border-blue-400 bg-blue-100/30 pointer-events-none" />
@@ -256,10 +256,10 @@ export default function ZoneEditor({ contract }: Props) {
         </div>
       </div>
 
-      {/* 라벨 입력 모달 */}
+      {}
       {showLabelInput && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80">
             <p className="font-bold text-slate-900 mb-3">서명 위치 이름</p>
             <input
               autoFocus

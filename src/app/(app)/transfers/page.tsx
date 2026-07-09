@@ -16,7 +16,6 @@ export default async function TransfersPage() {
     supabase.from('profiles').select('id,name,role').in('role', ['tech', 'admin']).order('name'),
   ])
 
-  // franchise_application_id → { id, status } 맵 (상태변경 시 자동이관 부수효과가 중복 생성되지 않도록)
   const linkedInstalls: Record<string, { id: string; status: string }> = {}
   if (rows && rows.length > 0) {
     const { data: installs } = await supabase

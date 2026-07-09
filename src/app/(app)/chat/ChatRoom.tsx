@@ -104,7 +104,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
 
   return (
     <div className="flex flex-col h-screen max-h-screen bg-[#b2c7d9]">
-      {/* 헤더 */}
+      {}
       <div className="bg-[#3e6d9c] px-5 py-4 flex items-center gap-3 shadow-sm flex-shrink-0">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm">
           전체
@@ -115,11 +115,11 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
         </div>
       </div>
 
-      {/* 메시지 영역 */}
+      {}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {grouped.map(msg => (
           <div key={msg.id}>
-            {/* 날짜 구분선 */}
+            {}
             {msg.showDate && (
               <div className="flex items-center justify-center my-4">
                 <span className="bg-black/20 text-white text-xs px-3 py-1 rounded-full">
@@ -129,7 +129,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
             )}
 
             <div className={`flex items-end gap-2 ${isMe(msg) ? 'flex-row-reverse' : 'flex-row'}`}>
-              {/* 프로필 */}
+              {}
               {!isMe(msg) && (
                 <div className="flex-shrink-0 w-9 self-start mt-1">
                   {msg.showProfile ? (
@@ -141,7 +141,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
               )}
 
               <div className={`flex flex-col max-w-[70%] ${isMe(msg) ? 'items-end' : 'items-start'}`}>
-                {/* 이름 */}
+                {}
                 {!isMe(msg) && msg.showProfile && (
                   <div className="flex items-center gap-1.5 mb-1 ml-1">
                     <span className="text-sm font-bold text-slate-800">{msg.user?.name}</span>
@@ -152,7 +152,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
                 )}
 
                 <div className={`flex items-end gap-1.5 ${isMe(msg) ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {/* 말풍선 */}
+                  {}
                   <div className={`px-3.5 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed break-words ${
                     isMe(msg)
                       ? 'bg-[#fee500] text-slate-900 rounded-tr-sm'
@@ -160,7 +160,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
                   }`}>
                     {msg.content}
                   </div>
-                  {/* 시간 */}
+                  {}
                   <span className="text-[10px] text-white/70 whitespace-nowrap mb-0.5">
                     {format(new Date(msg.created_at), 'HH:mm')}
                   </span>
@@ -172,7 +172,7 @@ export default function ChatRoom({ profile, initialMessages }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      {/* 입력창 */}
+      {}
       <form onSubmit={sendMessage} className="bg-white border-t border-slate-200 px-3 py-3 flex items-center gap-2 flex-shrink-0">
         <input
           type="text"

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 })
     }
     const MAX_ITEMS = 20
-    const MAX_DATA_URL_LENGTH = 5 * 1024 * 1024 // base64 문자열 기준 약 5MB
+    const MAX_DATA_URL_LENGTH = 5 * 1024 * 1024
     if (items.length > MAX_ITEMS) {
       return NextResponse.json({ error: '서명/도장 항목이 너무 많습니다.' }, { status: 400 })
     }
@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // 토큰 자체가 보안 경계 — 고객은 로그인하지 않은 상태이므로 admin 클라이언트로 직접 검증
     const { data: contract } = await supabase
       .from('contracts')
       .select('id, status, token_expires_at')

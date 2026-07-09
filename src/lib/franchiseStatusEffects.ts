@@ -1,10 +1,5 @@
 'use client'
 
-// 가맹접수 상태 변경 시 발생하는 부수효과(알림톡 발송, 설치작업 자동생성, 기술팀 자동이관)를
-// franchise/FranchiseClient.tsx 와 transfers/TransfersClient.tsx 가 공통으로 사용하기 위한 모듈.
-// 두 화면에서 같은 franchise_applications.status 값을 바꾸는데 부수효과가 다르면 안 되므로,
-// 이 로직은 반드시 여기 한 곳에서만 구현하고 양쪽 클라이언트는 이 함수들을 호출만 한다.
-
 import { createClient } from '@/lib/supabase/client'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL } from '@/types'
 import type { FranchiseApplication, FranchiseStatus } from '@/types'
@@ -23,7 +18,6 @@ export function docCaseOf(ownerName?: string | null, businessName?: string | nul
   return 'phone_only'
 }
 
-// franchise_applications.status 업데이트 시 함께 보낼 patch. doc_waiting으로 갈 때 서류 템플릿을 함께 갱신한다.
 export function buildFranchiseStatusPatch(row: FranchiseApplication, status: FranchiseStatus): Record<string, unknown> {
   const patch: Record<string, unknown> = { status }
   if (status === 'doc_waiting') patch.doc_template = APPLICANT_TYPE_LABEL[row.applicant_type]
@@ -62,8 +56,6 @@ export async function notifyAndLogFranchiseStatus(
   }
 }
 
-// 토스심사완료 -> 설치작업(merchants + tickets) 자동 생성.
-// 티켓 생성이 실패하면 방금 만든 merchant가 고아로 남지 않도록 best-effort로 삭제한다.
 export async function createLinkedInstallTicket(row: FranchiseApplication, toast: StatusEffectsToast): Promise<void> {
   if (!row.business_name || !row.owner_name || !row.phone || !row.address) {
     toast.warning('상호명·대표자명·연락처·주소가 모두 입력되지 않아 설치 작업을 자동으로 만들지 못했습니다. 직접 등록해주세요.')
@@ -109,7 +101,6 @@ export async function createLinkedInstallTicket(row: FranchiseApplication, toast
   }
 }
 
-// 카드가맹완료 -> 가맹점 탭에 자동 등록. 이미 등록된 건(franchise_application_id로 조회)이면 건너뛴다.
 export async function autoRegisterMerchant(row: FranchiseApplication, toast: StatusEffectsToast): Promise<void> {
   if (!row.business_name || !row.owner_name || !row.phone) {
     toast.warning('상호명·대표자명·연락처가 모두 입력되지 않아 가맹점을 자동으로 등록하지 못했습니다. 직접 등록해주세요.')
@@ -117,7 +108,7 @@ export async function autoRegisterMerchant(row: FranchiseApplication, toast: Sta
   }
   const supabase = createClient()
   const { data: existing } = await supabase.from('merchants').select('id').eq('franchise_application_id', row.id).maybeSingle()
-  if (existing) return // 이미 등록됨
+  if (existing) return
 
   const { error } = await supabase.from('merchants').insert({
     business_name: row.business_name,
@@ -135,14 +126,12 @@ export async function autoRegisterMerchant(row: FranchiseApplication, toast: Sta
   if (error) toast.error('가맹점 자동 등록 실패: ' + error.message)
 }
 
-// 카드가맹완료 -> 설치관리에 이관, 기술팀 전원에게 알림.
-// existing이 'rejected' 상태면 재이관(같은 설치건 재사용), 없으면 새로 생성.
 export async function autoTransferToTech(
   row: FranchiseApplication,
   currentUserId: string,
   existing: { id: string; status: string } | undefined,
 ): Promise<{ id: string; status: string } | null> {
-  if (existing && existing.status !== 'rejected') return null // 이미 이관됨
+  if (existing && existing.status !== 'rejected') return null
   const supabase = createClient()
   let installId: string
   if (existing?.status === 'rejected') {
@@ -188,9 +177,6 @@ interface ApplyStatusSideEffectsParams {
   existingLinkedInstall?: { id: string; status: string }
 }
 
-// FranchiseClient.updateStatus 의 상태변경 부수효과(알림톡 / 설치작업 자동생성 / 기술팀 자동이관)를
-// 그대로 재현한다. status/patch DB 업데이트와 franchise_application_logs insert는 호출부에서
-// (각자의 로컬 상태 갱신과 함께) 먼저 수행한 뒤, 성공 시 이 함수를 호출한다.
 export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEffectsParams): Promise<{ linkedInstall?: { id: string; status: string } }> {
   const { row, status, sendNotify, docCase, currentUserId, toast, existingLinkedInstall } = params
 
@@ -216,8 +202,6 @@ export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEff
   return {}
 }
 
-// 상태변경 확인창에 쓰는 안내 문구 + 알림 발송 가능 여부.
-// FranchiseClient.handleStatusChange 의 문구 로직과 동일하게 유지한다.
 export function franchiseStatusChangeConfirm(row: FranchiseApplication, newStatus: FranchiseStatus): { msg: string; canNotify: boolean } {
   const canNotify = newStatus !== 'completed' && !!row.phone
   const confirmMsg = newStatus === 'completed'

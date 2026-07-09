@@ -12,7 +12,7 @@ interface ScheduleAlert {
 }
 
 const DISMISS_KEY = 'schedule_alert_dismissed'
-const RECHECK_INTERVAL = 2 * 60 * 60 * 1000 // 2시간
+const RECHECK_INTERVAL = 2 * 60 * 60 * 1000
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -102,7 +102,7 @@ export default function ScheduleAlertBanner({ alerts }: { alerts: ScheduleAlert[
                   {dDayLabel(n)}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{a.name}</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate" title={a.name}>{a.name}</p>
                   <p className="text-xs text-slate-500">{a.label} · {a.date.slice(5).replace('-', '/')}</p>
                 </div>
                 <button

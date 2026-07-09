@@ -38,14 +38,15 @@ export default async function TicketsPage({ searchParams }: Props) {
     let q = supabase
       .from('tickets')
       .select('*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)', { count: 'exact' })
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
-    // 역할별 필터
+    
     if (p.role === 'sales') q = q.eq('sales_id', userId)
     if (p.role === 'cs') q = q.eq('cs_id', userId)
     if (p.role === 'tech') q = q.eq('tech_id', userId)
 
-    // 탭별 상태 필터
+    
     if (params.status) {
       q = q.eq('status', params.status)
     } else if (tab !== 'all') {
@@ -55,7 +56,7 @@ export default async function TicketsPage({ searchParams }: Props) {
     return q
   }
 
-  // 먼저 전체 건수를 확인해 요청된 페이지가 범위를 벗어나면 마지막 페이지로 보정한다.
+  
   const { count } = await buildQuery().range(0, 0)
   const totalCount = count ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -63,7 +64,7 @@ export default async function TicketsPage({ searchParams }: Props) {
 
   const { data: tickets } = await buildQuery().range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
 
-  // 탭 구성 (영업팀은 이관완료 탭 추가)
+  
   const TABS = p.role === 'sales' || p.role === 'admin'
     ? [
         { key: 'all', label: '전체' },
@@ -94,15 +95,23 @@ export default async function TicketsPage({ searchParams }: Props) {
           <h1 className="text-2xl font-bold text-slate-900">작업 목록</h1>
           <p className="text-slate-500 text-sm mt-1">총 {totalCount}건</p>
         </div>
-        {(p.role === 'sales' || p.role === 'cs' || p.role === 'admin') && (
-          <Link href="/tickets/new"
-            className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200">
-            <Plus size={16} />새 작업
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {(p.role === 'admin' || p.role === 'cs' || p.can_delete) && (
+            <Link href="/tickets/trash"
+              className="text-sm text-slate-500 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-colors font-medium">
+              휴지통
+            </Link>
+          )}
+          {(p.role === 'sales' || p.role === 'cs' || p.role === 'admin') && (
+            <Link href="/tickets/new"
+              className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200">
+              <Plus size={16} />새 작업
+            </Link>
+          )}
+        </div>
       </div>
 
-      {/* 탭 */}
+      {}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-5 w-fit">
         {TABS.map(t => (
           <Link key={t.key} href={`/tickets?tab=${t.key}`}
@@ -114,7 +123,7 @@ export default async function TicketsPage({ searchParams }: Props) {
         ))}
       </div>
 
-      {/* 상태 필터 */}
+      {}
       {statusFilters.length > 0 && (
         <div className="flex gap-1 overflow-x-auto pb-2 mb-5">
           <Link href={`/tickets?tab=${tab}`}
@@ -130,10 +139,10 @@ export default async function TicketsPage({ searchParams }: Props) {
         </div>
       )}
 
-      {/* 목록 */}
+      {}
       <TicketsClient tickets={(tickets ?? []) as any} />
 
-      {/* 페이지네이션 */}
+      {}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
           <Link

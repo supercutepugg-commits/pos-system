@@ -56,7 +56,6 @@ const EMPTY_FORM = {
 
 const PAGE_SIZE = 100
 
-// --- EditableCell moved outside main component ---
 interface EditableCellProps {
   row: PaperOrder
   field: keyof PaperOrder
@@ -74,7 +73,6 @@ const EditableCell = memo(function EditableCell({ row, field, onSave }: Editable
   )
 })
 
-// --- Memoized table row ---
 interface TableRowProps {
   row: PaperOrder
   isSelected: boolean
@@ -132,7 +130,6 @@ const TableRow = memo(function TableRow({ row, isSelected, onToggle, onToggleShi
   )
 })
 
-// --- Separate form component ---
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
   submitting: boolean
@@ -306,8 +303,7 @@ export default function PaperOrdersClient({ rows }: Props) {
 
   const saveField = useCallback(async (row: PaperOrder, field: keyof PaperOrder, value: string) => {
     const supabase = createClient()
-    // count/revenue가 바뀌면 화면에 보이는 낱개기준도 바뀌므로, DB에 저장된 unit_standard도 함께
-    // 최신화한다. 안 그러면 등록 시점 값이 그대로 남아서 화면 표시(재계산값)와 어긋난다.
+
     const patch: Record<string, string | null> = { [field]: value || null }
     if (field === 'count' || field === 'revenue') {
       const nextCount = field === 'count' ? value : row.count

@@ -24,14 +24,14 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const STATUS_ORDER_INSTALL = ['received', 'preparing', 'scheduled', 'in_transit', 'completed']
 const STATUS_ORDER_DELIVERY = ['received', 'preparing', 'delivery_sent', 'completed']
-// AS는 외근(방문) 여부만 추적하면 되므로 제품준비 단계 없이 접수/일정확정/이동중/AS완료로 단순화
+
 const STATUS_ORDER_AS = ['received', 'scheduled', 'in_transit', 'completed']
 function statusOrderFor(deliveryType?: string) {
   if (deliveryType === 'delivery') return STATUS_ORDER_DELIVERY
   if (deliveryType === 'as') return STATUS_ORDER_AS
   return STATUS_ORDER_INSTALL
 }
-// 예전에 만들어진 택배발송 건은 실제 status 값이 in_transit으로 저장돼 있으므로, 표시할 때만 보정한다
+
 function statusLabel(status: string, deliveryType?: string) {
   if (status === 'in_transit' && deliveryType === 'delivery') return '택배발송'
   if (status === 'completed' && deliveryType === 'as') return 'AS완료'
@@ -133,7 +133,6 @@ function QtyStepper({ value, onChange, size = 'md' }: { value: number; onChange:
   )
 }
 
-// --- Separate form component so typing here doesn't re-render the whole list ---
 interface CreateFormProps {
   techUsers: { id: string; name: string }[]
   onSubmit: (v: {
@@ -186,7 +185,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
     <div className="bg-white rounded-2xl border border-slate-200 p-5">
       <h2 className="text-sm font-bold text-slate-800 mb-4">새 설치건 등록</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 설치/택배 구분 */}
+        {}
         <div className="flex gap-2">
           {(['install', 'delivery', 'as'] as const).map(t => (
             <button key={t} type="button" onClick={() => setDeliveryType(t)}
@@ -441,9 +440,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function sendInstallNotify(id: string, status: string, extra?: { eta?: string; scheduledDate?: string; scheduledTime?: string }) {
     const inst = installs.find(i => i.id === id)
     if (!inst?.customer_phone) return
-    // 택배발송 건은 방문 일정을 잡을 일이 없으므로 제품준비 단계의 알림은 보내지 않는다
+
     if (inst.delivery_type === 'delivery' && status === 'preparing') return
-    // AS는 일정확정/완료 알림톡까지는 필요 없고, 이동중(방문 예정) 알림만 필요에 따라 보내면 된다
+
     if (inst.delivery_type === 'as' && status !== 'in_transit') return
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
     if (!['preparing', 'scheduled', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
@@ -548,7 +547,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setRejectModal(null)
     setRejecting(false)
 
-    // 연결된 가맹접수 CS 담당자에게 알림 + 이관 로그 기록
     const inst = installs.find(i => i.id === id)
     if (inst?.franchise_application_id) {
       const { data: fa } = await supabase
@@ -559,7 +557,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
       const name = fa?.business_name || fa?.owner_name || '미입력'
 
-      // 이관 로그에 반려 기록
       if (fa) {
         await supabase.from('franchise_application_logs').insert({
           franchise_application_id: inst.franchise_application_id,
@@ -591,9 +588,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function submitCompletion(skipCompleteSend?: boolean) {
     if (!completeModal) return
-    // completing 상태(state)는 리렌더 이후에만 disabled에 반영되므로, 같은 이벤트 루프 틱 안에서
-    // 버튼이 두 번 눌리면(더블클릭) 두 번 다 통과해서 재고가 이중 차감될 수 있다.
-    // ref로 즉시(동기적으로) 재진입을 막는다.
+
+
     if (completingRef.current) return
     completingRef.current = true
     setCompleting(true)
@@ -602,8 +598,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const photoUrls: string[] = []
     for (const [i, file] of completePhotos.entries()) {
       const ext = file.name.split('.').pop() ?? 'jpg'
-      // Supabase Storage 키는 ASCII만 허용해서 한글 상호명을 그대로 쓰면 "Invalid key" 오류가 난다.
-      // 실제 저장 경로는 안전하게 두고, 사람이 보는 파일명은 다운로드 시 <a download>로 붙여준다.
+
       const path = `${id}/${Date.now()}-${i}.${ext}`
       const { error: uploadError } = await supabase.storage.from('install-photos').upload(path, file)
       if (uploadError) { toast.error('사진 업로드 실패: ' + uploadError.message); setCompleting(false); completingRef.current = false; return }
@@ -626,10 +621,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     completingRef.current = false
     if (!skipNotify && !skipCompleteSend) await sendInstallNotify(id, 'completed')
 
-    // 가맹이관 건이면 CS/영업에게 완료 알림 + 가맹접수 상태 업데이트 + 이관 로그
     const inst = installs.find(i => i.id === id)
 
-    // 설치완료 시 배정된 장비를 재고에서 자동 차감 (이미 완료 처리된 건은 중복 차감 방지)
     if (inst && inst.status !== 'completed' && inst.items?.length) {
       const { data: unmatched, error: deductError } = await supabase.rpc('deduct_inventory_on_install', {
         p_items: inst.items,
@@ -650,22 +643,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         .single()
       const name = fa?.business_name || fa?.owner_name || '미입력'
 
-      // 가맹접수 상태를 card_done으로 자동 업데이트 (이미 완료 상태가 아닌 경우)
-      // 이 자동갱신은 updated_at을 건드리지 않아서(RPC), "최근 수정순" 목록에서 맨 위로 튀지 않는다
+
       if (fa && fa.status !== 'card_done') {
         await supabase.rpc('set_franchise_status_silent', { p_id: inst.franchise_application_id, p_status: 'card_done' })
-        // 이관 로그 기록
+
         await supabase.from('franchise_application_logs').insert({
           franchise_application_id: inst.franchise_application_id,
           user_id: profile.id,
           from_status: fa.status,
           to_status: 'card_done',
         })
-        // 카드가맹완료 -> 가맹점 탭 자동 등록 (이미 등록된 건은 건너뜀)
+
         await autoRegisterMerchant({ ...fa, id: inst.franchise_application_id } as FranchiseApplication, toast)
       }
 
-      // CS/영업 완료 알림
       const notifyTargets = [...new Set([fa?.cs_id, fa?.sales_id].filter(Boolean) as string[])]
       if (notifyTargets.length) {
         const { error: notifyError } = await supabase.from('notifications').insert(notifyTargets.map(uid => ({
@@ -685,9 +676,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const prevNotes = (prev?.notes ?? '').trim()
     let saveValue: string | null = notes || null
     if (notes && prevNotes) {
-      // 비고 입력창은 기존 메모 전체를 담은 채로 편집되므로, 기존 내용으로 시작할 때만
-      // "새로 늘어난 부분"만 스탬프를 찍어 이어붙인다. 그래야 그냥 클릭만 해도
-      // 전체 내용이 통째로 중복 저장되는 걸 막을 수 있다.
+
+
       if (notes.startsWith(prevNotes)) {
         const added = notes.slice(prevNotes.length).replace(/^\n+/, '')
         if (!added.trim()) {
@@ -707,7 +697,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }
 
   async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number' | 'notes', value: string) {
-    // notes는 saveNotes와 같은 방식(누적 스탬프)으로 저장해서, 이 경로로 들어와도 이력이 남게 한다.
+
     if (field === 'notes') { await saveNotes(id, value); return }
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
     const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
@@ -804,7 +794,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     })
   }
 
-  // 당일 설치 예정 체크 (하루 한 번)
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
     const lastCheck = localStorage.getItem('install_schedule_check')
@@ -937,20 +926,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-5">
-      {/* 알림 건너뛰기가 켜져있는 동안 계속 보이는 알림 배너 (꺼야 다시 알림이 발송됨을 상기) */}
+      {}
       {skipNotify && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-red-700 font-semibold">
           ⚠ 알림 건너뛰기가 켜져 있습니다 — 상태를 변경해도 고객에게 알림톡이 발송되지 않습니다.
           <button onClick={() => setSkipNotify(false)} className="ml-auto text-xs font-semibold underline underline-offset-2 hover:text-red-900">지금 끄기</button>
         </div>
       )}
-      {/* 서버에서 최대 300건만 가져오므로, 그 한도에 걸렸을 때 누락 가능성을 알려준다 */}
+      {}
       {hitFetchLimit && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700">
           최근 {FETCH_LIMIT}건만 불러왔습니다. 그보다 오래된 건은 검색/필터에 나타나지 않을 수 있습니다.
         </div>
       )}
-      {/* 당일 설치 예정 배너 */}
+      {}
       {todayScheduled.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <span className="text-amber-600 font-bold text-sm">오늘 설치 예정 {todayScheduled.length}건</span>
@@ -959,7 +948,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       )}
 
-      {/* 기사별 배정 현황 — 클릭 시 해당 기사 필터 적용 */}
+      {}
       {!mineOnly && techUsers.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {techUsers.map(t => (
@@ -978,7 +967,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       )}
 
-      {/* 가맹접수 상세 모달 */}
+      {}
       {franchiseDetail !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setFranchiseDetail(null)}>
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-[480px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -1029,7 +1018,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       )}
 
-      {/* 반려 사유 모달 */}
+      {}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
@@ -1055,7 +1044,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           </div>
         </div>
       )}
-      {/* 이동 예정 시각 입력 모달 */}
+      {}
       {transitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
@@ -1086,7 +1075,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           </div>
         </div>
       )}
-      {/* 설치 일정 확정 안내 모달 */}
+      {}
       {scheduleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
@@ -1156,12 +1145,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       </div>
 
-      {/* 등록 폼 */}
+      {}
       {canEdit && !mineOnly && showForm && (
         <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} />
       )}
 
-      {/* 설치/택배 탭 */}
+      {}
       <div className="flex items-center justify-between">
         <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
           {([['all', '전체'], ['install', '설치'], ['delivery', '택배발송'], ['as', 'AS']] as const).map(([tab, label]) => (
@@ -1177,7 +1166,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </button>
       </div>
 
-      {/* 기사별 실적 + 월간 통계 */}
+      {}
       {showMonthlyStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -1220,7 +1209,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       )}
 
-      {/* 상태별 건수 */}
+      {}
       <div className="flex flex-wrap gap-2">
         {(Object.entries(STATUS_LABELS) as [string, string][]).map(([s, label]) => statusCounts[s] ? (
           <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
@@ -1238,7 +1227,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </button>
       </div>
 
-      {/* 검색 + 필터 */}
+      {}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-48">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1279,7 +1268,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </label>
       </div>
 
-      {/* 목록 (모바일 카드형 - 기사 페이지 전용) */}
+      {}
       {mineOnly && (
         <div className="md:hidden space-y-3">
           {loading ? (
@@ -1381,7 +1370,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       )}
 
-      {/* 목록 */}
+      {}
       <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden ${mineOnly ? 'hidden md:block' : ''}`}>
         {loading ? (
           <div className="py-16 text-center text-slate-400 text-sm">불러오는 중...</div>

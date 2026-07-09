@@ -27,8 +27,8 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
   const [completeNote, setCompleteNote] = useState('')
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
 
-  // 담당자(cs_id/tech_id)가 아직 배정되지 않은 상태에서는 알림을 보낼 대상이 없으므로
-  // targets가 비어 있으면 자연스럽게 아무 알림도 보내지 않는다 (의도된 동작).
+  
+  
   async function notifyTargets(newStatus: string, logMessage: string) {
     const supabase = createClient()
     const targets: string[] = []
@@ -191,7 +191,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
     <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-3">
       <h2 className="text-sm font-semibold text-gray-700">작업 액션</h2>
 
-      {/* 메시지 입력 */}
+      {}
       <textarea
         value={message}
         onChange={e => setMessage(e.target.value)}
@@ -201,7 +201,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
       />
 
       <div className="flex flex-wrap gap-2">
-        {/* 영업 → CS 이관 */}
+        {}
         {status === 'sales' && (role === 'sales' || role === 'admin') && (
           <>
             <select
@@ -225,7 +225,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </>
         )}
 
-        {/* CS → 이관 거부 (영업으로 반려) */}
+        {}
         {status === 'cs_pending' && (role === 'cs' || role === 'admin') && (
           <button
             onClick={() => updateStatus('sales')}
@@ -236,7 +236,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </button>
         )}
 
-        {/* CS → 기사 배정 */}
+        {}
         {(status === 'cs_pending' || status === 'cs_progress') && (role === 'cs' || role === 'admin') && (
           <>
             <select
@@ -260,7 +260,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </>
         )}
 
-        {/* 일정 확정 */}
+        {}
         {(status === 'cs_pending' || status === 'cs_progress' || status === 'tech_pending') && (role === 'cs' || role === 'admin') && (
           <div className="flex items-center gap-2">
             <input
@@ -272,7 +272,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </div>
         )}
 
-        {/* 기술지원 → 반려 (CS로 되돌리기) */}
+        {}
         {(status === 'tech_pending' || status === 'scheduled') && (role === 'tech' || role === 'admin') && (
           <button
             onClick={() => updateStatus('cs_pending')}
@@ -283,7 +283,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </button>
         )}
 
-        {/* 작업 시작 */}
+        {}
         {(status === 'scheduled' || status === 'tech_pending') && (role === 'tech' || role === 'admin') && (
           <button
             onClick={() => updateStatus('in_progress')}
@@ -295,7 +295,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </button>
         )}
 
-        {/* 완료 처리 */}
+        {}
         {status === 'in_progress' && (role === 'tech' || role === 'admin') && (
           <button
             onClick={() => setCompleteOpen(true)}
@@ -307,7 +307,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
           </button>
         )}
 
-        {/* 취소 */}
+        {}
         {status !== 'done' && status !== 'canceled' && (role === 'cs' || role === 'admin') && (
           <button
             onClick={requestCancel}

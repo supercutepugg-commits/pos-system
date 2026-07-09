@@ -129,7 +129,7 @@ function SignaturePadModal({ onComplete, onClose }: { onComplete: (dataUrl: stri
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md mx-4 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
           <p className="font-bold text-gray-900">서명하기</p>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
@@ -155,8 +155,8 @@ export default function SignClient({ contract }: Props) {
   const zones: Zone[] = contract.signature_zones ?? []
   const hasZones = zones.length > 0
 
-  // zone-based signing state
-  const [signedZones, setSignedZones] = useState<Record<string, string>>({}) // zoneId → dataUrl
+  
+  const [signedZones, setSignedZones] = useState<Record<string, string>>({}) 
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
 
   const [items, setItems] = useState<SignatureItem[]>([])
@@ -220,7 +220,7 @@ export default function SignClient({ contract }: Props) {
     if (!confirm('서명을 완료하시겠습니까? 이후 수정이 불가합니다.')) return
     setSubmitting(true)
 
-    // 고객은 비로그인 상태라 RLS를 우회해야 하므로, 업로드와 DB 갱신을 서버 라우트에서 처리
+    
     const submitItems: SignatureItem[] = hasZones
       ? zones.map(z => ({
           id: z.id, type: 'signature', dataUrl: signedZones[z.id],
@@ -241,7 +241,7 @@ export default function SignClient({ contract }: Props) {
       return
     }
 
-    // 서명 완료 알림톡 발송 (고객 화면이므로 실패해도 진행을 막지 않음 - 로그만 남김)
+    
     fetch('/api/contracts/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -293,7 +293,7 @@ export default function SignClient({ contract }: Props) {
 
   return (
     <div className="min-h-screen bg-white flex flex-col lg:flex-row">
-      {/* 사이드 패널 */}
+      {}
       <div className="w-full lg:w-72 bg-gray-50 border-b lg:border-b-0 lg:border-r border-gray-100 flex flex-col">
         <div className="h-14 flex items-center gap-2.5 px-6 border-b border-gray-100">
           <div className="w-2 h-2 rounded-full bg-gray-900" />
@@ -361,12 +361,12 @@ export default function SignClient({ contract }: Props) {
         </div>
       </div>
 
-      {/* PDF + 서명 오버레이 */}
+      {}
       <div className="flex-1 overflow-auto bg-gray-100 relative p-4">
         <div className="relative inline-block bg-white shadow-lg">
           <iframe src={contract.pdf_url} className="w-full min-h-screen" style={{ minWidth: 600, height: '90vh' }} />
 
-          {/* 존 기반 서명 오버레이 */}
+          {}
           {hasZones && (
             <div className="absolute inset-0 pointer-events-none">
               {zones.map(zone => (
@@ -384,7 +384,7 @@ export default function SignClient({ contract }: Props) {
             </div>
           )}
 
-          {/* 자유 배치 서명 오버레이 (존 없을 때) */}
+          {}
           {!hasZones && (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <div className="absolute inset-0 pointer-events-none">

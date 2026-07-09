@@ -18,7 +18,6 @@ interface Props {
 
 const STATUSES = ['접수완료', '개통완료', '취소']
 
-// 상태가 이 값으로 바뀌면 가맹접수 고객에게 알림톡을 발송한다 (기존에 가맹접수 탭에서 보내던 것을 이곳으로 이전)
 const STATUS_NOTIFY_KIND: Partial<Record<string, 'internet_apply_done' | 'internet_done'>> = {
   '접수완료': 'internet_apply_done',
   '개통완료': 'internet_done',
@@ -52,7 +51,6 @@ const EMPTY_FORM = {
   memo: '',
 }
 
-// 목록에 항상 보이는 핵심 컬럼
 const MAIN_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
   { key: 'business_name', label: '상호명' },
   { key: 'apply_date', label: '접수신청일' },
@@ -62,7 +60,6 @@ const MAIN_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
   { key: 'phone', label: '연락처' },
 ]
 
-// 상세보기(펼침)에만 나오는 컬럼
 const DETAIL_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
   { key: 'category', label: '구분' },
   { key: 'carrier', label: '통신사' },
@@ -95,7 +92,6 @@ const AUTO_FORMAT: Partial<Record<keyof InternetManagement, (raw: string) => str
   open_date: formatDateText,
 }
 
-// --- EditableText moved outside main component ---
 interface EditableTextProps {
   row: InternetManagement
   field: keyof InternetManagement
@@ -141,7 +137,6 @@ const SelectField = memo(function SelectField({ row, field, options, onSave, pil
   )
 })
 
-// 속도: 100M/500M 드롭다운 + 직접입력
 interface SpeedFieldProps {
   row: InternetManagement
   onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
@@ -188,7 +183,6 @@ const SpeedField = memo(function SpeedField({ row, onSave }: SpeedFieldProps) {
   )
 })
 
-// 속도 필드 - 등록 폼용 (row 없이 value/onChange만 받음)
 interface SpeedFormFieldProps {
   value: string
   onChange: (value: string) => void
@@ -224,7 +218,6 @@ const SpeedFormField = memo(function SpeedFormField({ value, onChange }: SpeedFo
   )
 })
 
-// --- Separate form component ---
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
   submitting: boolean
@@ -326,7 +319,6 @@ export default function InternetClient({ rows }: Props) {
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // franchise/FranchiseClient.tsx와 동일하게 전체선택 체크박스는 "이 페이지"만 대상으로 한다.
   const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
 
   const toggleAll = useCallback(() => {
@@ -561,7 +553,7 @@ export default function InternetClient({ rows }: Props) {
                         {options ? (
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
                         ) : col.key === 'business_name' ? (
-                          <span className="font-medium text-slate-900 block overflow-hidden text-ellipsis">{row.business_name || '-'}</span>
+                          <span className="font-medium text-slate-900 block overflow-hidden text-ellipsis" title={row.business_name || undefined}>{row.business_name || '-'}</span>
                         ) : (
                           <EditableText row={row} field={col.key} onSave={saveField} />
                         )}

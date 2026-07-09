@@ -15,7 +15,7 @@ const SCHEDULE_FIELDS = [
   { key: 'card_apply_date', label: '카드신청' },
 ] as const
 
-// 알림 생성용: 가맹 접수 일정 라벨
+
 const FRANCHISE_DATE_FIELDS = [
   { key: 'open_date', label: '오픈예정일' },
   { key: 'install_date', label: '설치예정일' },
@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const limitStr = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
   const oneHourAgoStr = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
-  // 독립적인 조회는 병렬로 실행 (탐색 속도 최적화)
+  
   const [
     { data: myRooms },
     { data: upcomingTickets },
@@ -50,11 +50,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .select('id, title, scheduled_at, install_date, open_date, card_apply_date, sales_id, cs_id, tech_id, merchant:merchants(business_name)')
       .not('status', 'eq', 'canceled')
       .or('scheduled_at.not.is.null,install_date.not.is.null,open_date.not.is.null,card_apply_date.not.is.null'),
-    // 내가 최근 1시간 안에 일정 알림을 받았는지 (받았으면 이번 요청에서는 알림 생성 전체를 건너뜀)
+    
     supabase.from('notifications').select('id').eq('user_id', user.id).like('type', 'schedule_%').gte('created_at', oneHourAgoStr).limit(1),
   ])
 
-  // 읽지 않은 DM 수 (내가 속한 채팅방의 내가 보내지 않은 메시지)
+  
   const roomIds = myRooms?.map(r => r.id) ?? []
   let unreadDmCount = 0
   if (roomIds.length > 0) {
@@ -67,7 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     unreadDmCount = count ?? 0
   }
 
-  // 3일 이내(오늘 포함) 다가오는 캘린더 일정 알림 (배너용 — 항상 계산)
+  
   const scheduleAlerts = (upcomingTickets ?? []).flatMap((t: any) =>
     SCHEDULE_FIELDS.flatMap(f => {
       const raw = t[f.key] as string | null
@@ -83,7 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     })
   )
 
-  // 내가 이미 쿨다운 중이면 알림 생성 단계(가맹 조회/전체 직원 조회/insert) 자체를 건너뛰어 매 이동마다 무거운 쿼리가 도는 것을 방지
+  
   const iAmOnCooldown = (myRecentScheduleNotif ?? []).length > 0
 
   if (!iAmOnCooldown) {
@@ -93,11 +93,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .neq('status', 'toss_review_done')
       .or('open_date.not.is.null,install_date.not.is.null')
 
-    // 담당자 지정 여부와 무관하게 전체 직원에게 알림
+    
     const { data: allProfiles } = await supabase.from('profiles').select('id')
     const allUserIds = (allProfiles ?? []).map(p => p.id)
 
-    // 계정당 일정 알림은 1시간에 한 번만 — 최근 1시간 내 이미 받은 사람은 이번 회차에서 제외
+    
     const { data: recentScheduleNotifs } = await supabase
       .from('notifications')
       .select('user_id')
@@ -106,7 +106,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const onCooldown = new Set((recentScheduleNotifs ?? []).map((n: any) => n.user_id))
     const notifiableUserIds = allUserIds.filter(id => !onCooldown.has(id))
 
-    // 캘린더 일정(티켓/가맹) → notifications 테이블에 실제 알림 행 생성 (중복 방지)
+    
     type ScheduleItem = { refType: 'ticket' | 'franchise'; refId: string; type: string; title: string; body: string; targetUserIds: string[] }
     const scheduleItems: ScheduleItem[] = []
 

@@ -71,7 +71,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
       <h2 className="text-sm font-semibold text-gray-700 mb-4">영업 / CS 정보</h2>
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-        {/* 사업자 구분 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">사업자 구분 <StatusDot field="business_type" /></p>
           <select value={form.business_type} disabled={!canEdit}
@@ -82,7 +82,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           </select>
         </div>
 
-        {/* 접수 채널 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">접수 채널 <StatusDot field="reception_channel" /></p>
           <select value={form.reception_channel} disabled={!canEdit}
@@ -93,7 +93,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           </select>
         </div>
 
-        {/* 서류 접수 상태 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">서류 접수 상태 <StatusDot field="document_status" /></p>
           <select value={form.document_status} disabled={!canEdit}
@@ -103,7 +103,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           </select>
         </div>
 
-        {/* 상품 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">상품 <StatusDot field="product" /></p>
           <input value={form.product} disabled={!canEdit}
@@ -112,7 +112,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
             className={INPUT} placeholder="예: 포스 단말기" />
         </div>
 
-        {/* VAN사 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">VAN사 <StatusDot field="van_company" /></p>
           <select value={form.van_company} disabled={!canEdit}
@@ -123,7 +123,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           </select>
         </div>
 
-        {/* 인터넷 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">인터넷 <StatusDot field="internet" /></p>
           <input value={form.internet} disabled={!canEdit}
@@ -132,7 +132,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
             className={INPUT} placeholder="예: KT, SKT" />
         </div>
 
-        {/* 카드가맹 접수일 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">카드가맹 접수일 <StatusDot field="card_apply_date" /></p>
           <input type="date" value={form.card_apply_date} disabled={!canEdit}
@@ -140,7 +140,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
             className={INPUT} />
         </div>
 
-        {/* 간편결제 */}
+        {}
         <div>
           <p className="text-xs text-gray-400 mb-1">간편결제 <StatusDot field="simple_payment" /></p>
           <select value={form.simple_payment} disabled={!canEdit}
@@ -151,7 +151,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           </select>
         </div>
 
-        {/* 배민접수 */}
+        {}
         <div className="col-span-2">
           <p className="text-xs text-gray-400 mb-1">배민접수 <StatusDot field="baemin_apply" /></p>
           <label className={`flex items-center gap-2 mt-1 ${canEdit ? 'cursor-pointer' : 'pointer-events-none'}`}>
@@ -163,7 +163,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
         </div>
       </div>
 
-      {/* 진행 상황 */}
+      {}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-400 mb-1">진행 상황 <StatusDot field="progress_note" /></p>
         <textarea value={form.progress_note} disabled={!canEdit} rows={2}
@@ -173,7 +173,7 @@ export default function TicketInfoEdit({ ticket, canEdit }: Props) {
           placeholder="현재 진행 상황" />
       </div>
 
-      {/* 비고 */}
+      {}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <p className="text-xs text-gray-400 mb-1">비고 <StatusDot field="memo" /></p>
         <textarea value={form.memo} disabled={!canEdit} rows={2}

@@ -19,8 +19,7 @@ export default function NotificationRow({ id, href, title, body, createdAtLabel,
     if (!isRead) {
       const supabase = createClient()
       const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id)
-      // 읽음 처리가 실패해도 사용자의 이동을 막지는 않되, 로컬에서 성공했다고 가정하지 않는다
-      // (router.refresh()로 서버 상태를 다시 가져와 실제 읽음 여부를 반영한다).
+
       if (error) console.error('알림 읽음 처리 실패:', error.message)
     }
     router.push(href)

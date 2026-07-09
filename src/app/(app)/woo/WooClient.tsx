@@ -25,14 +25,12 @@ const SELECT_OPTIONS: Partial<Record<keyof WooCustomer, string[]>> = {
 
 const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['business_name', 'owner_name', 'phone', 'internet_note']
 
-// 가맹여부 값에 따른 배지 색상 (가맹완료: 초록, 가맹미확인: 슬레이트 기본)
 function cardApplyStatusColor(value: string) {
   if (value === '가맹완료') return 'bg-green-50 text-green-600 border-green-200'
   if (value === '가맹미확인') return 'bg-red-50 text-red-600 border-red-200'
   return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
-// 달력 선택 + 직접 텍스트 입력 둘 다 되는 필드
 const DATE_FIELDS: (keyof WooCustomer)[] = ['received_date', 'open_date', 'internet_open_date', 'card_apply_date']
 
 const AUTO_FORMAT: Partial<Record<keyof WooCustomer, (raw: string) => string>> = {
@@ -60,7 +58,6 @@ const EMPTY_FORM = {
   memo: '',
 }
 
-// 목록에 항상 보이는 핵심 컬럼
 const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'category', label: '분류' },
   { key: 'received_date', label: '접수날짜' },
@@ -74,7 +71,6 @@ const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'internet_note', label: '인터넷 비고' },
 ]
 
-// 상세보기(펼침)에만 나오는 컬럼
 const DETAIL_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
   { key: 'business_number', label: '사업자번호' },
   { key: 'internet_type', label: '인터넷' },
@@ -102,7 +98,6 @@ const DEFAULT_WIDTHS: Partial<Record<keyof WooCustomer, number>> = {
 const COL_WIDTHS_STORAGE_KEY = 'woo_customers_col_widths'
 const PAGE_SIZE = 50
 
-// --- EditableText moved outside main component ---
 interface EditableTextProps {
   row: WooCustomer
   field: keyof WooCustomer
@@ -124,7 +119,6 @@ const EditableText = memo(function EditableText({ row, field, onSave }: Editable
   )
 })
 
-// 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드
 interface DateFieldProps {
   row: WooCustomer
   field: keyof WooCustomer
@@ -203,7 +197,6 @@ const SelectField = memo(function SelectField({ row, field, options, onSave, pil
   )
 })
 
-// 달력 아이콘 + 직접 텍스트 입력 - 등록 폼용 (row 없이 value/onChange만 받음)
 interface DateFormFieldProps {
   value: string
   onChange: (value: string) => void
@@ -238,7 +231,6 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
   )
 })
 
-// --- Separate form component ---
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
   submitting: boolean
@@ -317,7 +309,7 @@ export default function WooClient({ rows }: Props) {
     const channel = supabase
       .channel('woo_customers-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'woo_customers' }, payload => {
-        // 서버 재조회 없이 실시간 페이로드로 화면만 바로 패치 (다른 사용자의 변경사항 포함)
+
         if (payload.eventType === 'INSERT') {
           const newRow = payload.new as WooCustomer
           setLocalRows(prev => prev.some(r => r.id === newRow.id) ? prev : [newRow, ...prev])
@@ -350,7 +342,7 @@ export default function WooClient({ rows }: Props) {
   useEffect(() => { setPage(1) }, [search, categoryFilter])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   useEffect(() => {
-    // 실시간 삭제 등으로 목록이 줄어들어 현재 페이지가 범위를 벗어나면 되돌림
+
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -425,7 +417,7 @@ export default function WooClient({ rows }: Props) {
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return }
     setShowForm(false)
-    // 새 행은 실시간 구독의 INSERT 이벤트로 화면에 반영됨
+
   }, [])
 
   const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {
@@ -433,7 +425,7 @@ export default function WooClient({ rows }: Props) {
       toast.warning(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
       return
     }
-    // 화면은 바로 반영 (서버 재조회를 기다리지 않음 - 실시간 구독이 다른 사용자 변경사항은 알아서 동기화)
+
     const previousValue = row[field]
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value } : r))
     const supabase = createClient()
@@ -550,7 +542,7 @@ export default function WooClient({ rows }: Props) {
                         {options ? (
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
                         ) : col.key === 'business_name' ? (
-                          <span className="font-medium text-slate-900">{row.business_name || '-'}</span>
+                          <span className="font-medium text-slate-900" title={row.business_name || undefined}>{row.business_name || '-'}</span>
                         ) : DATE_FIELDS.includes(col.key) ? (
                           <DateField row={row} field={col.key} onSave={saveField} />
                         ) : (

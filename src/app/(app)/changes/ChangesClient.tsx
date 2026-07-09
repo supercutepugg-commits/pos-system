@@ -136,8 +136,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
 
   const canDelete = currentUserRole === 'admin' || currentUserRole === 'cs'
 
-  // franchise/internet과 동일하게 다른 세션에서의 변경도 실시간으로 반영한다 (목록이 계속 늘어나므로
-  // 페이지네이션과 함께 추가).
+
   useEffect(() => {
     setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
   }, [rows])
@@ -407,7 +406,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
 
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-slate-900">변경 요청 등록</h2>
               <button onClick={() => setShowForm(false)}><X size={20} className="text-slate-400" /></button>
@@ -505,7 +504,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                       {APPLICANT_TYPE_OPTIONS.map(t => <option key={t} value={t}>{CHANGE_APPLICANT_TYPE_LABEL[t]}</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap max-w-[160px] overflow-hidden text-ellipsis">{row.business_name || '-'}</td>
+                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap max-w-[160px] overflow-hidden text-ellipsis" title={row.business_name || undefined}>{row.business_name || '-'}</td>
                   <td className="px-3 py-3 text-slate-800 whitespace-nowrap">{row.owner_name || '-'}</td>
                   <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{row.phone ? formatPhone(row.phone) : '-'}</td>
                   <td className="px-3 py-3 text-slate-500 whitespace-nowrap text-xs">{row.creator?.name ?? '-'}</td>
@@ -529,7 +528,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
                       {STATUS_OPTIONS.map(s => <option key={s} value={s}>{CHANGE_STATUS_LABEL[s]}</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate">{row.memo || '-'}</td>
+                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate" title={row.memo || undefined}>{row.memo || '-'}</td>
                 </tr>
                 {expandedId === row.id && (
                   <tr className="bg-blue-50/50 border-b border-slate-100">

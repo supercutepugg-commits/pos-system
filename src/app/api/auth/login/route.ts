@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   const { name, password } = await req.json()
 
-  // 이름으로 프로필 찾기
+  
   const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('id')
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '이름을 찾을 수 없습니다.' }, { status: 400 })
   }
 
-  // 해당 유저의 이메일 가져오기
+  
   const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profile.id)
   if (!userData.user?.email) {
     return NextResponse.json({ error: '계정 정보를 찾을 수 없습니다.' }, { status: 400 })

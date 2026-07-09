@@ -82,7 +82,7 @@ function defaultCreateForm() {
   return { ...EMPTY_FORM, reception_date: new Date().toISOString().slice(0, 10) }
 }
 
-// 인터넷 접수완료/가입완료 알림은 인터넷관리 탭 상태 변경 시 발송하므로, 가맹접수 상태 드롭다운에서는 숨긴다
+
 const STATUS_DROPDOWN_HIDDEN: FranchiseStatus[] = ['internet_apply_done', 'internet_done', 'card_internet_apply_done']
 const SELECTABLE_FRANCHISE_STATUSES = (Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[])
   .filter(s => !STATUS_DROPDOWN_HIDDEN.includes(s))
@@ -161,7 +161,7 @@ function VanMultiSelect({ value, onChange }: { value: string; onChange: (value: 
   )
 }
 
-// --- EditableText moved outside main component ---
+
 interface EditableTextProps {
   row: FranchiseApplication
   field: keyof FranchiseApplication
@@ -187,7 +187,7 @@ const EditableText = memo(function EditableText({ row, field, placeholder, type 
   )
 })
 
-// 비고: 새 내용만 textarea에 입력받아 저장 시 스탬프를 붙여 이어붙인다 (읽을 때는 히스토리 탭에서 파싱해서 보여준다)
+
 interface EditableMemoProps {
   row: FranchiseApplication
   onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
@@ -207,7 +207,7 @@ const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoPro
   )
 })
 
-// 누적 스탬프 형태(`[이름 MM/DD HH:mm] 내용`)로 저장된 비고를 히스토리 타임라인에 넣을 수 있게 개별 항목으로 분해한다
+
 function parseMemoEntries(memo?: string): { at: string; user: string; text: string }[] {
   if (!memo) return []
   const entries: { at: string; user: string; text: string }[] = []
@@ -223,7 +223,7 @@ function parseMemoEntries(memo?: string): { at: string; user: string; text: stri
   return entries
 }
 
-// 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드 (8자리 숫자는 자동으로 YYYY-MM-DD로 변환)
+
 interface DateFieldProps {
   row: FranchiseApplication
   field: keyof FranchiseApplication
@@ -275,7 +275,7 @@ const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps
   )
 })
 
-// 달력 아이콘 + 직접 텍스트 입력 - 새 접수 폼용 (row 없이 value/onChange만 받음)
+
 interface DateFormFieldProps {
   value: string
   onChange: (value: string) => void
@@ -310,7 +310,7 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
   )
 })
 
-// 현재 상태에서 다음 자연스러운 단계
+
 const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   doc_waiting: 'card_apply_done',
   doc_incomplete: 'card_apply_done',
@@ -349,7 +349,7 @@ const DEFAULT_WIDTHS: Record<string, number> = {
 const COL_WIDTHS_STORAGE_KEY = 'franchise_col_widths'
 const PAGE_SIZE = 50
 
-// --- 신규 접수 폼: 별도 컴포넌트로 분리해서 타이핑할 때 전체 목록이 다시 렌더링되지 않도록 함 ---
+
 interface CreateFormProps {
   onSubmit: (form: typeof EMPTY_FORM) => Promise<boolean>
   submitting: boolean
@@ -479,8 +479,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [busyId, setBusyId] = useState<string | null>(null)
   const [transferringId, setTransferringId] = useState<string | null>(null)
   const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
-  // saveField가 이 값이 바뀔 때마다 새 함수로 재생성되면 memo(EditableText 등)의 재렌더 방지 효과가
-  // 전체 행에 대해 무효화되므로, ref로 최신값만 읽고 saveField 자체의 참조는 안정적으로 유지한다
+  
+  
   const localLinkedInstallsRef = useRef(localLinkedInstalls)
   useEffect(() => { localLinkedInstallsRef.current = localLinkedInstalls }, [localLinkedInstalls])
   const [localLinkedInternets, setLocalLinkedInternets] = useState<Record<string, { id: string; status: string | null; category: string | null }>>(linkedInternets)
@@ -494,7 +494,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [applicantTypeFilter, setApplicantTypeFilter] = useState('')
   const [salesFilter, setSalesFilter] = useState('')
   const [csFilter, setCsFilter] = useState('')
-  // 기본 정렬을 등록순(created_at)으로 해서, 상태/메모 등을 수정해도(updated_at 변경) 목록 순서가 튀지 않게 함
+  
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'open_date' | 'install_date' | 'status' | 'manual'>('created_at')
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -523,7 +523,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setSelected(new Set())
   }, [rows])
 
-  // 키보드 단축키
+  
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
@@ -535,9 +535,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 오픈예정일 D-7 / D-3 / D-1 자동 알림 (하루 1회).
-  // localStorage 대신 notification_logs(DB)로 중복발송 여부를 판단해서, 같은 사용자가
-  // 여러 기기/브라우저를 쓰더라도 같은 날 중복 알림이 가지 않게 한다.
+  
+  
+  
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
     const supabase = createClient()
@@ -581,18 +581,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }, [])
 
-  // 반려 후 3일 이상 재이관 없는 건 재알림
+  
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
     const key = `reject_renotify_${currentUserId}_${today}`
     if (localStorage.getItem(key)) return
-    // localLinkedInstalls에서 rejected 상태인 건 찾기 (3일 이상)
-    // 이건 installsClient에서 처리되므로 여기선 별도 체크 불필요
+    
+    
     localStorage.setItem(key, '1')
   }, [])
 
-  // 장기 미처리 건 자동 알림 (7일 이상, 하루 1회). D-day 알림과 동일하게 DB(notification_logs)로
-  // 중복발송을 막고, insert 실패 시 조용히 삼키지 않고 콘솔/토스트로 드러낸다.
+  
+  
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
     const templateKey = `franchise_stale_${today}`
@@ -656,22 +656,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const rejectedIds = useMemo(() => new Set(Object.entries(localLinkedInstalls).filter(([, v]) => v.status === 'rejected').map(([k]) => k)), [localLinkedInstalls])
   const completedIds = useMemo(() => new Set(localRows.filter(r => r.status === 'completed').map(r => r.id)), [localRows])
 
-  // '전체' 탭은 기술지원 이관/완료된 건을 작업 목록에서 숨기는 축약 뷰다. 그런데 '완료'는
-  // FranchiseStatus 축에도 동일한 값('completed')이 존재하므로, 사용자가 상태 드롭다운/배지에서
-  // '완료'를 직접 골랐다면 그 명시적 선택이 탭의 암묵적 숨김보다 우선해야 한다.
-  // statusForRule을 그 판단에만 쓰이는 값으로 분리해서, 배지 카운트 계산 시(자기 상태를
-  // 임시로 "선택된 것"처럼 넣어봄) 실제 필터와 뒤섞이지 않게 한다.
+  
+  
+  
+  
+  
   const isHiddenInAllTab = useCallback((row: FranchiseApplication, statusForRule: FranchiseStatus | '') => {
     if (transferredIds.has(row.id)) return true
     if (statusForRule !== 'completed' && completedIds.has(row.id)) return true
     return false
   }, [transferredIds, completedIds])
 
-  // 필터는 서로 AND로 결합되는 여러 축(탭/상태/채널/사업자유형/VAN/기간/검색어)이다.
-  // skip으로 지정한 축만 빼고 나머지 축을 전부 적용해서 판정한다 — 배지·칩의 카운트를
-  // "자기 자신을 제외한 나머지 필터가 걸린 상태에서 몇 건인지"로 계산하기 위한 공용 함수.
-  // (이렇게 안 하면 예: transferTab='all'에서 제외되는 완료/반려 건이 상태 배지엔 여전히
-  // 잡혀서, 배지 숫자 합이 탭 숫자와 안 맞고, 그 배지를 누르면 조용히 0건이 되는 문제가 생긴다.)
+  
+  
+  
+  
+  
   type FilterSkip = { skipTab?: boolean; skipStatus?: boolean; skipChannel?: boolean; statusForTabRule?: FranchiseStatus }
   const matchesFilters = useCallback((row: FranchiseApplication, skip: FilterSkip = {}) => {
     if (!skip.skipTab) {
@@ -827,21 +827,21 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return Math.floor(ms / 86400000)
   }
 
-  // 상태 배지 카운트: statusFilter 자신은 빼고 나머지(탭/채널/기간 등) 필터는 반영한다.
-  // 그래야 배지 숫자 합이 현재 탭의 전체 건수와 일치하고, "안 보이는" 상태(예: all 탭에서
-  // 제외되는 완료/반려)는 카운트가 0이 되어 배지 자체가 안 뜬다.
+  
+  
+  
   const statusCounts = useMemo(() => {
     const counts: Partial<Record<FranchiseStatus, number>> = {}
     for (const row of localRows) {
-      // statusForTabRule에 row 자신의 상태를 넣어서, '전체' 탭의 완료-숨김 예외가
-      // "이 배지를 눌렀다고 가정했을 때" 기준으로 판정되게 한다.
+      
+      
       if (!matchesFilters(row, { skipStatus: true, statusForTabRule: row.status })) continue
       counts[row.status] = (counts[row.status] ?? 0) + 1
     }
     return counts
   }, [localRows, matchesFilters])
 
-  // 이관 탭 카운트: transferTab 자신은 빼고 나머지 필터(상태/채널/기간 등)를 반영한다.
+  
   const tabCounts = useMemo(() => {
     const base = localRows.filter(row => matchesFilters(row, { skipTab: true }))
     return {
@@ -852,7 +852,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }, [localRows, matchesFilters, isHiddenInAllTab, statusFilter, transferredIds, completedIds, rejectedIds])
 
-  // 접수채널 칩 카운트: channelFilter 자신은 빼고 나머지 필터를 반영한다.
+  
   const channelCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const row of localRows) {
@@ -876,8 +876,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
   }, [allChecked, pagedRows])
 
-  // 전체선택 체크박스는 "이 페이지"만 대상으로 한다 (필터링된 전체가 아님). 혼동을 막기 위해
-  // 필터링된 전체를 한 번에 선택할 수 있는 별도 버튼을 옆에 둔다.
+  
+  
   const selectAllFiltered = useCallback(() => {
     setSelected(new Set(filteredRows.map(r => r.id)))
   }, [filteredRows])
@@ -906,7 +906,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }, [selected, toast])
 
   async function handleCreate(form: typeof EMPTY_FORM): Promise<boolean> {
-    // 중복 접수 경고 (전화, 상호명, 사업자번호)
+    
     if (form.phone || form.business_name || form.business_number) {
       const dupe = localRows.find(r =>
         (form.phone && r.phone === form.phone) ||
@@ -944,7 +944,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }).select().single()
     setSubmitting(false)
     if (error) { toast.error('등록 실패: ' + error.message); return false }
-    // 서류안내 즉시 발송 (체크된 경우)
+    
     if (form.sendDocNotify && form.phone) {
       const docCase = docCaseOf(form.owner_name, form.business_name)
       try {
@@ -953,7 +953,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'doc_request', phone: form.phone, ownerName: form.owner_name, businessName: form.business_name, applicantType: form.applicant_type, docCase }),
         })
-      } catch { /* 알림톡 실패해도 등록은 완료 */ }
+      } catch {  }
     }
     setShowForm(false)
     const sales = form.sales_id ? salesProfiles.find(p => p.id === form.sales_id) ?? null : null
@@ -1028,7 +1028,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
     const { error } = await supabase.from('franchise_applications').update({ [field]: saveValue }).eq('id', row.id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
-    // 이미 기술지원으로 이관된 건이면 설치관리 쪽 대응 필드도 함께 동기화
+    
     const linked = localLinkedInstallsRef.current[row.id]
     if (linked && (field === 'business_name' || field === 'owner_name' || field === 'phone' || field === 'address')) {
       const patch: Record<string, string | null> = {}
@@ -1051,7 +1051,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
-    // 이미 기술지원으로 이관된 건이면 설치관리의 제품 목록도 함께 동기화
+    
     const linked = localLinkedInstalls[row.id]
     if (linked) {
       const { error: syncError } = await supabase.from('installations').update({ items }).eq('id', linked.id)
@@ -1151,7 +1151,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       installId = data.id
     }
 
-    // 기술지원 전체에게 알림 (한 번에 일괄 insert)
+    
     const name = row.business_name || row.owner_name || '미입력'
     const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
     if (techProfiles?.length) {
@@ -1165,7 +1165,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (notifyError) console.error('기술지원 알림 발송 실패:', notifyError.message)
     }
 
-    // 이관 로그 기록
+    
     await supabase.from('franchise_application_logs').insert({
       franchise_application_id: row.id,
       user_id: currentUserId,
@@ -1196,7 +1196,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   function handleStatusChange(row: FranchiseApplication, newStatus: FranchiseStatus) {
     if (newStatus === row.status) return
-    // '완료'는 내부 관리용 상태라 고객에게 보낼 알림톡 템플릿이 없음 - 메시지 발송 없이 상태만 변경
+    
     const canNotify = newStatus !== 'completed' && !!row.phone
     const confirmMsg = newStatus === 'completed'
       ? `'완료'로 상태만 변경됩니다. (고객 안내 메시지는 발송되지 않습니다)`
@@ -1230,7 +1230,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   return (
     <div className="flex flex-col h-full">
-      {/* 키보드 단축키 도움말 */}
+      {}
       {showShortcuts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowShortcuts(false)}>
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
@@ -1250,7 +1250,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
 
-      {/* 일괄 배정 모달 */}
+      {}
       {bulkAssignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
@@ -1283,7 +1283,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
 
-      {/* 일괄 상태 변경 모달 */}
+      {}
       {bulkStatusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-6 w-72 flex flex-col gap-4">
@@ -1379,7 +1379,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </div>
         </div>
       )}
-      {/* 이관 탭 */}
+      {}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-2 w-fit">
         {([
           ['all', '전체', tabCounts.all],
@@ -1394,7 +1394,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         ))}
       </div>
 
-      {/* 상태별 현황 배지 */}
+      {}
       <div className="flex flex-nowrap gap-1.5 mb-2 overflow-x-auto">
         {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
           <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
@@ -1404,7 +1404,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         ))}
       </div>
 
-      {/* 접수채널 통계 (channelFilter 자신을 뺀 나머지 필터 기준 카운트 — statusCounts와 동일 원칙) */}
+      {}
       {(() => {
         const total = Object.values(channelCounts).reduce((sum, n) => sum + n, 0)
         return total > 0 ? (

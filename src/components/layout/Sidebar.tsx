@@ -26,7 +26,7 @@ interface NavItem {
   icon: any
 }
 
-// 모든 역할이 공통으로 쓰는 항목 (역할 폴더 위에 따로 표시) — 중요도/사용빈도 높은 순
+
 const COMMON_NAV: NavItem[] = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
@@ -36,7 +36,7 @@ const COMMON_NAV: NavItem[] = [
   { href: '/slack', label: 'Slack', icon: Hash },
 ]
 
-// 역할별 폴더 — admin은 전부 보임
+
 const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] = [
   {
     key: 'cs',
@@ -85,7 +85,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
   const pathname = usePathname()
   const router = useRouter()
 
-  // 폴더는 역할 상관없이 전부 보이고, 실제 접근 권한은 각 페이지에서 따로 체크함
+  
   const visibleFolders = ROLE_FOLDERS
   const storageKey = `sidebar_open_folders_${profile.id}`
 
@@ -115,7 +115,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
 
   const externalItems = EXTERNAL_LINKS.filter(n => n.roles.includes(profile.role))
 
-  // 같은 href가 여러 폴더에 들어있을 때, 마지막으로 클릭한 폴더 쪽만 강조하기 위한 힌트
+  
   const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null)
 
   const allHrefs = [
@@ -125,8 +125,8 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
     ...BOTTOM_NAV.map(n => n.href),
   ]
 
-  // pathname과 매칭되는 href들 중 가장 구체적인(긴) 것만 활성화 처리
-  // (예: /installs/mine 방문 시 /installs 까지 같이 강조되는 것 방지)
+  
+  
   function isActive(href: string) {
     if (href.includes('?')) return false
     if (pathname === href) return true
@@ -179,7 +179,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm">
-      {/* 로고 */}
+      {}
       <div className="px-6 py-5 border-b border-slate-100">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
@@ -192,9 +192,9 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         </div>
       </div>
 
-      {/* 내 정보 */}
+      {}
       <div className="px-4 py-4 border-b border-slate-100">
-        <div className="bg-slate-50 rounded-xl px-3 py-3">
+        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-3">
           <p className="font-semibold text-slate-900 text-sm">{profile.name}</p>
           <span className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLOR[profile.role]}`}>
             {ROLE_LABEL[profile.role]}
@@ -202,7 +202,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         </div>
       </div>
 
-      {/* 네비게이션 */}
+      {}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {COMMON_NAV.map(item => <NavLink key={item.href} item={item} />)}
 
@@ -239,7 +239,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         )}
       </nav>
 
-      {/* 외부 링크 */}
+      {}
       {externalItems.length > 0 && (
         <div className="px-3 pb-2 border-t border-slate-100 pt-3">
           {externalItems.map(item => (
@@ -253,12 +253,12 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         </div>
       )}
 
-      {/* 테마 */}
+      {}
       <div className="px-3 pt-3">
         <ThemeToggle />
       </div>
 
-      {/* 새로고침 / 로그아웃 */}
+      {}
       <div className="px-3 py-4 border-t border-slate-100 flex flex-col gap-1">
         <button
           onClick={() => window.location.reload()}

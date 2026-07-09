@@ -53,8 +53,8 @@ interface CalendarManualEvent {
 }
 
 interface CalendarEvent {
-  date: string    // YYYY-MM-DD
-  label: string   // 어떤 날짜인지
+  date: string
+  label: string
   color: string
   href: string
   businessName: string
@@ -96,7 +96,6 @@ const INSTALL_STATUS_LABEL: Record<string, string> = {
   rejected: '반려',
 }
 
-
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function toYMD(s: string | null | undefined): string | null {
@@ -104,11 +103,10 @@ function toYMD(s: string | null | undefined): string | null {
   return s.slice(0, 10)
 }
 
-// 오픈일이 속한 주의 월요일 (설치는 오픈 주 월요일에 진행)
 function mondayOfWeek(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  const dow = date.getDay() // 0=일 ~ 6=토
+  const dow = date.getDay()
   const diff = dow === 0 ? -6 : 1 - dow
   date.setDate(date.getDate() + diff)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -117,7 +115,7 @@ function mondayOfWeek(ymd: string): string {
 export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [], installRows = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[]; installRows?: CalendarInstallRow[] }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth()) // 0-indexed
+  const [month, setMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [localManualEvents, setLocalManualEvents] = useState(manualEvents)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -151,7 +149,6 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     setLocalManualEvents(prev => prev.filter(e => e.id !== id))
   }, [toast])
 
-  // 이벤트 맵: YYYY-MM-DD → CalendarEvent[]
   const eventMap = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {}
     for (const ticket of tickets) {
@@ -266,8 +263,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     setSelectedDate(null)
   }
 
-  // 달력 날짜 계산
-  const firstDay = new Date(year, month, 1).getDay()  // 0=일
+  const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
 
@@ -275,7 +271,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
-  // 6주 맞추기
+
   while (cells.length % 7 !== 0) cells.push(null)
 
   function dateStr(day: number) {
@@ -284,16 +280,15 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
 
   const selectedEvents = selectedDate ? (eventMap[selectedDate] ?? []) : []
 
-  // 이번달 총 이벤트 수
   const monthTotal = Object.entries(eventMap).filter(([d]) =>
     d.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)
   ).reduce((s, [, evs]) => s + evs.length, 0)
 
   return (
     <div className="flex gap-4 h-full">
-      {/* 캘린더 본체 */}
+      {}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 헤더 */}
+        {}
         <div className="flex items-center gap-3 mb-4">
           <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
             <ChevronLeft size={18} className="text-slate-500" />
@@ -310,7 +305,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           <span className="ml-auto text-sm text-slate-400">이번달 일정 {monthTotal}건</span>
         </div>
 
-        {/* 요일 헤더 */}
+        {}
         <div className="grid grid-cols-7 mb-1">
           {DAYS.map((d, i) => (
             <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-500'}`}>
@@ -319,7 +314,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           ))}
         </div>
 
-        {/* 날짜 그리드 */}
+        {}
         <div className="grid grid-cols-7 flex-1 border-t border-l border-slate-200 rounded-xl overflow-hidden">
           {cells.map((day, idx) => {
             if (!day) return (
@@ -363,7 +358,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           })}
         </div>
 
-        {/* 범례 */}
+        {}
         <div className="flex flex-wrap gap-3 mt-3">
           {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES, { key: 'install_management', label: '설치 관리', color: 'bg-fuchsia-500' }, ...WOO_EVENT_LEGEND, { key: 'manual', label: '메모', color: 'bg-violet-500' }].map(et => (
             <div key={et.key + et.label} className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -374,7 +369,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         </div>
       </div>
 
-      {/* 선택된 날짜 패널 */}
+      {}
       <div className={`w-72 flex-shrink-0 transition-all ${selectedDate ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         {selectedDate && (
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm h-fit">

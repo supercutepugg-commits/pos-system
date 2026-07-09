@@ -77,7 +77,7 @@ export default function DMChatRoom({ profile, otherUser, roomId, initialMessages
 
   return (
     <div className="flex flex-col h-screen bg-[#b2c7d9]">
-      {/* 헤더 */}
+      {}
       <div className="bg-[#3e6d9c] px-4 py-3.5 flex items-center gap-3 flex-shrink-0">
         <Link href="/chat" className="text-white/80 hover:text-white"><ArrowLeft size={20} /></Link>
         <div className="w-9 h-9 rounded-full bg-white/30 flex items-center justify-center text-white font-bold">
@@ -93,7 +93,7 @@ export default function DMChatRoom({ profile, otherUser, roomId, initialMessages
         </div>
       </div>
 
-      {/* 메시지 */}
+      {}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {grouped.map(msg => {
           const isMe = msg.user_id === profile.id
@@ -129,7 +129,7 @@ export default function DMChatRoom({ profile, otherUser, roomId, initialMessages
         <div ref={bottomRef} />
       </div>
 
-      {/* 입력창 */}
+      {}
       <form onSubmit={sendMessage} className="bg-white border-t border-slate-200 px-3 py-3 flex items-center gap-2 flex-shrink-0">
         <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="메시지를 입력하세요"
           className="flex-1 bg-slate-100 rounded-full px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />

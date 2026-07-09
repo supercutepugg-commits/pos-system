@@ -71,7 +71,7 @@ export default function ExternalTechsClient({
   }
 
   async function toggleAvailable(tech: ExternalTech) {
-    // 비활성화 시 배정 건 확인
+    
     if (tech.available) {
       const { count } = await supabase
         .from('installations')
@@ -93,9 +93,9 @@ export default function ExternalTechsClient({
   }
 
   async function deleteTech(id: string, name: string) {
-    // 삭제 전에 이 기사에게 배정된 설치건(과거 이력 포함)이 있는지 확인해서, 있으면 경고 후
-    // 사용자가 그래도 진행할지 선택하게 한다 — 그래야 설치 목록 등 다른 화면의 담당기사 표시가
-    // 갑자기 깨지지(참조 끊김) 않는다.
+    
+    
+    
     const { count, error: countError } = await supabase
       .from('installations')
       .select('*', { count: 'exact', head: true })

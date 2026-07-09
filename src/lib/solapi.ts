@@ -61,7 +61,7 @@ export async function sendSignRequest({
   })
 }
 
-// 사업자 유형별 제출 서류 목록 — 유형마다 본문이 크게 달라서 알림톡 템플릿도 유형별로 따로 등록한다
+
 const CORPORATE_DOCS = [
   '대표자 신분증',
   '사업자 통장 사본',
@@ -90,8 +90,8 @@ const FRANCHISE_DOCS: Record<ApplicantType, string[]> = {
   giga_individual: INDIVIDUAL_DOCS,
 }
 
-// 발송 시점에 상호명/대표자명이 모두 입력돼 있지 않을 수도 있어서, 어떤 필드가 채워져 있는지에 따라
-// 사업자유형별로 별도 템플릿을 쓴다 (4 사업자유형 x 4 케이스 = 16개 템플릿)
+
+
 export type DocCase = 'both' | 'business_only' | 'owner_only' | 'phone_only'
 
 export function docCaseOf(ownerName?: string, businessName?: string): DocCase {
@@ -142,9 +142,9 @@ export async function sendFranchiseDocRequest({
         ? `${ownerName}님, 카드 가맹 신청을 위해 아래 서류를 준비해주세요.`
         : `카드 가맹 신청을 위해 아래 서류를 준비해주세요.`
   const text = `[가맹 서류 안내]\n${greeting}\n\n제출 서류\n${docList}${photoNote}`
-  // 서류 목록은 사업자 유형별로 고정값(FRANCHISE_DOCS)이라 템플릿 본문에 직접 박아 넣고,
-  // 변수는 고객명/상호명만 사용한다 (변수 비중이 크면 카카오 알림톡 심사에서 반려될 수 있음)
-  // docCase는 발송 전 확인창에서 사용자가 직접 선택/검증할 수 있어 자동 추론값을 덮어쓸 수 있다
+  
+  
+  
   const docCase = docCaseOverride ?? docCaseOf(ownerName, businessName)
   const ko = kakaoOptions(FRANCHISE_TEMPLATE_ENV_KEY[applicantType][docCase], {
     ...(ownerName ? { '#{고객명}': ownerName } : {}),
@@ -188,7 +188,7 @@ const FRANCHISE_STATUS_TEMPLATE_ENV_KEY: Record<FranchiseStatusUpdateKind, strin
   toss_review_done: 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_DONE',
 }
 
-// 토스심사완료는 "장비 선택" 웹링크 버튼이 붙은 별도 템플릿을 쓴다 (equipmentSelectToken 없으면 기존 버튼 없는 템플릿으로 발송)
+
 const FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_FRANCHISE_TOSS_REVIEW_DONE_LINK'
 
 export async function sendFranchiseStatusUpdate({
@@ -200,7 +200,7 @@ export async function sendFranchiseStatusUpdate({
   const text = `[가맹 진행 안내]\n${name}님, "${biz}" 가맹 진행상황을 안내드립니다.\n${FRANCHISE_STATUS_TEXT[status]}`
 
   if (status === 'toss_review_done' && equipmentSelectToken && process.env[FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV]) {
-    // 버튼(WL)은 템플릿에 "https://#{링크}" 형태로 등록되어 있으므로, 프로토콜을 뺀 나머지 주소만 변수로 전달한다
+    
     const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/equipment-select/${equipmentSelectToken}`
     const ko = kakaoOptions(FRANCHISE_TOSS_REVIEW_DONE_LINK_TEMPLATE_ENV, { '#{고객명}': name, '#{상호명}': biz, '#{링크}': linkNoProtocol })
     if (!ko) return
@@ -209,7 +209,7 @@ export async function sendFranchiseStatusUpdate({
   }
 
   const variables: Record<string, string> = { '#{고객명}': name, '#{상호명}': biz }
-  // 카카오 템플릿이 아직 승인/등록 전이라 env가 비어있을 수 있음 — 그 경우 조용히 스킵 (오발송/에러 방지, 상태 변경 자체는 정상 반영됨)
+  
   if (!process.env[FRANCHISE_STATUS_TEMPLATE_ENV_KEY[status]]) {
     console.warn(`[solapi] 가맹 상태(${status}) 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)`)
     return
@@ -224,8 +224,8 @@ export async function sendFranchiseStatusUpdate({
   })
 }
 
-// 설치관리 상태 알림톡
-// preparing/in_transit은 기본 템플릿 없이 아래 버튼/시각 포함 버전만 사용한다.
+
+
 const INSTALL_STATUS_TEMPLATE: Record<string, string> = {
   scheduled: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_SCHEDULED',
   completed: 'SOLAPI_KAKAO_TEMPLATE_INSTALL_COMPLETED',
@@ -240,9 +240,9 @@ const INSTALL_STATUS_TEXT: Record<string, string> = {
   delivery_sent: '제품이 발송되었습니다. 영업일 기준 1~3일 내 도착 예정입니다.\n배송조회: https://www.ilogen.com/web/personal/tkSearch\n포스기 토스프론트 연결 방법: https://www.youtube.com/watch?v=fXNyqMBNEcI\n태블릿 토스프론트 설치 방법: https://www.youtube.com/watch?v=Hib-gY38TQg\n다른 문의사항 영상보기: https://www.youtube.com/@posmos',
 }
 
-// 시각 변수(#{예정시각})가 포함된 템플릿. preparing에서는 아래 버튼 포함 버전만 사용한다.
+
 const INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_IN_TRANSIT_ETA'
-// 일정변경/희망시간대 요청 버튼(WL)이 포함된 템플릿. in_transit에서는 위 시각 포함 버전만 사용한다.
+
 const INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV = 'SOLAPI_KAKAO_TEMPLATE_INSTALL_PREPARING_SCHEDULE'
 
 export async function sendInstallStatusUpdate({
@@ -260,30 +260,30 @@ export async function sendInstallStatusUpdate({
 
   let ko
   if (status === 'in_transit') {
-    // 예정시각 포함 버전만 사용 — 시각이 없으면 발송하지 않는다.
+    
     if (!eta) { console.warn('[solapi] 이동중 알림톡: 예정시각 없이는 발송하지 않음'); return }
     ko = kakaoOptions(INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV, { '#{고객명}': customerName, '#{예정시각}': eta })
   } else if (status === 'preparing') {
-    // 일정변경 버튼 포함 버전만 사용 — statusToken이 없으면 발송하지 않는다.
+    
     if (!statusToken) { console.warn('[solapi] 제품준비 알림톡: statusToken 없이는 발송하지 않음'); return }
-    // 버튼(WL)은 템플릿에 "https://#{링크}" 형태로 등록되어 있으므로, 프로토콜을 뺀 나머지 주소만 변수로 전달한다
+    
     const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/install-status/${statusToken}`
     ko = kakaoOptions(INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV, { '#{고객명}': customerName, '#{링크}': linkNoProtocol })
   } else if (status === 'scheduled') {
-    // '일정확정' 템플릿은 아직 승인 신청 전이라 env가 비어있을 수 있음 — 그 경우 조용히 스킵 (오발송/에러 방지)
+    
     if (!process.env[INSTALL_STATUS_TEMPLATE.scheduled]) {
       console.warn('[solapi] 설치 일정확정 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)')
       return
     }
-    // 템플릿에 #{예정일} #{예정시각}이 항상 함께 노출되므로, 하나만 입력된 경우에도
-    // 두 변수 모두 값을 채워 보낸다 (누락 시 카카오 쪽에서 변수 미치환 오류가 날 수 있음)
+    
+    
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.scheduled, {
       '#{고객명}': customerName,
       '#{예정일}': scheduledDate || '',
       '#{예정시각}': scheduledTime || '',
     })
   } else if (status === 'delivery_sent') {
-    // "로젠택배"는 템플릿 안에 고정 문구로 들어가 있고, #{송장번호}에는 순수 번호만 채운다
+    
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE.delivery_sent, { '#{고객명}': customerName, '#{송장번호}': trackingNumber || '' })
   } else {
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })

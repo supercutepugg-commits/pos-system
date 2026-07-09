@@ -99,7 +99,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     setForm({ title: '', signerName: '', signerEmail: '', signerPhone: '' })
     setPdfFile(null)
     setShowForm(false)
-    // 서명 위치를 지정해야 발송할 수 있으므로, 발송 없이 위치 지정 화면으로 이동
+    
     router.push(`/contracts/${json.id}`)
   }
 
@@ -108,7 +108,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     const contract = contracts.find(c => c.id === id)
     const { error } = await supabase.from('contracts').delete().eq('id', id)
     if (error) { toast.error('삭제 실패: ' + error.message); return }
-    // Storage 파일도 삭제
+    
     if (contract?.pdf_url) {
       const path = contract.pdf_url.split('/contracts/')[1]
       if (path) await supabase.storage.from('contracts').remove([path])
@@ -143,7 +143,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
         )}
       </div>
 
-      {/* 등록 폼 */}
+      {}
       {canEdit && showForm && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h2 className="text-sm font-bold text-slate-800 mb-4">계약서 등록</h2>
@@ -188,7 +188,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
         </div>
       )}
 
-      {/* 검색/필터 */}
+      {}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -208,7 +208,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
         </select>
       </div>
 
-      {/* 목록 */}
+      {}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         {filteredContracts.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-sm">계약서가 없습니다</div>
@@ -220,7 +220,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
                   <FileText size={18} className="text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-900 text-sm truncate">{c.title}</p>
+                  <p className="font-semibold text-slate-900 text-sm break-words">{c.title}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                     <span>{c.signer_name}</span>
                     {c.signer_phone && <span>{c.signer_phone}</span>}
@@ -265,7 +265,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
         )}
       </div>
 
-      {/* 페이지네이션 */}
+      {}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}

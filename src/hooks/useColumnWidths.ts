@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-// 표의 컬럼 헤더를 드래그해서 너비를 조절하고 localStorage에 저장하는 공용 훅
 export function useColumnWidths(storageKey: string, defaultWidths: Record<string, number>) {
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}

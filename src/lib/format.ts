@@ -1,4 +1,4 @@
-// 숫자만 입력해도 입력 중에 실시간으로 구분자를 넣어주는 공용 포맷터
+
 export function formatPhone(raw: string) {
   const digits = raw.replace(/\D/g, '').slice(0, 11)
   const len = digits.length

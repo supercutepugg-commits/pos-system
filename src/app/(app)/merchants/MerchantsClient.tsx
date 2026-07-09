@@ -127,7 +127,7 @@ export default function MerchantsClient({ merchants }: { merchants: Merchant[] }
               </div>
               <div className="flex items-center gap-4 text-xs text-slate-700">
                 <span className="flex items-center gap-1"><Phone size={11} />{m.phone}</span>
-                <span className="flex items-center gap-1 truncate"><MapPin size={11} />{m.address}</span>
+                <span className="flex items-center gap-1 truncate" title={m.address}><MapPin size={11} />{m.address}</span>
               </div>
               <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
                 <span>영업: <span className={m.sales?.name ? '' : 'text-slate-400'}>{m.sales?.name ?? '-'}</span></span>

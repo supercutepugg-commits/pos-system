@@ -91,9 +91,9 @@ export default function BlueprintsListClient({
                   <FileStack size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-800 truncate">{bp.title}</p>
+                  <p className="text-sm font-medium text-slate-800 truncate" title={bp.title}>{bp.title}</p>
                   {bp.merchant?.business_name && (
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{bp.merchant.business_name}</p>
+                    <p className="text-xs text-slate-400 truncate mt-0.5" title={bp.merchant.business_name}>{bp.merchant.business_name}</p>
                   )}
                   <p className="text-xs text-slate-400 mt-1">
                     {format(new Date(bp.updated_at ?? bp.created_at), 'yyyy.MM.dd HH:mm', { locale: ko })}

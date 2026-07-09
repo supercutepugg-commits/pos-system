@@ -21,11 +21,9 @@ export default async function DashboardPage() {
 
   const p = profile as Profile
 
-  // ── 역할별 데이터 쿼리 ──────────────────────────────────────
-  // UTC 기준 자정 근처에서 날짜가 하루 밀리지 않도록 KST(Asia/Seoul) 기준으로 "오늘"을 계산한다.
+
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date())
 
-  // 공통: 최근 가맹 접수
   let franchiseQuery = supabase
     .from('franchise_applications')
     .select('*, sales:profiles!franchise_applications_sales_id_fkey(name), cs:profiles!franchise_applications_cs_id_fkey(name)')
@@ -33,7 +31,6 @@ export default async function DashboardPage() {
   if (p.role === 'sales') franchiseQuery = franchiseQuery.eq('sales_id', userId)
   if (p.role === 'cs') franchiseQuery = franchiseQuery.eq('cs_id', userId)
 
-  // 상태별 카운트
   const countStatuses: FranchiseStatus[] = ['doc_waiting', 'doc_incomplete', 'card_apply_done', 'toss_review_done']
   function buildCountQuery(status: FranchiseStatus) {
     let q = supabase.from('franchise_applications').select('id', { count: 'exact', head: true }).eq('status', status)
@@ -42,7 +39,6 @@ export default async function DashboardPage() {
     return q
   }
 
-  // 미배정 건 수
   const unassignedFranchiseQuery = supabase
     .from('franchise_applications')
     .select('id', { count: 'exact', head: true })
@@ -55,17 +51,14 @@ export default async function DashboardPage() {
     .is('assigned_to', null)
     .not('status', 'in', '(completed,rejected)')
 
-  // 기사: 오늘 내 설치 일정
   const todayInstallsQuery = p.role === 'tech'
     ? supabase.from('installations').select('*, franchise_application_id').eq('assigned_to', userId).not('status', 'in', '(completed,rejected)').order('created_at')
     : null
 
-  // 기사: 오늘 오픈예정 가맹 건 (install_date = today)
   const todayFranchiseQuery = p.role === 'tech'
     ? supabase.from('franchise_applications').select('id, business_name, owner_name, address').eq('install_date', today)
     : null
 
-  // 7일 이상 미처리 건
   const staleDate = new Date(Date.now() - 7 * 86400000).toISOString()
   let staleQuery = supabase
     .from('franchise_applications')
@@ -83,14 +76,12 @@ export default async function DashboardPage() {
     ...countStatuses.map(buildCountQuery),
   ])
 
-  // 월별 가맹접수 통계 (최근 6개월)
   const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5); sixMonthsAgo.setDate(1)
   const monthlyFranchiseQuery = supabase
     .from('franchise_applications')
     .select('created_at, status')
     .gte('created_at', sixMonthsAgo.toISOString())
 
-  // 설치완료 소요일 (최근 30건)
   const avgDaysQuery = supabase
     .from('installations')
     .select('created_at, updated_at')
@@ -116,7 +107,6 @@ export default async function DashboardPage() {
     avgDaysQuery,
   ])
 
-  // 월별 집계
   const monthlyStats: { label: string; total: number; done: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(); d.setMonth(d.getMonth() - i); d.setDate(1)
@@ -148,7 +138,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* 헤더 */}
+      {}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {p.name}님</h1>
@@ -161,7 +151,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* 관리자 전용: 경고 배지 */}
+      {}
       {p.role === 'admin' && ((unassignedFranchise ?? 0) > 0 || (unassignedInstall ?? 0) > 0 || (staleCount ?? 0) > 0) && (
         <div className="flex flex-wrap gap-3">
           {(unassignedFranchise ?? 0) > 0 && (
@@ -185,7 +175,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* CS/영업 전용: 내 담당 7일 이상 미처리 */}
+      {}
       {(p.role === 'cs' || p.role === 'sales') && (staleCount ?? 0) > 0 && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium px-4 py-2.5 rounded-xl">
           <AlertTriangle size={15} />
@@ -194,7 +184,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* 기사 전용: 오늘 일정 */}
+      {}
       {p.role === 'tech' && (
         <div className="space-y-3">
           {todayInstalls.length === 0 && todayFranchise.length === 0 ? (
@@ -212,14 +202,14 @@ export default async function DashboardPage() {
                   <a key={i.id} href={`/installs/mine?id=${i.id}`} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm hover:bg-blue-50 transition-colors">
                     <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                     <span className="font-medium text-slate-900">{i.customer_name}</span>
-                    {i.address && <span className="text-slate-400 text-xs truncate">{i.address}</span>}
+                    {i.address && <span className="text-slate-400 text-xs truncate" title={i.address}>{i.address}</span>}
                   </a>
                 ))}
                 {todayFranchise.map((f: any) => (
                   <Link key={f.id} href="/franchise" className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 text-sm hover:bg-blue-50 transition-colors">
                     <span className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />
                     <span className="font-medium text-slate-900">{f.business_name || f.owner_name || '미입력'}</span>
-                    {f.address && <span className="text-slate-400 text-xs truncate">{f.address}</span>}
+                    {f.address && <span className="text-slate-400 text-xs truncate" title={f.address}>{f.address}</span>}
                   </Link>
                 ))}
               </div>
@@ -228,7 +218,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* 상태 카드 — 기사는 제외 */}
+      {}
       {p.role !== 'tech' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {summaryCards.map(({ label, status, icon: Icon, color, border }) => (
@@ -247,7 +237,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* 월별 접수 추이 + 평균 소요일 */}
+      {}
       {p.role !== 'tech' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
@@ -286,7 +276,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* 최근 가맹 접수 — 기사는 제외 */}
+      {}
       {p.role !== 'tech' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -309,7 +299,7 @@ export default async function DashboardPage() {
                   {FRANCHISE_STATUS_LABEL[app.status as FranchiseStatus]}
                 </Badge>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{app.business_name || '상호명 미입력'}</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate" title={app.business_name || '상호명 미입력'}>{app.business_name || '상호명 미입력'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">{(app as any).cs?.name ?? (app as any).sales?.name ?? ''}</p>
                 </div>
                 <p className="text-xs text-slate-400 whitespace-nowrap">

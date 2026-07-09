@@ -51,7 +51,7 @@ export default async function TicketDetailPage({ params }: Props) {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
-      {/* 헤더 */}
+      {}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[ticket.status as TicketStatus]}`}>
@@ -68,7 +68,7 @@ export default async function TicketDetailPage({ params }: Props) {
         </p>
       </div>
 
-      {/* 가맹점 정보 */}
+      {}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">가맹점 정보</h2>
         <div className="grid grid-cols-2 gap-y-2.5 text-sm">
@@ -95,7 +95,7 @@ export default async function TicketDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* 담당자 */}
+      {}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">담당자</h2>
         <div className="grid grid-cols-3 gap-3 text-sm">
@@ -122,13 +122,13 @@ export default async function TicketDetailPage({ params }: Props) {
         )}
       </div>
 
-      {/* 영업/CS 정보 (수정 가능) */}
+      {}
       <TicketInfoEdit
         ticket={ticket as any}
         canEdit={['admin', 'sales', 'cs'].includes((profile as Profile).role)}
       />
 
-      {/* 액션 버튼들 */}
+      {}
       <TicketActions
         ticket={ticket as any}
         profile={profile as Profile}
@@ -136,7 +136,7 @@ export default async function TicketDetailPage({ params }: Props) {
         csUsers={csUsers ?? []}
       />
 
-      {/* 작업 이력 */}
+      {}
       <TicketLogs logs={logs ?? []} />
     </div>
   )

@@ -182,7 +182,7 @@ export default function InventoryClient({
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: newQty, last_checked: new Date().toISOString().slice(0, 10) } : i))
   }
 
-  // 빠른 증감 버튼(±5, ±10)용: 목표 수량을 직접 계산해 saveInlineQty 경로 재사용
+  
   function quickAdjust(item: InventoryItem, delta: number) {
     const target = Math.max(0, item.quantity + delta)
     saveInlineQty(item, String(target))
@@ -203,7 +203,7 @@ export default function InventoryClient({
       if (term && !`${item.name} ${item.major_category} ${item.mid_category} ${item.category} ${item.location}`.toLowerCase().includes(term)) return false
       return true
     })
-    // 부족 품목 상단 자동 정렬
+    
     return result.sort((a, b) => {
       const aLow = a.quantity <= a.min_quantity ? 0 : 1
       const bLow = b.quantity <= b.min_quantity ? 0 : 1
@@ -213,7 +213,7 @@ export default function InventoryClient({
 
   const lowCount = items.filter(i => i.quantity <= i.min_quantity).length
 
-  // 재고 실사용 엑셀(xlsx) 내보내기 — 대시보드 ExcelDownloadButton과 동일하게 xlsx 라이브러리 사용
+  
   async function handleExport() {
     setExporting(true)
     try {
@@ -441,7 +441,7 @@ export default function InventoryClient({
                           </td>
                           <td className="px-3 py-2.5 text-slate-500">{item.location || '-'}</td>
                           <td className="px-3 py-2.5 text-slate-400 text-xs">{item.last_checked || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-400 max-w-[150px] truncate">{item.notes || '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-400 max-w-[150px] truncate" title={item.notes || undefined}>{item.notes || '-'}</td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {canEdit && (
                               <div className="flex items-center gap-1">
@@ -507,7 +507,7 @@ export default function InventoryClient({
 
       {adjustModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 flex flex-col gap-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
             <p className="text-sm font-bold text-slate-800">
               {adjustModal.delta > 0 ? '입고' : '출고'}: {adjustModal.item.name}
             </p>

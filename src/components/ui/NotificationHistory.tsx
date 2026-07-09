@@ -12,8 +12,6 @@ type NotificationLog = {
   user: { name: string } | null
 }
 
-// 알림톡 발송이력 — entity_type(설치/가맹/계약/티켓 등) + entity_id 로 조회.
-// 모든 탭에서 공통으로 쓰기 위한 컴포넌트 (notification_logs 테이블 기반).
 export function NotificationHistory({
   entityType,
   entityId,

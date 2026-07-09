@@ -16,7 +16,6 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    // 이름으로 이메일 조회
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,7 +29,6 @@ export default function LoginPage() {
       return
     }
 
-    // 이메일+비밀번호로 로그인
     const supabase = createClient()
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: data.email,

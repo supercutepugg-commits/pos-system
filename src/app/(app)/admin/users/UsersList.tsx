@@ -82,7 +82,7 @@ export default function UsersList({ users, currentUserId }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-900 text-sm">
                         {u.name}
-                        {u.email && <span className="font-normal text-slate-400 ml-1.5 truncate">{u.email}</span>}
+                        {u.email && <span className="font-normal text-slate-400 ml-1.5 truncate" title={u.email}>{u.email}</span>}
                       </p>
                       {u.phone && <p className="text-xs text-slate-400 mt-0.5">{u.phone}</p>}
                     </div>

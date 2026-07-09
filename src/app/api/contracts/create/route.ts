@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const signerPhone = formData.get('signerPhone') as string
     const createdBy = user.id
 
-    // Storage 업로드
+    
     const ext = file.name.split('.').pop() ?? 'pdf'
     const fileName = `${Date.now()}.${ext}`
     const arrayBuffer = await file.arrayBuffer()
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const { data: { publicUrl } } = supabase.storage.from('contracts').getPublicUrl(fileName)
 
-    // contracts 테이블 insert
+    
     const { data, error } = await supabase.from('contracts').insert({
       title,
       pdf_url: publicUrl,

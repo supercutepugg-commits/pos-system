@@ -28,7 +28,7 @@ export async function GET() {
   const results = []
 
   for (const u of USERS) {
-    // Auth 유저 생성
+    
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email: u.email,
       password: '1234',
@@ -40,7 +40,7 @@ export async function GET() {
       continue
     }
 
-    // 프로필 생성
+    
     const { error: profileError } = await supabaseAdmin.from('profiles').insert({
       id: data.user.id,
       name: u.name,

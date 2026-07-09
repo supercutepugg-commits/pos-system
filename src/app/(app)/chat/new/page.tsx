@@ -16,8 +16,8 @@ export default async function NewDMPage({ searchParams }: Props) {
   const me = user.id
   const other = to
 
-  // 이미 방이 있는지 확인 (동시에 여러 개 생성된 경우를 대비해 단일 행 강제 조회 대신
-  // 가장 오래된 방 하나를 선택)
+  
+  
   const { data: existingRooms } = await supabase
     .from('dm_rooms')
     .select('id')
@@ -30,7 +30,7 @@ export default async function NewDMPage({ searchParams }: Props) {
     redirect(`/chat/dm/${existing.id}`)
   }
 
-  // 새 방 생성
+  
   const u1 = me < other ? me : other
   const u2 = me < other ? other : me
   const { data: room, error } = await supabase

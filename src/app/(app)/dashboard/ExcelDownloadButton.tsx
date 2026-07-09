@@ -8,7 +8,6 @@ import { FRANCHISE_STATUS_LABEL, APPLICANT_TYPE_LABEL, type FranchiseStatus, typ
 import { useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
 
-// 백업 대상 테이블 (탭 이름 → 테이블명)
 const BACKUP_TABLES: { label: string; table: string }[] = [
   { label: '가맹접수', table: 'franchise_applications' },
   { label: '설치관리', table: 'installations' },
@@ -19,9 +18,6 @@ const BACKUP_TABLES: { label: string; table: string }[] = [
   { label: '가맹점', table: 'merchants' },
 ]
 
-// 테이블 전체 행을 페이지 단위로 끝까지 가져온다 (기본 응답 제한 대응)
-// 조회 중 오류가 발생하면 그 시점까지 모은 행과 함께 실패 여부를 반환해
-// 호출부가 불완전한 데이터임을 알 수 있게 한다.
 async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string): Promise<{ rows: Record<string, unknown>[]; failed: boolean }> {
   const pageSize = 1000
   let from = 0
@@ -106,7 +102,6 @@ export default function ExcelDownloadButton() {
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
 
-      // 시트1: 가맹접수
       const franchiseData = (franchiseRows ?? []).map((r: any) => ({
         상호명: r.business_name ?? '',
         대표자: r.owner_name ?? '',
@@ -128,7 +123,6 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(franchiseData), '가맹접수')
 
-      // 시트2: 설치관리
       const STATUS_KO: Record<string, string> = { received: '접수', preparing: '제품준비', scheduled: '일정확정', in_transit: '이동중', completed: '설치완료', rejected: '반려' }
       const installData = (installRows ?? []).map((i: any) => ({
         고객명: i.customer_name ?? '',
@@ -142,7 +136,6 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(installData), '설치관리')
 
-      // 시트3: AS티켓
       const ticketData = (ticketRows ?? []).map((t: any) => ({
         제목: t.title ?? '',
         유형: t.type ?? '',
@@ -155,7 +148,6 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ticketData), 'AS티켓')
 
-      // 시트4: 가맹점
       const merchantData = (merchantRows ?? []).map((m: any) => ({
         상호명: m.business_name ?? '',
         대표자: m.owner_name ?? '',
@@ -168,7 +160,6 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(merchantData), '가맹점')
 
-      // 시트5: 인터넷관리
       const internetData = (internetRows ?? []).map((n: any) => ({
         상호명: n.business_name ?? '',
         대표자: n.owner_name ?? '',
@@ -189,7 +180,6 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(internetData), '인터넷관리')
 
-      // 시트7: 용지요청
       const paperOrderData = (paperOrderRows ?? []).map((p: any) => ({
         상호명: p.business_name ?? '',
         대표자: p.owner_name ?? '',
@@ -207,7 +197,6 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paperOrderData), '용지요청')
 
-      // 시트8: 우국상 관리
       const wooData = (wooRows ?? []).map((w: any) => ({
         상호명: w.business_name ?? '',
         대표자: w.owner_name ?? '',
@@ -241,7 +230,6 @@ export default function ExcelDownloadButton() {
     }
   }
 
-  // 전체 탭을 원본 컬럼 그대로 탭별 CSV 파일로 백업 (복구 목적 — 라벨 가공 없이 원본 데이터)
   async function handleBackup() {
     setBackingUp(true)
     try {
@@ -254,7 +242,7 @@ export default function ExcelDownloadButton() {
         if (failed) failedTables.push(label)
         if (rows.length === 0) continue
         downloadCsv(XLSX, rows, `${label}_${table}_${stamp}.csv`)
-        // 브라우저가 연속 다운로드를 차단하지 않도록 약간의 간격을 둔다
+
         await new Promise(r => setTimeout(r, 300))
       }
       if (failedTables.length > 0) {

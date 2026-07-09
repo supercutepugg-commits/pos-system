@@ -33,7 +33,7 @@ export default function BulkConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl flex flex-col max-h-[80vh]">
+      <div className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-200 flex flex-col max-h-[80vh]">
         <div className="px-5 pt-5 pb-3">
           <h2 className="text-base font-bold text-slate-800">{title}</h2>
           <p className="mt-1 text-sm text-slate-500">아래 {items.length}건에 적용됩니다.</p>

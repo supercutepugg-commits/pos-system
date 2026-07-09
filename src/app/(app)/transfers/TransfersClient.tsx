@@ -40,7 +40,6 @@ const EMPTY_FORM = {
   install_date: '',
 }
 
-// 목록에 항상 보이는 핵심 컬럼
 const MAIN_FIELDS = ['owner_name', 'business_name', 'phone', 'program', 'status', 'tech_id'] as const
 const MAIN_LABELS: Record<typeof MAIN_FIELDS[number], string> = {
   owner_name: '고객명',
@@ -81,7 +80,6 @@ const EditableText = memo(function EditableText({ row, field, onSave, type = 'te
   )
 })
 
-// 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드 (8자리 숫자는 자동으로 YYYY-MM-DD로 변환)
 interface DateFieldProps {
   row: FranchiseApplication
   field: keyof FranchiseApplication
@@ -133,7 +131,6 @@ const DateField = memo(function DateField({ row, field, onSave }: DateFieldProps
   )
 })
 
-// 달력 아이콘 + 직접 텍스트 입력 - 등록 폼용 (row 없이 value/onChange만 받음)
 interface DateFormFieldProps {
   value: string
   onChange: (value: string) => void
@@ -168,7 +165,6 @@ const DateFormField = memo(function DateFormField({ value, onChange }: DateFormF
   )
 })
 
-// --- Separate form component so typing here doesn't re-render the whole table ---
 interface CreateFormProps {
   techProfiles: Pick<Profile, 'id' | 'name' | 'role'>[]
   onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
@@ -408,9 +404,8 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() } : r))
   }, [toast])
 
-  // franchise/FranchiseClient.tsx의 updateStatus와 동일한 부수효과(알림톡 발송, 설치작업 자동생성,
-  // 기술팀 자동이관)를 franchiseStatusEffects 공용 모듈을 통해 그대로 재현한다. 두 화면은 같은
-  // franchise_applications 테이블/상태값을 다루므로 여기서만 다르게 처리하면 안 된다.
+
+
   const changeStatus = useCallback(async (row: FranchiseApplication, status: FranchiseStatus) => {
     if (status === row.status) return
     const { msg, canNotify } = franchiseStatusChangeConfirm(row, status)
@@ -545,8 +540,8 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
                   <td className="px-3 py-3 text-slate-500">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
-                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">{row.owner_name || '-'}</td>
-                  <td className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis font-medium text-slate-900">{row.business_name || '-'}</td>
+                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" title={row.owner_name || undefined}>{row.owner_name || '-'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis font-medium text-slate-900" title={row.business_name || undefined}>{row.business_name || '-'}</td>
                   <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                     {row.phone ? (
                       <button

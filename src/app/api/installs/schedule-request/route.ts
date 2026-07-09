@@ -8,7 +8,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // status_token 자체가 보안 경계 — 고객은 로그인하지 않은 상태이므로 admin 클라이언트로 직접 검증
     const { data: install } = await supabase
       .from('installations')
       .select('id, customer_name, assigned_to, created_by, status')

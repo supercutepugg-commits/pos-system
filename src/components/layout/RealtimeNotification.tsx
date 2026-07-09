@@ -58,14 +58,14 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }
 
-  // 시스템 알림 구독
+  
   useEffect(() => {
     const channel = supabase
       .channel('notifications-' + userId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           setCount(c => c + 1)
-          // 일정 알림(schedule_*)은 여러 건이 한꺼번에 들어올 수 있어 배지만 올리고 팝업/소리는 생략
+          
           const isScheduleNotice = (payload.new.type as string)?.startsWith('schedule_')
           if (!isScheduleNotice) {
             setModal({ title: payload.new.title, body: payload.new.body })
@@ -77,16 +77,16 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
-  // DM 알림 구독 (내가 보낸 것 제외, 채팅방 밖에서만)
+  
   useEffect(() => {
     const channel = supabase
       .channel('dm-notify-' + userId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'dm_messages' },
         async (payload) => {
           const msg = payload.new
-          if (msg.user_id === userId) return // 내가 보낸 메시지 제외
+          if (msg.user_id === userId) return 
 
-          // 해당 룸의 상대방 확인
+          
           const { data: room } = await supabase
             .from('dm_rooms')
             .select('user1_id, user2_id')
@@ -97,7 +97,7 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
           const isMyRoom = room.user1_id === userId || room.user2_id === userId
           if (!isMyRoom) return
 
-          // 현재 그 채팅방 안에 있으면 토스트 안 띄움
+          
           if (pathname === `/chat/dm/${msg.room_id}`) return
 
           const { data: sender } = await supabase
@@ -120,7 +120,7 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
 
   return (
     <>
-      {/* 시스템 알림 가운데 모달 */}
+      {}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setModal(null)} />
@@ -148,7 +148,7 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
         </div>
       )}
 
-      {/* DM 토스트 - 오른쪽 하단 */}
+      {}
       <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 md:bottom-6">
         {toasts.map(toast => (
           <div key={toast.id}

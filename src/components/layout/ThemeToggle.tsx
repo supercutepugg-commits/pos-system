@@ -20,8 +20,12 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
   const [theme, setTheme] = useState<Theme>('light')
 
   useEffect(() => {
-    const saved = (localStorage.getItem('theme') as Theme | null) ?? 'light'
+    let saved: Theme = 'light'
+    try {
+      saved = (localStorage.getItem('theme') as Theme | null) ?? 'light'
+    } catch {}
     setTheme(saved)
+    applyTheme(saved)
   }, [])
 
   function select(t: Theme) {

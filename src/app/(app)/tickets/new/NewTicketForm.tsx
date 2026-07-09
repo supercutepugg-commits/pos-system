@@ -90,8 +90,8 @@ export default function NewTicketForm({ salesId, role }: Props) {
     }).select('id').single()
 
     if (error || !ticket) {
-      // 작업 등록이 실패하면 방금 만든 가맹점 레코드가 고아로 남아 재제출 시 중복 가맹점이
-      // 생기므로, 베스트 에포트로 되돌린다.
+      
+      
       await supabase.from('merchants').delete().eq('id', merchantId)
       alert('등록 실패: ' + error?.message)
       setLoading(false)
@@ -113,7 +113,7 @@ export default function NewTicketForm({ salesId, role }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* 가맹점 정보 */}
+      {}
       <Section title="가맹점 정보">
         <div className="grid grid-cols-2 gap-3">
           {([
@@ -144,7 +144,7 @@ export default function NewTicketForm({ salesId, role }: Props) {
         </div>
       </Section>
 
-      {/* 기본 정보 */}
+      {}
       <Section title="기본 정보">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
@@ -192,7 +192,7 @@ export default function NewTicketForm({ salesId, role }: Props) {
         </div>
       </Section>
 
-      {/* CS 처리 정보 */}
+      {}
       <Section title="CS 처리 정보">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -242,7 +242,7 @@ export default function NewTicketForm({ salesId, role }: Props) {
         </div>
       </Section>
 
-      {/* 진행 상황 / 비고 */}
+      {}
       <Section title="메모 / 비고">
         <div className="space-y-3">
           <div>

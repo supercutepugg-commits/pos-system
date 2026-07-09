@@ -25,7 +25,6 @@ export default function SlackPopupNotifier() {
         const messages: SlackMessage[] = data.messages ?? []
         if (messages.length === 0) return
 
-        // 최초 로드 시에는 팝업 없이 기준 시각만 저장
         if (!initializedRef.current) {
           initializedRef.current = true
           if (!lastSeenRef.current) {
@@ -64,7 +63,7 @@ export default function SlackPopupNotifier() {
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" />
       <div className="relative flex flex-col gap-3 pointer-events-auto">
         {popups.map(p => (
-          <div key={p.ts} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+          <div key={p.ts} className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
             <div className="bg-[#3e6d9c] px-5 py-4 flex items-center gap-3">
               <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
                 <Hash size={18} className="text-white" />

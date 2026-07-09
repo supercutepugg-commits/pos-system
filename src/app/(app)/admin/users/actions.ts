@@ -68,9 +68,8 @@ export async function deleteUserAccount(userId: string) {
 
   const supabase = createAdminClient()
 
-  // 인증 계정을 먼저 삭제합니다 (profiles.id는 auth.users를 ON DELETE CASCADE로 참조하므로
-  // 인증 계정 삭제 시 프로필 행도 함께 삭제됩니다). 이렇게 하면 도중에 실패해도
-  // 프로필 행이 남아있어 상태 복구가 가능합니다.
+
+
   const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
   if (authDeleteError) return { error: '계정 삭제 실패(인증): ' + authDeleteError.message }
 

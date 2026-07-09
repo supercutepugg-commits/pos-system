@@ -22,7 +22,7 @@ export default async function FranchisePage({ searchParams }: Props) {
     supabase.from('profiles').select('name,role').eq('id', user.id).single(),
   ])
 
-  // franchise_application_id → { id, status } 맵
+  
   const linkedInstalls: Record<string, { id: string; status: string }> = {}
   const linkedInternets: Record<string, { id: string; status: string | null; category: string | null }> = {}
   if (rows && rows.length > 0) {
@@ -36,7 +36,7 @@ export default async function FranchisePage({ searchParams }: Props) {
         .from('internet_management')
         .select('id, status, category, franchise_application_id')
         .in('franchise_application_id', rows.map(r => r.id)),
-      // franchise_application_id 없이 인터넷관리 탭에서 직접 등록된 건은 연락처로 매칭
+      
       phones.length > 0
         ? supabase.from('internet_management').select('id, status, category, phone').is('franchise_application_id', null).in('phone', phones)
         : Promise.resolve({ data: [] as { id: string; status: string | null; category: string | null; phone: string | null }[] }),

@@ -4,20 +4,21 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Save, Square, Circle as CircleIcon, Type, Minus, MousePointer2,
-  Trash2, Download, LayoutTemplate, Rows,
+  Trash2, Download, LayoutTemplate, Rows, Dot, BringToFront, SendToBack,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import type { Profile } from '@/types'
 
-type Tool = 'select' | 'rect' | 'circle' | 'text' | 'line' | 'group'
+type Tool = 'select' | 'rect' | 'circle' | 'text' | 'line' | 'group' | 'point'
 
 interface RectEl { id: string; type: 'rect'; x: number; y: number; w: number; h: number; label: string; stroke: string; fill: string; textColor: string; fontSize: number; vertical: boolean }
 interface CircleEl { id: string; type: 'circle'; x: number; y: number; r: number; stroke: string; fill: string }
 interface TextEl { id: string; type: 'text'; x: number; y: number; text: string; color: string; fontSize: number; vertical: boolean }
 interface LineEl { id: string; type: 'line'; x1: number; y1: number; x2: number; y2: number; stroke: string; dash: boolean; arrow: boolean; label: string }
 interface GroupEl { id: string; type: 'group'; x: number; y: number; w: number; h: number; title: string; titleColor: string }
-type Element = RectEl | CircleEl | TextEl | LineEl | GroupEl
+interface PointEl { id: string; type: 'point'; x: number; y: number; color: string; label: string }
+type Element = RectEl | CircleEl | TextEl | LineEl | GroupEl | PointEl
 
 const COLORS = ['#0f172a', '#dc2626', '#16a34a', '#2563eb', '#64748b', '#ea580c']
 const CANVAS_W = 2000
@@ -32,6 +33,7 @@ function makeDefault(type: Tool, x: number, y: number): Element | null {
   if (type === 'circle') return { id, type: 'circle', x, y, r: 18, stroke: '#0f172a', fill: '#ffffff' }
   if (type === 'text') return { id, type: 'text', x, y, text: '텍스트', color: '#0f172a', fontSize: 16, vertical: false }
   if (type === 'group') return { id, type: 'group', x, y, w: 360, h: 260, title: '구역', titleColor: '#dc2626' }
+  if (type === 'point') return { id, type: 'point', x, y, color: '#dc2626', label: '' }
   return null
 }
 
@@ -118,6 +120,28 @@ export default function BlueprintEditor({
     setSelectedId(null)
     toast.success('삭제했습니다. (Ctrl+Z로 복구)')
   }, [selectedId, toast])
+
+  const bringToFront = useCallback((id: string) => {
+    setElements(prev => {
+      const index = prev.findIndex(el => el.id === id)
+      if (index === -1 || index === prev.length - 1) return prev
+      const next = [...prev]
+      const [el] = next.splice(index, 1)
+      next.push(el)
+      return next
+    })
+  }, [])
+
+  const sendToBack = useCallback((id: string) => {
+    setElements(prev => {
+      const index = prev.findIndex(el => el.id === id)
+      if (index <= 0) return prev
+      const next = [...prev]
+      const [el] = next.splice(index, 1)
+      next.unshift(el)
+      return next
+    })
+  }, [])
 
   const undoDelete = useCallback(() => {
     const last = lastDeletedRef.current
@@ -358,6 +382,7 @@ export default function BlueprintEditor({
           <ToolButton icon={CircleIcon} active={tool === 'circle'} onClick={() => setTool('circle')} label="원" />
           <ToolButton icon={Type} active={tool === 'text'} onClick={() => setTool('text')} label="글씨" />
           <ToolButton icon={Minus} active={tool === 'line'} onClick={() => setTool('line')} label="선" />
+          <ToolButton icon={Dot} active={tool === 'point'} onClick={() => setTool('point')} label="꼭짓점" />
           <ToolButton icon={Rows} active={tool === 'group'} onClick={() => setTool('group')} label="구역 박스" />
           <div className="flex-1" />
           <ToolButton icon={Trash2} active={false} disabled={!selectedId} onClick={deleteSelected} label="삭제" />
@@ -446,6 +471,19 @@ export default function BlueprintEditor({
                   )}
                 </g>
               )
+              if (el.type === 'point') return (
+                <g key={el.id} onMouseDown={e => startMove(e, el)} style={{ cursor: 'move' }}>
+                  <circle cx={el.x} cy={el.y} r={5} fill={el.color} stroke="#ffffff" strokeWidth={1.5} />
+                  {el.label && (
+                    <text x={el.x + 9} y={el.y + 4} fill={el.color} fontSize={12} style={{ userSelect: 'none' }}>
+                      {el.label}
+                    </text>
+                  )}
+                  {selectedId === el.id && (
+                    <circle cx={el.x} cy={el.y} r={10} fill="none" stroke="#f97316" strokeWidth={1.5} strokeDasharray="4 3" />
+                  )}
+                </g>
+              )
               if (el.type === 'line') return (
                 <g key={el.id}>
                   <line
@@ -485,7 +523,13 @@ export default function BlueprintEditor({
 
         {selected && (
           <div className="w-64 border-l border-slate-200 bg-white p-4 overflow-y-auto">
-            <PropertyPanel element={selected} onChange={patch => updateElement(selected.id, patch)} onDelete={deleteSelected} />
+            <PropertyPanel
+              element={selected}
+              onChange={patch => updateElement(selected.id, patch)}
+              onDelete={deleteSelected}
+              onBringToFront={() => bringToFront(selected.id)}
+              onSendToBack={() => sendToBack(selected.id)}
+            />
           </div>
         )}
       </div>
@@ -510,10 +554,30 @@ function ToolButton({ icon: Icon, active, onClick, label, disabled }: { icon: an
 
 const inputCls = 'w-full text-[13px] border border-slate-200 rounded-md px-2 py-1.5'
 
-function PropertyPanel({ element, onChange, onDelete }: { element: Element; onChange: (patch: Partial<Element>) => void; onDelete: () => void }) {
+function PropertyPanel({ element, onChange, onDelete, onBringToFront, onSendToBack }: { element: Element; onChange: (patch: Partial<Element>) => void; onDelete: () => void; onBringToFront: () => void; onSendToBack: () => void }) {
   return (
     <div className="space-y-4">
       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">속성</h3>
+
+      <div className="flex gap-2">
+        <button onClick={onBringToFront} className="flex-1 flex items-center justify-center gap-1.5 text-xs text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-lg py-1.5">
+          <BringToFront size={13} /> 맨 앞으로
+        </button>
+        <button onClick={onSendToBack} className="flex-1 flex items-center justify-center gap-1.5 text-xs text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-lg py-1.5">
+          <SendToBack size={13} /> 맨 뒤로
+        </button>
+      </div>
+
+      {element.type === 'point' && (
+        <>
+          <Field label="라벨 (선택)">
+            <input value={element.label} onChange={e => onChange({ label: e.target.value } as any)} className={inputCls} />
+          </Field>
+          <Field label="색">
+            <ColorPicker value={element.color} onChange={c => onChange({ color: c } as any)} />
+          </Field>
+        </>
+      )}
 
       {element.type === 'group' && (
         <>

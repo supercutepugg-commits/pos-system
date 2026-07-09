@@ -751,10 +751,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   
   
   const isHiddenInAllTab = useCallback((row: FranchiseApplication, statusForRule: FranchiseStatus | '') => {
-    if (transferredIds.has(row.id)) return true
     if (statusForRule !== 'completed' && completedIds.has(row.id)) return true
     return false
-  }, [transferredIds, completedIds])
+  }, [completedIds])
 
   
   
@@ -1530,6 +1529,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">VAN사 전체</option>
           {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">접수채널 전체</option>
+          {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="등록일 시작"
           className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />

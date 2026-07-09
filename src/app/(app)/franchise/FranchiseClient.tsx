@@ -187,7 +187,7 @@ const EditableText = memo(function EditableText({ row, field, placeholder, type 
   )
 })
 
-// 비고: 기존 로그(줄바꿈 포함 누적 스탬프)는 읽기 전용으로 보여주고, 새 내용만 textarea에 입력받아 저장 시 이어붙인다
+// 비고: 새 내용만 textarea에 입력받아 저장 시 스탬프를 붙여 이어붙인다 (읽을 때는 히스토리 탭에서 파싱해서 보여준다)
 interface EditableMemoProps {
   row: FranchiseApplication
   onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
@@ -195,22 +195,33 @@ interface EditableMemoProps {
 const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoProps) {
   const [value, setValue] = useState('')
   return (
-    <div className="flex flex-col gap-1">
-      {row.memo && (
-        <pre className="whitespace-pre-wrap break-words text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 max-h-40 overflow-y-auto">{row.memo}</pre>
-      )}
-      <textarea
-        value={value}
-        placeholder="새 비고 입력..."
-        onChange={e => setValue(e.target.value)}
-        onBlur={() => { if (value.trim()) { onSave(row, 'memo', value); setValue('') } }}
-        onClick={e => e.stopPropagation()}
-        rows={2}
-        className="w-full bg-transparent border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1 text-sm resize-y"
-      />
-    </div>
+    <textarea
+      value={value}
+      placeholder="새 비고 입력..."
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => { if (value.trim()) { onSave(row, 'memo', value); setValue('') } }}
+      onClick={e => e.stopPropagation()}
+      rows={2}
+      className="w-full bg-transparent border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1 text-sm resize-y"
+    />
   )
 })
+
+// 누적 스탬프 형태(`[이름 MM/DD HH:mm] 내용`)로 저장된 비고를 히스토리 타임라인에 넣을 수 있게 개별 항목으로 분해한다
+function parseMemoEntries(memo?: string): { at: string; user: string; text: string }[] {
+  if (!memo) return []
+  const entries: { at: string; user: string; text: string }[] = []
+  const re = /\[(.+?) (\d{2})\/(\d{2}) (\d{2}):(\d{2})\]\s*([\s\S]*?)(?=\n\[.+? \d{2}\/\d{2} \d{2}:\d{2}\]|$)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(memo))) {
+    const [, user, month, day, hour, minute, text] = m
+    if (!text.trim()) continue
+    const now = new Date()
+    const at = new Date(now.getFullYear(), Number(month) - 1, Number(day), Number(hour), Number(minute)).toISOString()
+    entries.push({ at, user, text: text.trim() })
+  }
+  return entries
+}
 
 // 달력 아이콘으로 날짜를 고르거나, 텍스트를 직접 입력할 수도 있는 필드 (8자리 숫자는 자동으로 YYYY-MM-DD로 변환)
 interface DateFieldProps {
@@ -477,6 +488,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [statusConfirm, setStatusConfirm] = useState<{ row: FranchiseApplication; newStatus: FranchiseStatus; msg: string; docCase?: DocCase } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsByRow, setLogsByRow] = useState<Record<string, FranchiseApplicationLog[]>>({})
+  const [activeTabByRow, setActiveTabByRow] = useState<Record<string, 'details' | 'history'>>({})
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter)
@@ -1675,6 +1687,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
                     <td colSpan={14} className="px-6 py-4">
+                      <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
+                        {(['details', 'history'] as const).map(tab => (
+                          <button
+                            key={tab}
+                            onClick={() => setActiveTabByRow(prev => ({ ...prev, [row.id]: tab }))}
+                            className={`text-xs font-semibold px-3 py-1.5 -mb-px border-b-2 transition-colors ${
+                              (activeTabByRow[row.id] ?? 'details') === tab
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}
+                          >
+                            {tab === 'details' ? '상세' : '히스토리'}
+                          </button>
+                        ))}
+                      </div>
+                      {(activeTabByRow[row.id] ?? 'details') === 'details' && (
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -1737,11 +1765,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           <label className="text-xs font-semibold text-slate-400">VAN사 (중복선택 가능)</label>
                           <VanMultiSelect value={row.van_company ?? ''} onChange={v => saveField(row, 'van_company', v)} />
                         </div>
-                        <div className="col-span-4">
-                          <label className="text-xs font-semibold text-slate-400">비고</label>
-                          <EditableMemo row={row} onSave={saveField} />
-                        </div>
                       </div>
+                      )}
                       <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <button onClick={() => shareLink(row.id)}
                           className="text-xs text-slate-400 hover:text-blue-500 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-colors">
@@ -1805,43 +1830,58 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                           </button>
                         )}
                       </div>
+                      {(activeTabByRow[row.id] ?? 'details') === 'history' && (
                       <div>
-                        <p className="text-xs font-semibold text-slate-400 mb-1.5">상태 변경 이력</p>
+                        <div className="mb-3">
+                          <label className="text-xs font-semibold text-slate-400">새 비고 추가</label>
+                          <EditableMemo row={row} onSave={saveField} />
+                        </div>
+                        <p className="text-xs font-semibold text-slate-400 mb-1.5">히스토리</p>
                         {!logsByRow[row.id] ? (
                           <p className="text-xs text-slate-400">불러오는 중...</p>
-                        ) : logsByRow[row.id].length === 0 ? (
-                          <p className="text-xs text-slate-400">변경 이력이 없습니다.</p>
+                        ) : logsByRow[row.id].length === 0 && parseMemoEntries(row.memo).length === 0 ? (
+                          <p className="text-xs text-slate-400">이력이 없습니다.</p>
                         ) : (
                           <ul className="space-y-1">
-                            {logsByRow[row.id].map(log => {
-                              const isAlimtalk = log.to_status?.startsWith('alimtalk:')
-                              const isInstallEvent = log.to_status && INSTALL_LOG_LABEL[log.to_status]
-                              if (isAlimtalk) {
-                                const key = log.to_status!.replace('alimtalk:', '')
-                                return (
-                                  <li key={log.id} className="text-xs text-blue-500">
-                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
-                                  </li>
-                                )
-                              }
-                              if (isInstallEvent) {
-                                return (
-                                  <li key={log.id} className="text-xs text-purple-600 font-medium">
-                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
-                                  </li>
-                                )
-                              }
-                              return (
-                                <li key={log.id} className="text-xs text-slate-500">
-                                  {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
-                                  {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
-                                  {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+                            {[
+                              ...parseMemoEntries(row.memo).map(entry => ({ at: entry.at, node: (
+                                <li key={`memo-${entry.at}-${entry.text}`} className="text-xs text-slate-700">
+                                  {new Date(entry.at).toLocaleString('ko-KR')} · {entry.user} · {entry.text}
                                 </li>
-                              )
-                            })}
+                              ) })),
+                              ...logsByRow[row.id].map(log => {
+                                const isAlimtalk = log.to_status?.startsWith('alimtalk:')
+                                const isInstallEvent = log.to_status && INSTALL_LOG_LABEL[log.to_status]
+                                if (isAlimtalk) {
+                                  const key = log.to_status!.replace('alimtalk:', '')
+                                  return { at: log.created_at, node: (
+                                    <li key={log.id} className="text-xs text-blue-500">
+                                      {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · 알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})
+                                    </li>
+                                  ) }
+                                }
+                                if (isInstallEvent) {
+                                  return { at: log.created_at, node: (
+                                    <li key={log.id} className="text-xs text-purple-600 font-medium">
+                                      {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} · {INSTALL_LOG_LABEL[log.to_status!]}
+                                    </li>
+                                  ) }
+                                }
+                                return { at: log.created_at, node: (
+                                  <li key={log.id} className="text-xs text-slate-500">
+                                    {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
+                                    {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
+                                    {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
+                                  </li>
+                                ) }
+                              }),
+                            ]
+                              .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                              .map(entry => entry.node)}
                           </ul>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 )}

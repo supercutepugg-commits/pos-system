@@ -1701,7 +1701,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             </h3>
             {checklistItems.length > 0 && (
               <div className="flex flex-col gap-1">
-                <p className="text-xs text-slate-500 font-medium">완료 전 체크리스트</p>
+                <p className="text-xs text-slate-500 font-medium">완료 전 체크리스트 (필수)</p>
                 {checklistItems.map((item, i) => (
                   <label key={i} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                     <input type="checkbox" checked={item.checked}
@@ -1749,12 +1749,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => submitCompletion(false)}
-                disabled={completing || completePhotos.length === 0}
+                disabled={completing || checklistItems.some(c => !c.checked)}
                 className="w-full py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >{completing ? '처리 중...' : '완료 처리'}</button>
               <button
                 onClick={() => submitCompletion(true)}
-                disabled={completing || completePhotos.length === 0}
+                disabled={completing || checklistItems.some(c => !c.checked)}
                 className="w-full py-2 rounded-lg border border-slate-200 text-slate-400 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
               >{completing ? '처리 중...' : '템플릿 안보내고 완료 처리'}</button>
               <button

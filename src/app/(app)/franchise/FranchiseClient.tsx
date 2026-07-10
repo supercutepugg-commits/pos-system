@@ -1350,6 +1350,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       const { error } = await supabase.from('installations').update({
         status: 'received',
         notes: row.memo || null,
+        sort_order: Date.now(),
         updated_at: new Date().toISOString(),
       }).eq('id', existing.id)
       if (error) { toast.error('재이관 실패: ' + error.message); setTransferringId(null); return }
@@ -1445,6 +1446,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       const updateIds = toUpdate.map(row => localLinkedInstalls[row.id]!.id)
       const { error } = await supabase.from('installations').update({
         status: 'received',
+        sort_order: Date.now(),
         updated_at: new Date().toISOString(),
       }).in('id', updateIds)
       if (error) updateError = error.message

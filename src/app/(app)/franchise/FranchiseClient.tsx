@@ -33,7 +33,7 @@ const DOC_CASE_LABEL: Record<DocCase, string> = {
 }
 
 const RECEPTION_CHANNELS = ['토스 홈페이지', '직접 영업', '전환', '토스리드건', '토스프리미엄', '승계', '명변', '랜탈', '할부']
-const EQUIPMENT_CATALOG = ['토스프론트', '포스기', '인터넷', '키오스크', '영수증프린터', '주방프린터기', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더', '보조배터리']
+const EQUIPMENT_CATALOG = ['토스프론트', '포스기', '인터넷', '키오스크', '영수증프린터', '주방프린터기', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더', '보조배터리', '원격']
 const VAN_COMPANIES = ['코세스2', '코세스1', '코벤', '기가맹']
 const INTERNET_PROVIDERS = ['3S', '백메가']
 

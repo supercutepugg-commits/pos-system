@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical, X } from 'lucide-react'
+import { Plus, Trash2, Pin, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
@@ -217,26 +217,70 @@ const EditableMemo = memo(function EditableMemo({ row, onSave }: EditableMemoPro
 })
 
 
+// 핀 마커는 핀을 누른 시각을 epoch ms로 담아, 여러 개 고정됐을 때 "먼저 고정한 것"을 확실하게 구분한다
+const PIN_RE = /^PIN:(\d+):/
+// 이전에 잠깐 쓰였던 구버전 마커들. 기존에 저장된 데이터 호환을 위해 계속 인식한다
+const LEGACY_PIN_MARKER = 'PIN::' // 시각 정보 없음
+const LEGACY_PIN_STAMP_LENGTH = 10 // MMDDHHmmss (초 단위, 연도 없음)
+
+function nowPinStamp(): string {
+  return String(Date.now())
+}
+
+// 구버전 MMDDHHmmss 포맷은 연도 없이 저장돼 있어 올해 기준으로 복원한다
+function pinTimestampToIso(digits: string): string {
+  if (digits.length === LEGACY_PIN_STAMP_LENGTH) {
+    const now = new Date()
+    const month = Number(digits.slice(0, 2)) - 1
+    const day = Number(digits.slice(2, 4))
+    const hour = Number(digits.slice(4, 6))
+    const minute = Number(digits.slice(6, 8))
+    const second = Number(digits.slice(8, 10))
+    return new Date(now.getFullYear(), month, day, hour, minute, second).toISOString()
+  }
+  return new Date(Number(digits)).toISOString()
+}
+
+// 마커가 붙어 있으면 그 뒤 텍스트를 반환하고, 없으면 null을 반환한다 (신규/구버전 포맷 모두 인식)
+function stripPinPrefix(text: string): string | null {
+  if (text.startsWith(LEGACY_PIN_MARKER)) return text.slice(LEGACY_PIN_MARKER.length)
+  const m = text.match(PIN_RE)
+  return m ? text.slice(m[0].length) : null
+}
+
+// 앞에 PIN 마커가 붙어 있으면 상단 고정된 항목이다. 표시용 텍스트에서는 마커를 떼어낸다
+function stripPin(text: string): { pinned: boolean; pinnedAt: string | null; text: string } {
+  const m = text.match(PIN_RE)
+  if (m) return { pinned: true, pinnedAt: pinTimestampToIso(m[1]), text: text.slice(m[0].length) }
+  if (text.startsWith(LEGACY_PIN_MARKER)) return { pinned: true, pinnedAt: null, text: text.slice(LEGACY_PIN_MARKER.length) }
+  return { pinned: false, pinnedAt: null, text }
+}
+
 // 스탬프(`[이름 MM. DD. HH:mm]`)가 붙은 항목뿐 아니라, 스탬프 도입 전에 저장된 맨 텍스트도 하나의 항목으로 살려서 반환한다
-function parseMemoEntries(memo: string | undefined, fallbackAt: string): { at: string; user: string; text: string }[] {
+function parseMemoEntries(memo: string | undefined, fallbackAt: string): { at: string; user: string; text: string; pinned: boolean; pinnedAt: string | null }[] {
   if (!memo?.trim()) return []
   const re = /\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]/g
   const matches = [...memo.matchAll(re)]
   if (matches.length === 0) {
-    return [{ at: fallbackAt, user: '-', text: memo.trim() }]
+    const { pinned, pinnedAt, text } = stripPin(memo.trim())
+    return [{ at: fallbackAt, user: '-', text, pinned, pinnedAt }]
   }
-  const entries: { at: string; user: string; text: string }[] = []
-  const leading = memo.slice(0, matches[0].index).trim()
-  if (leading) entries.push({ at: fallbackAt, user: '-', text: leading })
+  const entries: { at: string; user: string; text: string; pinned: boolean; pinnedAt: string | null }[] = []
+  const leadingRaw = memo.slice(0, matches[0].index).trim()
+  if (leadingRaw) {
+    const { pinned, pinnedAt, text } = stripPin(leadingRaw)
+    entries.push({ at: fallbackAt, user: '-', text, pinned, pinnedAt })
+  }
   matches.forEach((m, i) => {
-    const [, user, month, day, hour, minute] = m
+    const [, userRaw, month, day, hour, minute] = m
+    const { pinned, pinnedAt, text: user } = stripPin(userRaw)
     const start = m.index! + m[0].length
     const end = i + 1 < matches.length ? matches[i + 1].index! : memo.length
     const text = memo.slice(start, end).trim()
     if (!text) return
     const now = new Date()
     const at = new Date(now.getFullYear(), Number(month) - 1, Number(day), Number(hour), Number(minute)).toISOString()
-    entries.push({ at, user, text })
+    entries.push({ at, user, text, pinned, pinnedAt })
   })
   return entries
 }
@@ -263,29 +307,59 @@ function removeMemoEntry(memo: string | undefined | null, index: number): string
   return blocks.filter((_, i) => i !== index).join('\n')
 }
 
+// index번째 블록에 PIN 마커(핀 시각 포함)를 붙이거나 떼어내 상단 고정 여부를 토글한다
+function togglePinEntry(memo: string | undefined | null, index: number): string {
+  const blocks = splitMemoBlocks(memo)
+  const target = blocks[index]
+  if (target === undefined) return blocks.join('\n')
+  const stampRe = /^\[(.+?) (\d{2})\. (\d{2})\. (\d{2}):(\d{2})\]/
+  const m = target.match(stampRe)
+  if (m) {
+    const user = m[1]
+    const unpinned = stripPinPrefix(user)
+    const newUser = unpinned !== null ? unpinned : `PIN:${nowPinStamp()}:${user}`
+    blocks[index] = `[${newUser} ${m[2]}. ${m[3]}. ${m[4]}:${m[5]}]${target.slice(m[0].length)}`
+  } else {
+    const unpinned = stripPinPrefix(target)
+    blocks[index] = unpinned !== null ? unpinned : `PIN:${nowPinStamp()}:${target}`
+  }
+  return blocks.join('\n')
+}
+
 // 비고 + 상태 변경 이력을 한 화면(플로팅 창)에서 시간순으로 합쳐 보여준다
 interface HistoryPanelProps {
   row: FranchiseApplication
   logs: FranchiseApplicationLog[] | undefined
   onSave: (row: FranchiseApplication, field: keyof FranchiseApplication, value: string) => void
   onDeleteMemo: (row: FranchiseApplication, newMemo: string) => void
+  onTogglePin: (row: FranchiseApplication, newMemo: string) => void
   onClose: () => void
 }
-const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMemo, onClose }: HistoryPanelProps) {
+const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMemo, onTogglePin, onClose }: HistoryPanelProps) {
   function deleteMemoEntry(index: number) {
     if (!confirm('이 메모를 삭제하시겠습니까?')) return
     onDeleteMemo(row, removeMemoEntry(row.memo, index))
   }
 
+  function togglePin(index: number) {
+    onTogglePin(row, togglePinEntry(row.memo, index))
+  }
+
   const timeline = [
-    ...parseMemoEntries(row.memo, row.created_at).map((entry, i) => ({ at: entry.at, node: (
-      <li key={`memo-${entry.at}-${entry.text}`} className="text-[15pt] text-slate-200 group">
+    ...parseMemoEntries(row.memo, row.created_at).map((entry, i) => ({ at: entry.at, pinned: entry.pinned, pinnedAt: entry.pinnedAt, node: (
+      <li key={`memo-${entry.at}-${entry.text}`} className={`text-[15pt] text-slate-200 group ${entry.pinned ? 'border-l-2 border-amber-400 pl-2' : ''}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="text-slate-400">{new Date(entry.at).toLocaleString('ko-KR')} · {entry.user}</div>
-          <button onClick={() => deleteMemoEntry(i)} aria-label="메모 삭제"
-            className="shrink-0 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Trash2 size={14} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={() => togglePin(i)} aria-label={entry.pinned ? '고정 해제' : '상단 고정'}
+              className={`transition-opacity ${entry.pinned ? 'text-amber-400 opacity-100' : 'text-slate-500 hover:text-amber-300 opacity-0 group-hover:opacity-100'}`}>
+              <Pin size={14} className={entry.pinned ? 'fill-amber-400' : ''} />
+            </button>
+            <button onClick={() => deleteMemoEntry(i)} aria-label="메모 삭제"
+              className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
         <div>{entry.text}</div>
       </li>
@@ -295,7 +369,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
       const isInstallEvent = log.to_status && INSTALL_LOG_LABEL[log.to_status]
       if (isAlimtalk) {
         const key = log.to_status!.replace('alimtalk:', '')
-        return { at: log.created_at, node: (
+        return { at: log.created_at, pinned: false, pinnedAt: null, node: (
           <li key={log.id} className="text-[15pt] text-blue-400">
             <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
             <div>알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})</div>
@@ -303,14 +377,14 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
         ) }
       }
       if (isInstallEvent) {
-        return { at: log.created_at, node: (
+        return { at: log.created_at, pinned: false, pinnedAt: null, node: (
           <li key={log.id} className="text-[15pt] text-purple-400 font-medium">
             <div className="text-slate-400 font-normal">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
             <div>{INSTALL_LOG_LABEL[log.to_status!]}</div>
           </li>
         ) }
       }
-      return { at: log.created_at, node: (
+      return { at: log.created_at, pinned: false, pinnedAt: null, node: (
         <li key={log.id} className="text-[15pt] text-slate-300">
           <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
           <div>
@@ -320,7 +394,11 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
         </li>
       ) }
     }),
-  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+  ].sort((a, b) => {
+    if (a.pinned && b.pinned) return new Date(a.pinnedAt ?? 0).getTime() - new Date(b.pinnedAt ?? 0).getTime()
+    if (a.pinned !== b.pinned) return Number(b.pinned) - Number(a.pinned)
+    return new Date(b.at).getTime() - new Date(a.at).getTime()
+  })
 
   return (
     <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[95vh] max-h-[95vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
@@ -1176,6 +1254,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: saveValue ?? undefined, updated_at: new Date().toISOString() } : r))
   }, [currentUserName])
 
+  // 히스토리 패널의 메모 삭제/핀 토글. realtime 구독이 테이블 변경마다 전체 행을 다시 받아와
+  // updated_at 기준으로 병합하기 때문에(mergeRowsPreservingIdentity), 다른 필드 저장과 동일하게
+  // DB 반영이 끝난 뒤에만 로컬 상태를 갱신한다 (선반영하면 그 사이 refresh가 로컬 값을 되돌려버림)
+  const saveMemoRaw = useCallback(async (row: FranchiseApplication, newMemo: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from('franchise_applications').update({ memo: newMemo || null }).eq('id', row.id)
+    if (error) { toast.error('수정 실패: ' + error.message); return }
+    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, memo: newMemo || undefined, updated_at: new Date().toISOString() } : r))
+  }, [])
+
   async function saveEquipmentItems(row: FranchiseApplication, items: EquipmentItem[]) {
     const supabase = createClient()
     const { error } = await supabase.from('franchise_applications').update({ equipment_items: items }).eq('id', row.id)
@@ -1982,7 +2070,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             row={row}
             logs={logsByRow[row.id]}
             onSave={saveField}
-            onDeleteMemo={(r, newMemo) => saveField(r, 'memo', newMemo, true)}
+            onDeleteMemo={(r, newMemo) => saveMemoRaw(r, newMemo)}
+            onTogglePin={(r, newMemo) => saveMemoRaw(r, newMemo)}
             onClose={() => setHistoryOpenId(null)}
           />
         )

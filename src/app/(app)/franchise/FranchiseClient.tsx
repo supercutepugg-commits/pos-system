@@ -721,6 +721,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkAssignCs, setBulkAssignCs] = useState('')
   const [bulkAssignSales, setBulkAssignSales] = useState('')
   const [bulkAssigning, setBulkAssigning] = useState(false)
+  const [bulkTransferConfirmOpen, setBulkTransferConfirmOpen] = useState(false)
+  const [bulkTransferring, setBulkTransferring] = useState(false)
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
   })
@@ -1394,6 +1396,112 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
   }
 
+  function classifyTransfer(row: FranchiseApplication): 'insert' | 'update' | 'skip' {
+    const existing = localLinkedInstalls[row.id]
+    if (!existing) return 'insert'
+    if (existing.status === 'rejected') return 'update'
+    return 'skip'
+  }
+
+  function summarizeRows(rows: FranchiseApplication[]): string {
+    const first = rows[0]?.business_name || rows[0]?.owner_name || '미입력'
+    return rows.length > 1 ? `${first} 외 ${rows.length - 1}건` : first
+  }
+
+  async function handleBulkTransfer() {
+    const targetRows = localRows.filter(r => selected.has(r.id))
+    const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
+    const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
+    if (toInsert.length === 0 && toUpdate.length === 0) {
+      toast.warning('이관 가능한 건이 없습니다. 이미 모두 이관된 상태입니다.')
+      return
+    }
+    setBulkTransferring(true)
+    const supabase = createClient()
+
+    let insertedByFranchiseId = new Map<string, string>()
+    let insertError: string | null = null
+    if (toInsert.length > 0) {
+      const { data, error } = await supabase.from('installations').insert(toInsert.map(row => ({
+        customer_name: row.business_name || row.owner_name || '미입력',
+        customer_phone: row.phone || null,
+        items: row.equipment_items ?? [],
+        status: 'received',
+        notes: row.memo || null,
+        franchise_application_id: row.id,
+        address: row.address || null,
+        scheduled_date: row.install_date || null,
+        created_by: currentUserId,
+      }))).select('id, franchise_application_id')
+      if (error) insertError = error.message
+      else insertedByFranchiseId = new Map((data ?? []).map(d => [d.franchise_application_id as string, d.id as string]))
+    }
+
+    let updateError: string | null = null
+    if (toUpdate.length > 0) {
+      const updateIds = toUpdate.map(row => localLinkedInstalls[row.id]!.id)
+      const { error } = await supabase.from('installations').update({
+        status: 'received',
+        updated_at: new Date().toISOString(),
+      }).in('id', updateIds)
+      if (error) updateError = error.message
+    }
+
+    // 그룹 쿼리 하나가 실패해도 다른 그룹은 그대로 반영한다 — 알림/로그/로컬 상태는 실제로 성공한 건만 대상으로 한다
+    const insertedRows = insertError ? [] : toInsert
+    const updatedRows = updateError ? [] : toUpdate
+
+    if (insertedRows.length > 0 || updatedRows.length > 0) {
+      const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
+      if (techProfiles?.length) {
+        const notifyRows = [
+          ...insertedRows.map(row => ({ row, label: '이관' })),
+          ...updatedRows.map(row => ({ row, label: '재이관' })),
+        ].flatMap(({ row, label }) => techProfiles.map(t => ({
+          user_id: t.id,
+          franchise_application_id: row.id,
+          type: 'install_transfer',
+          title: `[${row.business_name || row.owner_name || '미입력'}] 기술지원 ${label}`,
+          body: `CS팀에서 설치건을 ${label}했습니다. 설치관리를 확인해주세요.`,
+        })))
+        const { error: notifyError } = await supabase.from('notifications').insert(notifyRows)
+        if (notifyError) console.error('기술지원 알림 발송 실패:', notifyError.message)
+      }
+
+      const logRows = [
+        ...insertedRows.map(row => ({ franchise_application_id: row.id, user_id: currentUserId, from_status: row.status, to_status: 'install_transfer' })),
+        ...updatedRows.map(row => ({ franchise_application_id: row.id, user_id: currentUserId, from_status: row.status, to_status: 'install_retransfer' })),
+      ]
+      const { error: logError } = await supabase.from('franchise_application_logs').insert(logRows)
+      if (logError) console.error('가맹접수 이력 기록 실패:', logError.message)
+
+      setLocalLinkedInstalls(prev => {
+        const next = { ...prev }
+        for (const row of insertedRows) {
+          const id = insertedByFranchiseId.get(row.id)
+          if (id) next[row.id] = { id, status: 'received' }
+        }
+        for (const row of updatedRows) {
+          next[row.id] = { id: prev[row.id]!.id, status: 'received' }
+        }
+        return next
+      })
+    }
+
+    setBulkTransferring(false)
+    setSelected(new Set())
+
+    if (!insertError && !updateError) {
+      toast.success(`${toInsert.length}건 이관, ${toUpdate.length}건 재이관 완료`)
+    } else if (insertError && !updateError) {
+      toast.error(`${toUpdate.length}건 재이관 완료 (이관 ${toInsert.length}건 실패: ${insertError})`)
+    } else if (!insertError && updateError) {
+      toast.error(`${toInsert.length}건 이관 완료 (재이관 ${toUpdate.length}건 실패: ${updateError})`)
+    } else {
+      toast.error(`일괄 이관 실패 — 이관: ${insertError} / 재이관: ${updateError}`)
+    }
+  }
+
   async function linkToInternet(row: FranchiseApplication) {
     if (localLinkedInternets[row.id]) { toast.warning('이미 인터넷관리에 등록된 접수입니다.'); return }
     if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 인터넷관리 탭에 등록하시겠습니까?`)) return
@@ -1551,6 +1659,31 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         onCancel={() => setDeleteConfirmOpen(false)}
         onConfirm={confirmDelete}
       />
+
+      {(() => {
+        const targetRows = localRows.filter(r => selected.has(r.id))
+        const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
+        const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
+        const toSkip = targetRows.filter(r => classifyTransfer(r) === 'skip')
+        const groups = [
+          { key: 'insert', label: `이관 ${toInsert.length}건`, rows: toInsert },
+          { key: 'update', label: `재이관 ${toUpdate.length}건`, rows: toUpdate },
+          { key: 'skip', label: `이미 이관됨 ${toSkip.length}건`, rows: toSkip },
+        ].filter(g => g.rows.length > 0)
+        return (
+          <BulkConfirmDialog
+            open={bulkTransferConfirmOpen}
+            title="일괄 기술지원 이관"
+            busy={bulkTransferring}
+            confirmText="이관"
+            subtitle={`총 ${toInsert.length + toUpdate.length}건 이관을 진행합니다.`}
+            confirmQuestion="이관하시겠습니까?"
+            items={groups.map(g => ({ id: g.key, label: g.label, detail: summarizeRows(g.rows) }))}
+            onCancel={() => setBulkTransferConfirmOpen(false)}
+            onConfirm={async () => { setBulkTransferConfirmOpen(false); await handleBulkTransfer() }}
+          />
+        )
+      })()}
 
       {statusConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -1743,6 +1876,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           <button onClick={() => setBulkAssignModal(true)}
             className="text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-colors">
             일괄 배정
+          </button>
+          <button onClick={() => setBulkTransferConfirmOpen(true)}
+            className="text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition-colors">
+            일괄 기술지원 이관
           </button>
           <button onClick={handleDelete} disabled={deleting}
             className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">

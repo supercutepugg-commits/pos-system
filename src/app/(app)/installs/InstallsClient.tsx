@@ -41,6 +41,11 @@ function statusLabel(status: string, deliveryType?: string) {
   if (status === 'completed' && deliveryType === 'as') return 'AS완료'
   return STATUS_LABELS[status] ?? status
 }
+function thumbUrl(url: string, size: number) {
+  if (!url.includes('/storage/v1/object/public/')) return url
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+    + `?width=${size}&height=${size}&resize=cover&quality=60`
+}
 const STATUS_COLORS: Record<string, string> = {
   received: 'bg-gray-100 text-gray-600 border-gray-200',
   preparing: 'bg-blue-50 text-blue-600 border-blue-200',
@@ -1335,7 +1340,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       <div className="flex gap-1 mt-2">
                         {inst.completion_photo_urls.map((url, idx) => (
                           <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                            <img src={url} alt="설치완료사진" className="w-10 h-10 object-cover rounded border border-slate-200" />
+                            <img src={thumbUrl(url, 40)} alt="설치완료사진" className="w-10 h-10 object-cover rounded border border-slate-200" />
                           </a>
                         ))}
                       </div>
@@ -1533,7 +1538,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         <div className="flex gap-1 mt-1">
                           {inst.completion_photo_urls.map((url, idx) => (
                             <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                              <img src={url} alt="설치완료사진" className="w-8 h-8 object-cover rounded border border-slate-200" />
+                              <img src={thumbUrl(url, 32)} alt="설치완료사진" className="w-8 h-8 object-cover rounded border border-slate-200" />
                             </a>
                           ))}
                         </div>
@@ -1656,7 +1661,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                               <div className="flex gap-2 flex-wrap">
                                 {inst.completion_photo_urls.map((url, idx) => (
                                   <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                                    <img src={url} alt="설치완료사진" className="w-20 h-20 object-cover rounded border border-slate-200" />
+                                    <img src={thumbUrl(url, 80)} alt="설치완료사진" className="w-20 h-20 object-cover rounded border border-slate-200" />
                                   </a>
                                 ))}
                               </div>

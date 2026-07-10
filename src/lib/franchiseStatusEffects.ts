@@ -149,6 +149,7 @@ export async function autoTransferToTech(
       address: row.address || null,
       scheduled_date: row.install_date || null,
       created_by: currentUserId,
+      sort_order: Date.now(),
     }).select('id').single()
     if (error) return null
     installId = data.id

@@ -1365,6 +1365,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         address: row.address || null,
         scheduled_date: row.install_date || null,
         created_by: currentUserId,
+        sort_order: Date.now(),
       }).select('id').single()
       if (error) { toast.error('이관 실패: ' + error.message); setTransferringId(null); return }
       installId = data.id
@@ -1422,7 +1423,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     let insertedByFranchiseId = new Map<string, string>()
     let insertError: string | null = null
     if (toInsert.length > 0) {
-      const { data, error } = await supabase.from('installations').insert(toInsert.map(row => ({
+      const insertBase = Date.now()
+      const { data, error } = await supabase.from('installations').insert(toInsert.map((row, i) => ({
         customer_name: row.business_name || row.owner_name || '미입력',
         customer_phone: row.phone || null,
         items: row.equipment_items ?? [],
@@ -1432,6 +1434,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         address: row.address || null,
         scheduled_date: row.install_date || null,
         created_by: currentUserId,
+        sort_order: insertBase + i,
       }))).select('id, franchise_application_id')
       if (error) insertError = error.message
       else insertedByFranchiseId = new Map((data ?? []).map(d => [d.franchise_application_id as string, d.id as string]))

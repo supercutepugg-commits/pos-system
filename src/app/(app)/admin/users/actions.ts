@@ -99,6 +99,16 @@ export async function deleteUserAccount(userId: string) {
     await supabase.from(table).update({ [column]: null }).eq(column, userId)
   }
 
+  // 채팅 관련 테이블은 NOT NULL FK라 NULL 처리 대신 행 자체를 삭제해야 한다.
+  const { data: rooms } = await supabase.from('dm_rooms').select('id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+  const roomIds = (rooms ?? []).map(r => r.id)
+  if (roomIds.length) {
+    await supabase.from('dm_messages').delete().in('room_id', roomIds)
+    await supabase.from('dm_rooms').delete().in('id', roomIds)
+  }
+  await supabase.from('dm_messages').delete().eq('user_id', userId)
+  await supabase.from('messages').delete().eq('user_id', userId)
+
   const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
   if (authDeleteError) return { error: '계정 삭제 실패(인증): ' + authDeleteError.message }
 

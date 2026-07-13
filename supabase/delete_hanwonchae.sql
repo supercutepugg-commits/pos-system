@@ -1,37 +1,14 @@
 -- "한원채" 계정 하나만 안전하게 삭제
 -- Supabase SQL Editor에서 그대로 실행하세요.
--- 실제 배포된 DB에 없는 컬럼/테이블은 자동으로 건너뜁니다.
+-- profiles(id)를 참조하는 모든 FK를 자동으로 찾아서
+-- NULL 허용 컬럼이면 NULL 처리, NOT NULL이면 해당 행을 삭제한 뒤
+-- 계정을 삭제합니다. (dm_rooms 등 어떤 테이블이 참조하든 자동 대응)
 
 DO $$
 DECLARE
   target_id UUID;
-  t TEXT;
-  c TEXT;
-  targets TEXT[][] := ARRAY[
-    ARRAY['merchants', 'sales_id'],
-    ARRAY['tickets', 'sales_id'],
-    ARRAY['tickets', 'cs_id'],
-    ARRAY['tickets', 'tech_id'],
-    ARRAY['tickets', 'deleted_by'],
-    ARRAY['ticket_logs', 'user_id'],
-    ARRAY['contact_logs', 'user_id'],
-    ARRAY['attachments', 'user_id'],
-    ARRAY['franchise_applications', 'sales_id'],
-    ARRAY['franchise_applications', 'cs_id'],
-    ARRAY['franchise_applications', 'tech_id'],
-    ARRAY['franchise_applications', 'created_by'],
-    ARRAY['franchise_application_logs', 'user_id'],
-    ARRAY['change_requests', 'sales_id'],
-    ARRAY['change_requests', 'cs_id'],
-    ARRAY['change_requests', 'created_by'],
-    ARRAY['calendar_events', 'created_by'],
-    ARRAY['install_blueprints', 'created_by'],
-    ARRAY['install_blueprints', 'updated_by'],
-    ARRAY['inventory_items', 'user_id'],
-    ARRAY['inventory_logs', 'user_id'],
-    ARRAY['notification_logs', 'user_id']
-  ];
-  pair TEXT[];
+  rec RECORD;
+  is_nullable BOOLEAN;
 BEGIN
   SELECT id INTO target_id FROM profiles WHERE name = '한원채' LIMIT 1;
 
@@ -40,14 +17,24 @@ BEGIN
     RETURN;
   END IF;
 
-  FOREACH pair SLICE 1 IN ARRAY targets LOOP
-    t := pair[1];
-    c := pair[2];
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = t AND column_name = c
-    ) THEN
-      EXECUTE format('UPDATE %I SET %I = NULL WHERE %I = $1', t, c, c) USING target_id;
+  FOR rec IN
+    SELECT
+      conrelid::regclass::text AS ref_table,
+      a.attname AS ref_column
+    FROM pg_constraint con
+    JOIN unnest(con.conkey) WITH ORDINALITY AS ck(attnum, ord) ON TRUE
+    JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = ck.attnum
+    WHERE con.contype = 'f'
+      AND con.confrelid = 'public.profiles'::regclass
+  LOOP
+    SELECT (is_nullable = 'YES') INTO is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = rec.ref_table AND column_name = rec.ref_column;
+
+    IF is_nullable THEN
+      EXECUTE format('UPDATE %I SET %I = NULL WHERE %I = $1', rec.ref_table, rec.ref_column, rec.ref_column) USING target_id;
+    ELSE
+      EXECUTE format('DELETE FROM %I WHERE %I = $1', rec.ref_table, rec.ref_column) USING target_id;
     END IF;
   END LOOP;
 

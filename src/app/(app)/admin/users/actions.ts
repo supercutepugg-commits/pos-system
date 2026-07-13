@@ -68,7 +68,36 @@ export async function deleteUserAccount(userId: string) {
 
   const supabase = createAdminClient()
 
-
+  // profiles.id는 다른 여러 테이블에서 FK로 참조되는데 대부분 ON DELETE 액션이 없어
+  // 그대로 삭제하면 FK 제약 위반으로 실패하고 계정이 DB에 그대로 남는다.
+  // 참조를 먼저 NULL 처리해 실제 삭제가 항상 완료되도록 한다.
+  const nullifyTargets: [string, string][] = [
+    ['merchants', 'sales_id'],
+    ['tickets', 'sales_id'],
+    ['tickets', 'cs_id'],
+    ['tickets', 'tech_id'],
+    ['tickets', 'deleted_by'],
+    ['ticket_logs', 'user_id'],
+    ['contact_logs', 'user_id'],
+    ['attachments', 'user_id'],
+    ['franchise_applications', 'sales_id'],
+    ['franchise_applications', 'cs_id'],
+    ['franchise_applications', 'tech_id'],
+    ['franchise_applications', 'created_by'],
+    ['franchise_application_logs', 'user_id'],
+    ['change_requests', 'sales_id'],
+    ['change_requests', 'cs_id'],
+    ['change_requests', 'created_by'],
+    ['calendar_events', 'created_by'],
+    ['install_blueprints', 'created_by'],
+    ['install_blueprints', 'updated_by'],
+    ['inventory_items', 'user_id'],
+    ['inventory_logs', 'user_id'],
+    ['notification_logs', 'user_id'],
+  ]
+  for (const [table, column] of nullifyTargets) {
+    await supabase.from(table).update({ [column]: null }).eq(column, userId)
+  }
 
   const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
   if (authDeleteError) return { error: '계정 삭제 실패(인증): ' + authDeleteError.message }

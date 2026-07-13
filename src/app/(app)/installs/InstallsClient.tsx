@@ -652,17 +652,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         .single()
       const name = fa?.business_name || fa?.owner_name || '미입력'
 
-
-      if (fa && fa.status !== 'card_done') {
-        await supabase.rpc('set_franchise_status_silent', { p_id: inst.franchise_application_id, p_status: 'card_done' })
-
-        await supabase.from('franchise_application_logs').insert({
-          franchise_application_id: inst.franchise_application_id,
-          user_id: profile.id,
-          from_status: fa.status,
-          to_status: 'card_done',
-        })
-
+      if (fa) {
         await autoRegisterMerchant({ ...fa, id: inst.franchise_application_id } as FranchiseApplication, toast)
       }
 
@@ -673,7 +663,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
           franchise_application_id: inst.franchise_application_id,
           type: 'install_completed',
           title: `[${name}] 설치완료`,
-          body: '기술지원팀에서 설치를 완료했습니다. 가맹접수 상태가 카드가맹완료로 변경되었습니다.',
+          body: '기술지원팀에서 설치를 완료했습니다.',
         })))
         if (notifyError) console.error('완료 알림 발송 실패:', notifyError.message)
       }

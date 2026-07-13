@@ -80,6 +80,24 @@ export async function deleteUserAccount(userId: string) {
   return { error: null }
 }
 
+export async function setUserRole(userId: string, role: string) {
+  const authError = await requireAdmin()
+  if (authError) return { error: authError }
+
+  if (!ROLES.includes(role)) return { error: '올바르지 않은 역할입니다.' }
+
+  const sessionClient = await createClient()
+  const { data: { user } } = await sessionClient.auth.getUser()
+  if (user?.id === userId) return { error: '본인 역할은 변경할 수 없습니다.' }
+
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
 export async function setUserDeletePermission(userId: string, canDelete: boolean) {
   const authError = await requireAdmin()
   if (authError) return { error: authError }

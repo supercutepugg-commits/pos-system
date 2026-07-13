@@ -5,6 +5,7 @@ import { Search } from 'lucide-react'
 import { ROLE_LABEL_KR } from './constants'
 import DeletePermissionToggle from './DeletePermissionToggle'
 import DeleteUserButton from './DeleteUserButton'
+import RoleSelect from './RoleSelect'
 
 const ROLE_COLOR: Record<string, string> = {
   master: 'bg-red-100 text-red-700',
@@ -87,9 +88,13 @@ export default function UsersList({ users, currentUserId }: Props) {
                       </p>
                       {u.phone && <p className="text-xs text-slate-400 mt-0.5">{u.phone}</p>}
                     </div>
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${ROLE_COLOR[u.role] ?? ROLE_COLOR['기타']}`}>
-                      {roleName}
-                    </span>
+                    {u.id !== currentUserId ? (
+                      <RoleSelect userId={u.id} initialRole={u.role} />
+                    ) : (
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${ROLE_COLOR[u.role] ?? ROLE_COLOR['기타']}`}>
+                        {roleName}
+                      </span>
+                    )}
                     {u.role !== 'admin' && u.role !== 'master' && (
                       <DeletePermissionToggle userId={u.id} initialCanDelete={!!u.can_delete} />
                     )}

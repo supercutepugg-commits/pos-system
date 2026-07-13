@@ -6,7 +6,7 @@ import { formatPhone, thumbUrl } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, Search, RefreshCw, Download, GripVertical, Trash2, ChevronDown, Save } from 'lucide-react'
 import type { Profile, FranchiseApplication } from '@/types'
 import { FRANCHISE_STATUS_LABEL } from '@/types'
 import { useToast } from '@/components/ui/Toast'
@@ -262,11 +262,12 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
   )
 })
 
-const EditableInstallText = memo(function EditableInstallText({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+const EditableInstallText = memo(function EditableInstallText({ value, onSave, inputRef }: { value: string; onSave: (v: string) => void; inputRef?: (el: HTMLInputElement | null) => void }) {
   const [text, setText] = useState(value)
   useEffect(() => setText(value), [value])
   return (
     <input
+      ref={inputRef}
       value={text}
       onChange={e => setText(e.target.value)}
       onBlur={() => { if (text !== value) onSave(text) }}
@@ -384,6 +385,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [skipNotify, setSkipNotify] = useState(false)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
+  const [savingRowId, setSavingRowId] = useState<string | null>(null)
+  const addressRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const notesRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
 
   const supabase = createClient()
@@ -698,24 +702,43 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
       saveValue = `${stamp} ${notes}`
     }
-    await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
+    const { error } = await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
+    if (error) { toast.error('수정 실패: ' + error.message); return false }
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined } : i))
     setEditingNotes(null)
+    return true
   }
 
   async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number' | 'notes', value: string) {
 
-    if (field === 'notes') { await saveNotes(id, value); return }
+    if (field === 'notes') return saveNotes(id, value)
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
     const { error } = await supabase.from('installations').update({ [field]: saveValue }).eq('id', id)
-    if (error) { toast.error('수정 실패: ' + error.message); return }
+    if (error) { toast.error('수정 실패: ' + error.message); return false }
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, [field]: saveValue ?? undefined } : i))
+    return true
   }
 
   async function saveInstallItems(id: string, items: { name: string; quantity: number }[]) {
     const { error } = await supabase.from('installations').update({ items }).eq('id', id)
     if (error) { toast.error('수정 실패: ' + error.message); return }
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, items } : i))
+  }
+
+  async function saveRowNow(id: string) {
+    if (savingRowId) return
+    const inst = installs.find(i => i.id === id)
+    if (!inst) return
+    const addressVal = addressRefs.current[id]?.value ?? (inst.address ?? '')
+    const notesVal = notesRefs.current[id]?.value ?? (inst.notes ?? '')
+    const tasks: Promise<boolean>[] = []
+    if (addressVal !== (inst.address ?? '')) tasks.push(saveInstallField(id, 'address', addressVal))
+    if (notesVal !== (inst.notes ?? '')) tasks.push(saveInstallField(id, 'notes', notesVal))
+    if (tasks.length === 0) { toast.success('변경사항이 없습니다'); return }
+    setSavingRowId(id)
+    const results = await Promise.all(tasks)
+    setSavingRowId(null)
+    if (results.every(Boolean)) toast.success('저장되었습니다')
   }
 
   async function handleAssign(id: string, assignedTo: string) {
@@ -1588,7 +1611,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div className="col-span-2">
                             <p className="text-xs font-semibold text-slate-400 mb-1">주소</p>
                             {canEdit ? (
-                              <EditableInstallText value={inst.address ?? ''} onSave={v => saveInstallField(inst.id, 'address', v)} />
+                              <EditableInstallText value={inst.address ?? ''} onSave={v => saveInstallField(inst.id, 'address', v)}
+                                inputRef={el => { addressRefs.current[inst.id] = el }} />
                             ) : (
                               <p className="text-slate-800 break-words">{inst.address || '-'}</p>
                             )}
@@ -1640,6 +1664,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             <p className="text-xs font-semibold text-slate-400 mb-1">비고</p>
                             {canEdit ? (
                               <textarea
+                                ref={el => { notesRefs.current[inst.id] = el }}
                                 defaultValue={inst.notes ?? ''}
                                 onClick={e => e.stopPropagation()}
                                 onBlur={e => { if (e.target.value !== (inst.notes ?? '')) saveInstallField(inst.id, 'notes', e.target.value) }}
@@ -1671,7 +1696,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                               가맹접수 원본 보기
                             </button>
                           ) : <span />}
-                          <HistoryButton onClick={() => setHistoryOpenId(inst.id)} />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => saveRowNow(inst.id)}
+                              disabled={savingRowId === inst.id}
+                              className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 px-3 py-1.5 rounded-lg transition-colors">
+                              <Save size={16} /> 저장
+                            </button>
+                            <HistoryButton onClick={() => setHistoryOpenId(inst.id)} size="small" />
+                          </div>
                         </div>
                       </td>
                     </tr>

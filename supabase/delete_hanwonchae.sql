@@ -8,7 +8,7 @@ DO $$
 DECLARE
   target_id UUID;
   rec RECORD;
-  is_nullable BOOLEAN;
+  col_is_nullable BOOLEAN;
 BEGIN
   SELECT id INTO target_id FROM profiles WHERE name = '한원채' LIMIT 1;
 
@@ -27,11 +27,11 @@ BEGIN
     WHERE con.contype = 'f'
       AND con.confrelid = 'public.profiles'::regclass
   LOOP
-    SELECT (is_nullable = 'YES') INTO is_nullable
-    FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = rec.ref_table AND column_name = rec.ref_column;
+    SELECT (c.is_nullable = 'YES') INTO col_is_nullable
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public' AND c.table_name = rec.ref_table AND c.column_name = rec.ref_column;
 
-    IF is_nullable THEN
+    IF col_is_nullable THEN
       EXECUTE format('UPDATE %I SET %I = NULL WHERE %I = $1', rec.ref_table, rec.ref_column, rec.ref_column) USING target_id;
     ELSE
       EXECUTE format('DELETE FROM %I WHERE %I = $1', rec.ref_table, rec.ref_column) USING target_id;

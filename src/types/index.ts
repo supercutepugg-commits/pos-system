@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'sales' | 'cs' | 'tech'
+export type Role = 'master' | 'admin' | 'sales' | 'cs' | 'tech'
 
 export type TicketStatus =
   | 'sales'

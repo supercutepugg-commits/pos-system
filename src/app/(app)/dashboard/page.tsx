@@ -98,8 +98,8 @@ export default async function DashboardPage() {
     { data: monthlyFranchise },
     { data: completedInstalls },
   ] = await Promise.all([
-    p.role === 'admin' ? unassignedFranchiseQuery : Promise.resolve({ count: 0 }),
-    p.role === 'admin' ? unassignedInstallQuery : Promise.resolve({ count: 0 }),
+    (p.role === 'admin' || p.role === 'master') ? unassignedFranchiseQuery : Promise.resolve({ count: 0 }),
+    (p.role === 'admin' || p.role === 'master') ? unassignedInstallQuery : Promise.resolve({ count: 0 }),
     staleQuery,
     todayInstallsQuery ?? Promise.resolve({ data: [] }),
     todayFranchiseQuery ?? Promise.resolve({ data: [] }),
@@ -146,13 +146,13 @@ export default async function DashboardPage() {
             {format(new Date(), 'yyyy년 M월 d일 (EEE)', { locale: ko })}
           </p>
         </div>
-        {(p.role === 'admin' || p.role === 'cs') && (
+        {(p.role === 'admin' || p.role === 'master' || p.role === 'cs') && (
           <ExcelDownloadButton />
         )}
       </div>
 
       {}
-      {p.role === 'admin' && ((unassignedFranchise ?? 0) > 0 || (unassignedInstall ?? 0) > 0 || (staleCount ?? 0) > 0) && (
+      {(p.role === 'admin' || p.role === 'master') && ((unassignedFranchise ?? 0) > 0 || (unassignedInstall ?? 0) > 0 || (staleCount ?? 0) > 0) && (
         <div className="flex flex-wrap gap-3">
           {(unassignedFranchise ?? 0) > 0 && (
             <Link href="/franchise" className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-2 rounded-xl hover:bg-red-100 transition-colors">
@@ -281,7 +281,7 @@ export default async function DashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-bold text-slate-900">
-              {p.role === 'admin' ? '최근 가맹 접수' : '내 담당 가맹 접수'}
+              {(p.role === 'admin' || p.role === 'master') ? '최근 가맹 접수' : '내 담당 가맹 접수'}
             </h2>
             <Link href="/franchise" className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
               전체보기 <ArrowRight size={14} />

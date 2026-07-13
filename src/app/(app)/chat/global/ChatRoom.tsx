@@ -9,9 +9,9 @@ import Link from 'next/link'
 import type { Profile } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 
-const ROLE_LABEL: Record<string, string> = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
+const ROLE_LABEL: Record<string, string> = { master: '마스터', admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR: Record<string, string> = {
-  admin: 'text-purple-600', sales: 'text-blue-600', cs: 'text-emerald-600', tech: 'text-orange-600',
+  master: 'text-red-600', admin: 'text-purple-600', sales: 'text-blue-600', cs: 'text-emerald-600', tech: 'text-orange-600',
 }
 
 interface Message {

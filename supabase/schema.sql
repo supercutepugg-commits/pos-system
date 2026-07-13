@@ -7,7 +7,7 @@ CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
   phone TEXT,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'sales', 'cs', 'tech')),
+  role TEXT NOT NULL CHECK (role IN ('master', 'admin', 'sales', 'cs', 'tech')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

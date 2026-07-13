@@ -8,7 +8,7 @@ export default async function ExternalTechsPage() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || !['admin', 'cs', 'tech'].includes(profile.role)) redirect('/dashboard')
+  if (!profile || !['master', 'admin', 'cs', 'tech'].includes(profile.role)) redirect('/dashboard')
 
   const { data: techs } = await supabase
     .from('external_techs')

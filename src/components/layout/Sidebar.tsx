@@ -12,8 +12,9 @@ import { createClient } from '@/lib/supabase/client'
 import ThemeToggle from './ThemeToggle'
 import type { Profile, Role } from '@/types'
 
-const ROLE_LABEL = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
+const ROLE_LABEL = { master: '마스터', admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR = {
+  master: 'bg-red-100 text-red-700',
   admin: 'bg-purple-100 text-purple-700',
   sales: 'bg-blue-100 text-blue-700',
   cs: 'bg-emerald-100 text-emerald-700',
@@ -94,7 +95,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
       const saved = localStorage.getItem(storageKey)
       if (saved) return new Set(JSON.parse(saved) as string[])
     } catch {}
-    return new Set(visibleFolders.filter(f => f.key === profile.role || profile.role === 'admin').map(f => f.key))
+    return new Set(visibleFolders.filter(f => f.key === profile.role || profile.role === 'admin' || profile.role === 'master').map(f => f.key))
   })
 
   function toggleFolder(key: string) {
@@ -232,7 +233,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         <div className="my-2 border-t border-slate-100" />
         {BOTTOM_NAV.map(item => <NavLink key={item.href} item={item} />)}
 
-        {profile.role === 'admin' && (
+        {(profile.role === 'admin' || profile.role === 'master') && (
           <>
             {ADMIN_NAV.map(item => <NavLink key={item.href} item={item} />)}
           </>

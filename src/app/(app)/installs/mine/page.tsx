@@ -10,7 +10,7 @@ export default async function MyInstallsPage() {
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/dashboard')
-  if (!['tech', 'admin'].includes(profile.role)) redirect('/dashboard')
+  if (!['tech', 'admin', 'master'].includes(profile.role)) redirect('/dashboard')
 
   const [{ data: installs }, { data: techUsers }] = await Promise.all([
     supabase

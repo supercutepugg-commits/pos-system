@@ -8,7 +8,7 @@ export default async function InventoryPage() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role, name').eq('id', user.id).single()
-  if (!profile || !['admin', 'cs', 'tech'].includes(profile.role)) redirect('/dashboard')
+  if (!profile || !['master', 'admin', 'cs', 'tech'].includes(profile.role)) redirect('/dashboard')
 
   const { data: items } = await supabase
     .from('inventory_items')

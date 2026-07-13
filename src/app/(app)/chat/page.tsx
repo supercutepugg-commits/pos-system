@@ -6,8 +6,9 @@ import type { Profile } from '@/types'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 
-const ROLE_LABEL: Record<string, string> = { admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
+const ROLE_LABEL: Record<string, string> = { master: '마스터', admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR: Record<string, string> = {
+  master: 'bg-red-100 text-red-700',
   admin: 'bg-purple-100 text-purple-700',
   sales: 'bg-blue-100 text-blue-700',
   cs: 'bg-emerald-100 text-emerald-700',

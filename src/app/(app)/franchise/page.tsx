@@ -17,8 +17,8 @@ export default async function FranchisePage({ searchParams }: Props) {
       .from('franchise_applications')
       .select('*, sales:profiles!franchise_applications_sales_id_fkey(id,name,role), cs:profiles!franchise_applications_cs_id_fkey(id,name,role), creator:profiles!franchise_applications_created_by_fkey(id,name,role)')
       .order('updated_at', { ascending: false }),
-    supabase.from('profiles').select('id,name,role').in('role', ['sales', 'admin']).order('name'),
-    supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin']).order('name'),
+    supabase.from('profiles').select('id,name,role').in('role', ['sales', 'admin', 'master']).order('name'),
+    supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin', 'master']).order('name'),
     supabase.from('profiles').select('name,role').eq('id', user.id).single(),
   ])
 

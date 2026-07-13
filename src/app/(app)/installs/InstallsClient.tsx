@@ -326,7 +326,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
 })
 
 export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, initialHighlightId }: Props) {
-  const canEdit = ['tech', 'cs', 'admin'].includes(profile.role)
+  const canEdit = ['tech', 'cs', 'admin', 'master'].includes(profile.role)
   const toast = useToast()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
   const [loading, setLoading] = useState(false)
@@ -1168,7 +1168,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       </div>
 
-      {profile.role === 'admin' && selected.size > 0 && (
+      {(profile.role === 'admin' || profile.role === 'master') && selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
           <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
           <button onClick={handleBulkDelete} disabled={deletingSelected}
@@ -1417,7 +1417,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               style={{ tableLayout: 'fixed' }}
             >
               <colgroup>
-                {profile.role === 'admin' && <col style={{ width: 32 }} />}
+                {(profile.role === 'admin' || profile.role === 'master') && <col style={{ width: 32 }} />}
                 <col style={{ width: 24 }} />
                 {columns.map(col => (
                   <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
@@ -1425,7 +1425,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               </colgroup>
               <thead>
                 <tr className="bg-slate-50">
-                  {profile.role === 'admin' && (
+                  {(profile.role === 'admin' || profile.role === 'master') && (
                     <th className="px-3 py-3">
                       <input type="checkbox"
                         checked={pagedInstalls.length > 0 && pagedInstalls.every(i => selected.has(i.id))}
@@ -1457,7 +1457,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
                   >
-                    {profile.role === 'admin' && (
+                    {(profile.role === 'admin' || profile.role === 'master') && (
                       <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={selected.has(inst.id)} onChange={() => toggleOne(inst.id)}
                           className="w-4 h-4 accent-blue-600 cursor-pointer" />
@@ -1577,7 +1577,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
                             className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>
                         )}
-                        {(profile.role === 'admin') && (
+                        {((profile.role === 'admin' || profile.role === 'master')) && (
                           <button onClick={() => handleDelete(inst.id)}
                             className="text-xs text-red-400 border border-red-100 px-2 py-1 rounded-lg hover:bg-red-50">삭제</button>
                         )}
@@ -1586,7 +1586,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                   </tr>
                   {detailInst?.id === inst.id && (
                     <tr className="bg-blue-50/50 border-b border-slate-100">
-                      <td colSpan={(profile.role === 'admin' ? 1 : 0) + 1 + columns.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                      <td colSpan={((profile.role === 'admin' || profile.role === 'master') ? 1 : 0) + 1 + columns.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
                         <div className="grid grid-cols-4 gap-4 mb-3 text-sm">
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>

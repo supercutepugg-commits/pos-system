@@ -14,7 +14,7 @@ export default async function ContractZonePage({ params }: Props) {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || !['admin', 'cs'].includes(profile.role)) redirect('/dashboard')
+  if (!profile || !['master', 'admin', 'cs'].includes(profile.role)) redirect('/dashboard')
 
   const { data: contract } = await supabase
     .from('contracts')

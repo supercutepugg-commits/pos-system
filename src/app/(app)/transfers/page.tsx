@@ -13,7 +13,7 @@ export default async function TransfersPage() {
       .select('*, tech:profiles!franchise_applications_tech_id_fkey(id,name,role)')
       .eq('reception_channel', '전환')
       .order('updated_at', { ascending: false }),
-    supabase.from('profiles').select('id,name,role').in('role', ['tech', 'admin']).order('name'),
+    supabase.from('profiles').select('id,name,role').in('role', ['tech', 'admin', 'master']).order('name'),
   ])
 
   const linkedInstalls: Record<string, { id: string; status: string }> = {}

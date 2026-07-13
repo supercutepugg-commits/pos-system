@@ -7,7 +7,7 @@ import { createUserAccount } from './actions'
 import { ROLE_LABEL_KR } from './constants'
 import { useToast } from '@/components/ui/Toast'
 
-const ROLES = ['sales', 'cs', 'tech', 'admin']
+const ROLES = ['sales', 'cs', 'tech', 'admin', 'master']
 
 const EMPTY_FORM = { name: '', phone: '', password: '', role: 'sales' }
 

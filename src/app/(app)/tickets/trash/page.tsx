@@ -13,7 +13,7 @@ export default async function TicketsTrashPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
   const p = profile as Profile
-  if (p.role !== 'admin' && p.role !== 'cs' && !p.can_delete) redirect('/tickets')
+  if (p.role !== 'admin' && p.role !== 'master' && p.role !== 'cs' && !p.can_delete) redirect('/tickets')
 
   const { data: tickets } = await supabase
     .from('tickets')
@@ -32,7 +32,7 @@ export default async function TicketsTrashPage() {
         <p className="text-slate-500 text-sm mt-1">삭제된 작업 {tickets?.length ?? 0}건 (복구 가능)</p>
       </div>
 
-      <TrashClient tickets={(tickets ?? []) as any} isAdmin={p.role === 'admin'} />
+      <TrashClient tickets={(tickets ?? []) as any} isAdmin={p.role === 'admin' || p.role === 'master'} />
     </div>
   )
 }

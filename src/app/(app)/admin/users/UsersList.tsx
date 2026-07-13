@@ -7,6 +7,7 @@ import DeletePermissionToggle from './DeletePermissionToggle'
 import DeleteUserButton from './DeleteUserButton'
 
 const ROLE_COLOR: Record<string, string> = {
+  master: 'bg-red-100 text-red-700',
   admin: 'bg-purple-100 text-purple-700',
   sales: 'bg-blue-100 text-blue-700',
   cs: 'bg-emerald-100 text-emerald-700',
@@ -14,7 +15,7 @@ const ROLE_COLOR: Record<string, string> = {
   기타: 'bg-slate-100 text-slate-600',
 }
 
-const ROLE_ORDER = ['admin', 'sales', 'cs', 'tech', '기타']
+const ROLE_ORDER = ['master', 'admin', 'sales', 'cs', 'tech', '기타']
 
 interface UserRow {
   id: string
@@ -89,7 +90,7 @@ export default function UsersList({ users, currentUserId }: Props) {
                     <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${ROLE_COLOR[u.role] ?? ROLE_COLOR['기타']}`}>
                       {roleName}
                     </span>
-                    {u.role !== 'admin' && (
+                    {u.role !== 'admin' && u.role !== 'master' && (
                       <DeletePermissionToggle userId={u.id} initialCanDelete={!!u.can_delete} />
                     )}
                     {u.id !== currentUserId && (

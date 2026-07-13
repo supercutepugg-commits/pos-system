@@ -46,7 +46,7 @@ interface Props {
 export default function ContractsClient({ profile, initialContracts }: Props) {
   const router = useRouter()
   const toast = useToast()
-  const canEdit = profile.role === 'cs' || profile.role === 'admin'
+  const canEdit = profile.role === 'cs' || profile.role === 'admin' || profile.role === 'master'
   const [contracts, setContracts] = useState<Contract[]>(initialContracts)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -252,7 +252,7 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
                       <ExternalLink size={12} />서명본
                     </a>
                   )}
-                  {profile.role === 'admin' && (
+                  {(profile.role === 'admin' || profile.role === 'master') && (
                     <button onClick={() => handleDelete(c.id)}
                       className="text-xs text-red-400 border border-red-100 px-2.5 py-1.5 rounded-lg hover:bg-red-50">
                       <Trash2 size={12} />

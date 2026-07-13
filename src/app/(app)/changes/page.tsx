@@ -12,7 +12,7 @@ export default async function ChangesPage() {
       .from('change_requests')
       .select('*, cs:profiles!change_requests_cs_id_fkey(id,name,role), creator:profiles!change_requests_created_by_fkey(id,name,role)')
       .order('created_at', { ascending: false }),
-    supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin']).order('name'),
+    supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin', 'master']).order('name'),
     supabase.from('profiles').select('name,role').eq('id', user.id).single(),
   ])
 

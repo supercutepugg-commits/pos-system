@@ -202,7 +202,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
 
       <div className="flex flex-wrap gap-2">
         {}
-        {status === 'sales' && (role === 'sales' || role === 'admin') && (
+        {status === 'sales' && (role === 'sales' || role === 'admin' || role === 'master') && (
           <>
             <select
               onChange={e => e.target.value && assignUser('cs_id', e.target.value)}
@@ -226,7 +226,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {status === 'cs_pending' && (role === 'cs' || role === 'admin') && (
+        {status === 'cs_pending' && (role === 'cs' || role === 'admin' || role === 'master') && (
           <button
             onClick={() => updateStatus('sales')}
             disabled={loading}
@@ -237,7 +237,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {(status === 'cs_pending' || status === 'cs_progress') && (role === 'cs' || role === 'admin') && (
+        {(status === 'cs_pending' || status === 'cs_progress') && (role === 'cs' || role === 'admin' || role === 'master') && (
           <>
             <select
               onChange={e => e.target.value && assignUser('tech_id', e.target.value)}
@@ -261,7 +261,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {(status === 'cs_pending' || status === 'cs_progress' || status === 'tech_pending') && (role === 'cs' || role === 'admin') && (
+        {(status === 'cs_pending' || status === 'cs_progress' || status === 'tech_pending') && (role === 'cs' || role === 'admin' || role === 'master') && (
           <div className="flex items-center gap-2">
             <input
               type="datetime-local"
@@ -273,7 +273,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {(status === 'tech_pending' || status === 'scheduled') && (role === 'tech' || role === 'admin') && (
+        {(status === 'tech_pending' || status === 'scheduled') && (role === 'tech' || role === 'admin' || role === 'master') && (
           <button
             onClick={() => updateStatus('cs_pending')}
             disabled={loading}
@@ -284,7 +284,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {(status === 'scheduled' || status === 'tech_pending') && (role === 'tech' || role === 'admin') && (
+        {(status === 'scheduled' || status === 'tech_pending') && (role === 'tech' || role === 'admin' || role === 'master') && (
           <button
             onClick={() => updateStatus('in_progress')}
             disabled={loading}
@@ -296,7 +296,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {status === 'in_progress' && (role === 'tech' || role === 'admin') && (
+        {status === 'in_progress' && (role === 'tech' || role === 'admin' || role === 'master') && (
           <button
             onClick={() => setCompleteOpen(true)}
             disabled={loading}
@@ -308,7 +308,7 @@ export default function TicketActions({ ticket, profile, techUsers, csUsers }: P
         )}
 
         {}
-        {status !== 'done' && status !== 'canceled' && (role === 'cs' || role === 'admin') && (
+        {status !== 'done' && status !== 'canceled' && (role === 'cs' || role === 'admin' || role === 'master') && (
           <button
             onClick={requestCancel}
             disabled={loading}

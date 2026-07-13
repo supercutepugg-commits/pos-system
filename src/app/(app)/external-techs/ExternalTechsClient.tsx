@@ -36,7 +36,7 @@ export default function ExternalTechsClient({
   initialTechs: ExternalTech[]
   currentUserRole: string
 }) {
-  const canEdit = ['admin', 'cs'].includes(currentUserRole)
+  const canEdit = ['admin', 'master', 'cs'].includes(currentUserRole)
   const toast = useToast()
   const [techs, setTechs] = useState(initialTechs)
   const [search, setSearch] = useState('')

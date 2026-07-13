@@ -80,7 +80,7 @@ export default function InventoryClient({
   currentUserRole: string
   currentUserName: string
 }) {
-  const canEdit = ['admin', 'tech'].includes(currentUserRole)
+  const canEdit = ['admin', 'master', 'tech'].includes(currentUserRole)
   const [items, setItems] = useState(initialItems)
   const [logs, setLogs] = useState(initialLogs)
   const [search, setSearch] = useState('')

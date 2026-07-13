@@ -767,7 +767,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           const target = new Date(Date.now() + days * 86400000).toISOString().split('T')[0]
           const matched = rows.filter(r =>
             r.open_date === target &&
-            (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+            (currentUserRole === 'admin' || currentUserRole === 'master' || r.cs_id === currentUserId || r.sales_id === currentUserId)
           )
           if (matched.length === 0) return
           const names = matched.map(r => r.business_name || r.owner_name || '미입력').join(', ')
@@ -822,7 +822,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         const stale = rows.filter(r =>
           !terminal.includes(r.status) &&
           Math.floor((Date.now() - new Date(r.updated_at).getTime()) / 86400000) >= 7 &&
-          (currentUserRole === 'admin' || r.cs_id === currentUserId || r.sales_id === currentUserId)
+          (currentUserRole === 'admin' || currentUserRole === 'master' || r.cs_id === currentUserId || r.sales_id === currentUserId)
         )
         if (stale.length === 0) return
         const names = stale.slice(0, 3).map(r => r.business_name || r.owner_name || '미입력').join(', ')

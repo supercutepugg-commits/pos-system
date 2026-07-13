@@ -125,7 +125,7 @@ export default async function TicketDetailPage({ params }: Props) {
       {}
       <TicketInfoEdit
         ticket={ticket as any}
-        canEdit={['admin', 'sales', 'cs'].includes((profile as Profile).role)}
+        canEdit={['admin', 'master', 'sales', 'cs'].includes((profile as Profile).role)}
       />
 
       {}

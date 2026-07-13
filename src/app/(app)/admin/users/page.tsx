@@ -17,7 +17,7 @@ export default async function UsersPage() {
     supabase.from('profiles').select('*').order('role').order('name'),
   ])
 
-  if (!profile || profile.role !== 'admin') redirect('/dashboard')
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'master')) redirect('/dashboard')
 
   const emailById: Record<string, string> = {}
   if (users?.length) {

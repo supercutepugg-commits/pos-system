@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth/require-admin'
 
-const ROLES = ['admin', 'sales', 'cs', 'tech']
+const ROLES = ['master', 'admin', 'sales', 'cs', 'tech']
 
 export async function createUserAccount(form: { name: string; phone: string; password: string; role: string }) {
   const authError = await requireAdmin()

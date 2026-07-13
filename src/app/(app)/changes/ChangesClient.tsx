@@ -138,7 +138,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
   const toast = useToast()
   const supabase = createClient()
 
-  const canDelete = currentUserRole === 'admin' || currentUserRole === 'cs'
+  const canDelete = currentUserRole === 'admin' || currentUserRole === 'master' || currentUserRole === 'cs'
 
 
   useEffect(() => {

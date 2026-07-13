@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
@@ -10,12 +11,15 @@ import { deleteWooRows } from './actions'
 import type { WooCustomer } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
+import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 interface Props {
   rows: WooCustomer[]
+  currentUserId: string
+  linkedInstalls?: Record<string, { id: string; status: string }>
 }
 
 const CATEGORIES = ['명의변경', '승계', '신규']
@@ -292,8 +296,9 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: C
   )
 })
 
-export default function WooClient({ rows }: Props) {
+export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: Props) {
   const toast = useToast()
+  const router = useRouter()
   const [localRows, setLocalRows] = useState(rows)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -305,6 +310,10 @@ export default function WooClient({ rows }: Props) {
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
+  const [transferringId, setTransferringId] = useState<string | null>(null)
+  const [bulkTransferring, setBulkTransferring] = useState(false)
+  const [bulkTransferConfirmOpen, setBulkTransferConfirmOpen] = useState(false)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
 
   useEffect(() => {
@@ -428,6 +437,101 @@ export default function WooClient({ rows }: Props) {
 
   }, [])
 
+  function classifyTransfer(row: WooCustomer): 'insert' | 'skip' {
+    return localLinkedInstalls[row.id] ? 'skip' : 'insert'
+  }
+
+  function hasIdentity(row: WooCustomer): boolean {
+    return !!(row.business_name || row.owner_name || row.phone)
+  }
+
+  function summarizeRows(targetRows: WooCustomer[]): string {
+    const first = targetRows[0]?.business_name || targetRows[0]?.owner_name || '미입력'
+    return targetRows.length > 1 ? `${first} 외 ${targetRows.length - 1}건` : first
+  }
+
+  function buildInstallPayload(row: WooCustomer) {
+    const noteParts = [
+      row.memo?.trim(),
+      row.setting ? `세팅: ${row.setting}` : null,
+      row.pos_program ? `포스프로그램: ${row.pos_program}` : null,
+    ].filter((v): v is string => !!v)
+    return {
+      customer_name: row.business_name || row.owner_name || '미입력',
+      customer_phone: row.phone || null,
+      items: [{ name: '프론트', quantity: 1 }],
+      status: 'received',
+      notes: noteParts.length ? noteParts.join(' / ') : null,
+      woo_customer_id: row.id,
+      address: row.address || null,
+      scheduled_date: null,
+      created_by: currentUserId,
+      sort_order: Date.now(),
+    }
+  }
+
+  async function notifyTech(rowsToNotify: WooCustomer[], title: (row: WooCustomer) => string, body: string) {
+    const supabase = createClient()
+    const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
+    if (!techProfiles?.length) return
+    const notifyRows = rowsToNotify.flatMap(row => techProfiles.map(t => ({
+      user_id: t.id,
+      type: 'install_transfer',
+      title: title(row),
+      body,
+    })))
+    const { error } = await supabase.from('notifications').insert(notifyRows)
+    if (error) console.error('설치지원 알림 발송 실패:', error.message)
+  }
+
+  async function transferToInstall(row: WooCustomer) {
+    if (classifyTransfer(row) === 'skip') { toast.warning('이미 설치지원으로 이관된 건입니다.'); return }
+    if (!hasIdentity(row)) { toast.warning('상호명·대표자명·연락처가 모두 없어 이관할 수 없습니다.'); return }
+    const name = row.business_name || row.owner_name || '미입력'
+    if (!confirm(`'${name}' 건을 설치지원으로 이관하시겠습니까?\n설치관리 탭에 새 설치건이 생성됩니다.`)) return
+    setTransferringId(row.id)
+    const supabase = createClient()
+    const { data, error } = await supabase.from('installations').insert(buildInstallPayload(row)).select('id').single()
+    setTransferringId(null)
+    if (error) { toast.error('이관 실패: ' + error.message); return }
+    await notifyTech([row], r => `[${r.business_name || r.owner_name || '미입력'}] 설치지원 이관`, '우국상에서 설치건을 이관했습니다. 설치관리를 확인해주세요.')
+    setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: data.id, status: 'received' } }))
+    toast.success('설치지원으로 이관되었습니다.')
+  }
+
+  async function autoTransferOnCardDone(row: WooCustomer) {
+    if (classifyTransfer(row) === 'skip') return
+    if (!hasIdentity(row)) { toast.warning('상호명·대표자명·연락처가 모두 없어 설치지원 자동 이관을 건너뛰었습니다.'); return }
+    const supabase = createClient()
+    const { data, error } = await supabase.from('installations').insert(buildInstallPayload(row)).select('id').single()
+    if (error) { toast.error('설치지원 자동 이관 실패: ' + error.message); return }
+    await notifyTech([row], r => `[${r.business_name || r.owner_name || '미입력'}] 설치지원 자동 이관`, '가맹완료로 설치건이 자동 생성되었습니다. 설치관리를 확인해주세요.')
+    setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: data.id, status: 'received' } }))
+    toast.success('가맹완료 처리되어 설치지원으로 자동 이관되었습니다.')
+  }
+
+  async function handleBulkTransfer() {
+    const candidates = localRows.filter(r => selected.has(r.id) && classifyTransfer(r) === 'insert')
+    const toInsert = candidates.filter(hasIdentity)
+    const skippedNoIdentity = candidates.length - toInsert.length
+    if (toInsert.length === 0) { toast.warning('이관 가능한 건이 없습니다.'); return }
+    setBulkTransferring(true)
+    const supabase = createClient()
+    const { data, error } = await supabase.from('installations').insert(toInsert.map(row => buildInstallPayload(row))).select('id, woo_customer_id')
+    setBulkTransferring(false)
+    if (error) { toast.error('일괄 이관 실패: ' + error.message); return }
+    await notifyTech(toInsert, r => `[${r.business_name || r.owner_name || '미입력'}] 설치지원 이관`, '우국상에서 설치건을 일괄 이관했습니다. 설치관리를 확인해주세요.')
+    setLocalLinkedInstalls(prev => {
+      const next = { ...prev }
+      for (const d of data ?? []) {
+        if (d.woo_customer_id) next[d.woo_customer_id] = { id: d.id, status: 'received' }
+      }
+      return next
+    })
+    setSelected(new Set())
+    toast.success(`${toInsert.length}건 이관 완료${skippedNoIdentity > 0 ? ` (식별정보 없어 ${skippedNoIdentity}건 제외)` : ''}`)
+  }
+
   const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {
     if (REQUIRED_FIELDS.includes(field) && !value.trim()) {
       toast.warning(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
@@ -441,8 +545,12 @@ export default function WooClient({ rows }: Props) {
     if (error) {
       setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: previousValue } : r))
       toast.error('수정 실패: ' + error.message)
+      return
     }
-  }, [toast])
+    if (field === 'card_apply_status' && value === '가맹완료' && !localLinkedInstalls[row.id]) {
+      await autoTransferOnCardDone(row)
+    }
+  }, [toast, localLinkedInstalls, autoTransferOnCardDone])
 
   return (
     <div className="flex flex-col h-full">
@@ -479,8 +587,36 @@ export default function WooClient({ rows }: Props) {
       </div>
 
       {selected.size > 0 && (
-        <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())} />
+        <BulkDeleteActions count={selected.size} deleting={deleting} onDelete={handleDelete} onCancel={() => setSelected(new Set())}>
+          <button onClick={() => setBulkTransferConfirmOpen(true)}
+            className="text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition-colors">
+            일괄 설치지원 이관
+          </button>
+        </BulkDeleteActions>
       )}
+
+      {(() => {
+        const targetRows = localRows.filter(r => selected.has(r.id))
+        const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
+        const toSkip = targetRows.filter(r => classifyTransfer(r) === 'skip')
+        const groups = [
+          { key: 'insert', label: `이관 ${toInsert.length}건`, rows: toInsert },
+          { key: 'skip', label: `이미 이관됨 ${toSkip.length}건`, rows: toSkip },
+        ].filter(g => g.rows.length > 0)
+        return (
+          <BulkConfirmDialog
+            open={bulkTransferConfirmOpen}
+            title="일괄 설치지원 이관"
+            busy={bulkTransferring}
+            confirmText="이관"
+            subtitle={`총 ${toInsert.length}건 이관을 진행합니다.`}
+            confirmQuestion="이관하시겠습니까?"
+            items={groups.map(g => ({ id: g.key, label: g.label, detail: summarizeRows(g.rows) }))}
+            onCancel={() => setBulkTransferConfirmOpen(false)}
+            onConfirm={async () => { setBulkTransferConfirmOpen(false); await handleBulkTransfer() }}
+          />
+        )
+      })()}
 
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
@@ -578,7 +714,27 @@ export default function WooClient({ rows }: Props) {
                           )
                         })}
                       </div>
-                      <div className="flex justify-end mt-3">
+                      <div className="flex items-center justify-between mt-3">
+                        <div>
+                          {localLinkedInstalls[row.id] ? (
+                            <button onClick={() => router.push('/installs')}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${
+                              localLinkedInstalls[row.id].status === 'completed'
+                                ? 'bg-green-50 text-green-600 border-green-200'
+                                : 'bg-purple-50 text-purple-600 border-purple-200'
+                            }`}>
+                              {localLinkedInstalls[row.id].status === 'completed' ? '설치완료 →' : '설치지원 이관됨 →'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => transferToInstall(row)}
+                              disabled={transferringId === row.id}
+                              className="text-xs font-semibold bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                            >
+                              {transferringId === row.id ? '처리 중...' : '설치지원 이관'}
+                            </button>
+                          )}
+                        </div>
                         <HistoryButton onClick={() => setHistoryOpenId(row.id)} />
                       </div>
                     </td>

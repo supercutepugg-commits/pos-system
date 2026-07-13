@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef, memo, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, thumbUrl } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
@@ -74,6 +75,7 @@ interface Installation {
   assignee?: { name: string } | null
   creator?: { name: string } | null
   franchise_application_id?: string
+  woo_customer_id?: string
   address?: string
   delivery_type?: string
   scheduled_date?: string
@@ -328,6 +330,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
 export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, initialHighlightId }: Props) {
   const canEdit = ['tech', 'cs', 'admin', 'master'].includes(profile.role)
   const toast = useToast()
+  const router = useRouter()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
   const [loading, setLoading] = useState(false)
   const [hitFetchLimit, setHitFetchLimit] = useState(initialInstalls.length >= FETCH_LIMIT)
@@ -1314,6 +1317,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       {inst.franchise_application_id && (
                         <span className="text-[10px] font-semibold bg-purple-100 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-md shrink-0">가맹이관</span>
                       )}
+                      {inst.woo_customer_id && (
+                        <span className="text-[10px] font-semibold bg-teal-100 text-teal-600 border border-teal-200 px-1.5 py-0.5 rounded-md shrink-0">우국상이관</span>
+                      )}
                     </div>
                     <p className="text-slate-500 text-sm mt-0.5">{inst.customer_phone || '-'}</p>
                   </div>
@@ -1469,6 +1475,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         {inst.franchise_application_id && (
                           <span className="text-[10px] font-semibold bg-purple-100 text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded-md">가맹이관</span>
                         )}
+                        {inst.woo_customer_id && (
+                          <span className="text-[10px] font-semibold bg-teal-100 text-teal-600 border border-teal-200 px-1.5 py-0.5 rounded-md">우국상이관</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -1560,6 +1569,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         {inst.franchise_application_id && (
                           <button onClick={() => openFranchiseDetail(inst.franchise_application_id!)}
                             className="text-xs text-purple-600 border border-purple-200 px-2 py-1 rounded-lg hover:bg-purple-50">가맹접수</button>
+                        )}
+                        {inst.woo_customer_id && (
+                          <button onClick={() => router.push('/woo')}
+                            className="text-xs text-teal-600 border border-teal-200 px-2 py-1 rounded-lg hover:bg-teal-50">우국상</button>
                         )}
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
@@ -1684,6 +1697,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                               onClick={() => openFranchiseDetail(inst.franchise_application_id!)}
                               className="text-xs text-purple-600 border border-purple-200 px-2.5 py-1 rounded-lg hover:bg-purple-50">
                               가맹접수 원본 보기
+                            </button>
+                          ) : inst.woo_customer_id ? (
+                            <button
+                              onClick={() => router.push('/woo')}
+                              className="text-xs text-teal-600 border border-teal-200 px-2.5 py-1 rounded-lg hover:bg-teal-50">
+                              우국상 원본 보기
                             </button>
                           ) : <span />}
                           <div className="flex items-center gap-2">

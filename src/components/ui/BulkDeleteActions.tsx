@@ -1,3 +1,4 @@
+import { ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
 
 interface Props {
@@ -5,12 +6,14 @@ interface Props {
   deleting: boolean
   onDelete: () => void
   onCancel: () => void
+  children?: ReactNode
 }
 
-export default function BulkDeleteActions({ count, deleting, onDelete, onCancel }: Props) {
+export default function BulkDeleteActions({ count, deleting, onDelete, onCancel, children }: Props) {
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
       <span className="text-sm font-semibold text-blue-700">{count}건 선택됨</span>
+      {children}
       <button
         onClick={onDelete}
         disabled={deleting}

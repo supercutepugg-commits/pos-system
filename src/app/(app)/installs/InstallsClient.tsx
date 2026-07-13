@@ -397,9 +397,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function fetchInstalls() {
     setLoading(true)
-    const { data } = await supabase
+    let query = supabase
       .from('installations')
       .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
+    if (mineOnly) query = query.neq('delivery_type', 'delivery')
+    const { data } = await query
       .order('sort_order', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(FETCH_LIMIT)
@@ -891,6 +893,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
     return installs.filter(i => {
+      if (mineOnly && (i as any).delivery_type === 'delivery') return false
       if (deliveryTab === 'install' && (i as any).delivery_type !== 'install') return false
       if (deliveryTab === 'delivery' && (i as any).delivery_type !== 'delivery') return false
       if (deliveryTab === 'as' && (i as any).delivery_type !== 'as') return false
@@ -907,7 +910,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       )) return false
       return true
     })
-  }, [installs, search, statusFilter, techFilter, showRejected, showCompleted, deliveryTab, dateFrom, dateTo])
+  }, [installs, search, statusFilter, techFilter, showRejected, showCompleted, deliveryTab, dateFrom, dateTo, mineOnly])
 
   const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected && !showCompleted
 
@@ -1180,7 +1183,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {}
       <div className="flex items-center justify-between">
         <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-          {([['all', '전체'], ['install', '설치'], ['delivery', '택배발송'], ['as', 'AS']] as const).map(([tab, label]) => (
+          {(([['all', '전체'], ['install', '설치'], ['delivery', '택배발송'], ['as', 'AS']] as const).filter(([tab]) => !(mineOnly && tab === 'delivery'))).map(([tab, label]) => (
             <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${deliveryTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
               {label}

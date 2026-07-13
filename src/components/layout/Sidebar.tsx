@@ -70,6 +70,10 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/users', label: '직원 관리', icon: Users },
 ]
 
+const MASTER_NAV: NavItem[] = [
+  { href: '/admin/logs', label: '직원 활동 로그', icon: ClipboardList },
+]
+
 const BOTTOM_NAV: NavItem[] = [
   { href: '/paper-orders', label: '용지 요청', icon: FileText },
 ]
@@ -123,6 +127,7 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
     ...COMMON_NAV.map(n => n.href),
     ...ROLE_FOLDERS.flatMap(f => f.items.map(i => i.href)),
     ...ADMIN_NAV.map(n => n.href),
+    ...MASTER_NAV.map(n => n.href),
     ...BOTTOM_NAV.map(n => n.href),
   ]
 
@@ -236,6 +241,12 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         {(profile.role === 'admin' || profile.role === 'master') && (
           <>
             {ADMIN_NAV.map(item => <NavLink key={item.href} item={item} />)}
+          </>
+        )}
+
+        {profile.role === 'master' && (
+          <>
+            {MASTER_NAV.map(item => <NavLink key={item.href} item={item} />)}
           </>
         )}
       </nav>

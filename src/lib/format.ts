@@ -27,5 +27,5 @@ export function formatDateText(raw: string) {
 export function thumbUrl(url: string, size: number) {
   if (!url.includes('/storage/v1/object/public/')) return url
   return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-    + `?width=${size}&height=${size}&resize=cover&quality=60`
+    + `?width=${size}&height=${size}&resize=cover&quality=40`
 }

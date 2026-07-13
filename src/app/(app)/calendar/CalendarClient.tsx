@@ -55,6 +55,7 @@ interface CalendarManualEvent {
 interface CalendarEvent {
   date: string
   label: string
+  category: string
   color: string
   href: string
   businessName: string
@@ -80,9 +81,17 @@ const FRANCHISE_EVENT_TYPES = [
   { key: 'install_date', label: '설치예정일', color: 'bg-teal-500' },
 ] as const
 
-const WOO_EVENT_LEGEND = [
-  { key: 'open_date',    label: '우국상 오픈',       color: 'bg-cyan-500' },
-  { key: 'install_date', label: '우국상 설치(월요일)', color: 'bg-amber-500' },
+const LEGEND_ITEMS = [
+  { category: '일정',          color: 'bg-indigo-500' },
+  { category: '설치',          color: 'bg-emerald-500' },
+  { category: '오픈',          color: 'bg-blue-500' },
+  { category: '카드신청',       color: 'bg-orange-500' },
+  { category: '오픈예정일',     color: 'bg-sky-500' },
+  { category: '설치예정일',     color: 'bg-teal-500' },
+  { category: '설치 관리',      color: 'bg-fuchsia-500' },
+  { category: '우국상 오픈',    color: 'bg-cyan-500' },
+  { category: '우국상 설치(월요일)', color: 'bg-amber-500' },
+  { category: '메모',          color: 'bg-violet-500' },
 ] as const
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -122,7 +131,12 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
   const [newTitle, setNewTitle] = useState('')
   const [newMemo, setNewMemo] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const toast = useToast()
+
+  const toggleCategory = useCallback((category: string) => {
+    setSelectedCategory(prev => prev === category ? null : category)
+  }, [])
 
   const handleAddEvent = useCallback(async () => {
     if (!selectedDate || !newTitle.trim()) return
@@ -159,6 +173,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         map[date].push({
           date,
           label: et.label,
+          category: et.label,
           color: et.color,
           href: `/tickets/${ticket.id}`,
           businessName: ticket.merchant?.business_name ?? ticket.title,
@@ -179,6 +194,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         map[date].push({
           date,
           label: et.label,
+          category: et.label,
           color: et.color,
           href: `/franchise?highlight=${row.id}`,
           businessName: row.business_name || '상호명 미입력',
@@ -194,6 +210,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       map[date].push({
         date,
         label: '설치',
+        category: '설치 관리',
         color: 'bg-fuchsia-500',
         href: `/installs?id=${row.id}`,
         businessName: row.customer_name || '고객명 미입력',
@@ -211,6 +228,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       map[openDate].push({
         date: openDate,
         label: '오픈',
+        category: '우국상 오픈',
         color: 'bg-cyan-500',
         href: '/woo',
         businessName,
@@ -222,6 +240,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       map[installDate].push({
         date: installDate,
         label: '설치',
+        category: '우국상 설치(월요일)',
         color: 'bg-amber-500',
         href: '/woo',
         businessName,
@@ -237,6 +256,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       map[date].push({
         date,
         label: '메모',
+        category: '메모',
         color: 'bg-violet-500',
         href: '',
         businessName: ev.title,
@@ -246,6 +266,16 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     }
     return map
   }, [tickets, franchiseRows, wooRows, installRows, localManualEvents])
+
+  const visibleEventMap = useMemo(() => {
+    if (!selectedCategory) return eventMap
+    const map: Record<string, CalendarEvent[]> = {}
+    for (const [date, events] of Object.entries(eventMap)) {
+      const filtered = events.filter(ev => ev.category === selectedCategory)
+      if (filtered.length) map[date] = filtered
+    }
+    return map
+  }, [eventMap, selectedCategory])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -278,9 +308,9 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   }
 
-  const selectedEvents = selectedDate ? (eventMap[selectedDate] ?? []) : []
+  const selectedEvents = selectedDate ? (visibleEventMap[selectedDate] ?? []) : []
 
-  const monthTotal = Object.entries(eventMap).filter(([d]) =>
+  const monthTotal = Object.entries(visibleEventMap).filter(([d]) =>
     d.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)
   ).reduce((s, [, evs]) => s + evs.length, 0)
 
@@ -306,6 +336,27 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         </div>
 
         {}
+        <div className="flex flex-wrap gap-3 mb-3">
+          {LEGEND_ITEMS.map(li => (
+            <button
+              key={li.category}
+              type="button"
+              onClick={() => toggleCategory(li.category)}
+              className={`flex items-center gap-1.5 text-[13px] px-1.5 py-1 rounded-md cursor-pointer transition-all hover:bg-slate-100 ${
+                selectedCategory === li.category
+                  ? 'bg-slate-100 text-slate-800 font-semibold'
+                  : selectedCategory
+                    ? 'text-slate-400 opacity-40 hover:opacity-70'
+                    : 'text-slate-500'
+              }`}
+            >
+              <span className={`w-3 h-3 rounded-sm ${li.color}`} />
+              {li.category}
+            </button>
+          ))}
+        </div>
+
+        {}
         <div className="grid grid-cols-7 mb-1">
           {DAYS.map((d, i) => (
             <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-500'}`}>
@@ -321,7 +372,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
               <div key={`empty-${idx}`} className="border-b border-r border-slate-200 bg-slate-50/50 min-h-[90px]" />
             )
             const ds = dateStr(day)
-            const events = eventMap[ds] ?? []
+            const events = visibleEventMap[ds] ?? []
             const isToday = ds === todayStr
             const isSelected = ds === selectedDate
             const dow = (firstDay + day - 1) % 7
@@ -356,16 +407,6 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
               </div>
             )
           })}
-        </div>
-
-        {}
-        <div className="flex flex-wrap gap-3 mt-3">
-          {[...EVENT_TYPES, ...FRANCHISE_EVENT_TYPES, { key: 'install_management', label: '설치 관리', color: 'bg-fuchsia-500' }, ...WOO_EVENT_LEGEND, { key: 'manual', label: '메모', color: 'bg-violet-500' }].map(et => (
-            <div key={et.key + et.label} className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className={`w-2.5 h-2.5 rounded-sm ${et.color}`} />
-              {et.label}
-            </div>
-          ))}
         </div>
       </div>
 

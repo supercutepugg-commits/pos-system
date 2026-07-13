@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, FileText, Wrench, MessageCircle, Bell } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, FileText, Wrench, MessageCircle, Bell, LogOut } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
+import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/types'
 
 const NAV = [
@@ -27,7 +28,15 @@ interface Props {
 
 export default function MobileNav({ role, unreadCount }: Props) {
   const pathname = usePathname()
+  const router = useRouter()
   const items = role === 'tech' ? TECH_NAV : NAV
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex md:hidden z-50">
@@ -53,8 +62,15 @@ export default function MobileNav({ role, unreadCount }: Props) {
           </Link>
         )
       })}
-      <div className="flex items-center px-2">
+      <div className="flex items-center gap-1 px-2">
         <ThemeToggle compact />
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center py-2.5 px-1 text-xs gap-1 text-slate-500"
+          aria-label="로그아웃"
+        >
+          <LogOut size={20} />
+        </button>
       </div>
     </nav>
   )

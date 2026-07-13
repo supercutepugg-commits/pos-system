@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef, memo, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatPhone } from '@/lib/format'
+import { formatPhone, thumbUrl } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -40,11 +40,6 @@ function statusLabel(status: string, deliveryType?: string) {
   if (status === 'in_transit' && deliveryType === 'delivery') return '택배발송'
   if (status === 'completed' && deliveryType === 'as') return 'AS완료'
   return STATUS_LABELS[status] ?? status
-}
-function thumbUrl(url: string, size: number) {
-  if (!url.includes('/storage/v1/object/public/')) return url
-  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-    + `?width=${size}&height=${size}&resize=cover&quality=60`
 }
 const STATUS_COLORS: Record<string, string> = {
   received: 'bg-gray-100 text-gray-600 border-gray-200',

@@ -23,3 +23,9 @@ export function formatDateText(raw: string) {
   if (len < 7) return `${digits.slice(0, 4)}-${digits.slice(4)}`
   return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
 }
+
+export function thumbUrl(url: string, size: number) {
+  if (!url.includes('/storage/v1/object/public/')) return url
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+    + `?width=${size}&height=${size}&resize=cover&quality=60`
+}

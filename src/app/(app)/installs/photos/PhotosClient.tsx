@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import type { Profile } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+import { thumbUrl } from '@/lib/format'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 
@@ -155,7 +156,7 @@ export default function PhotosClient({ installs: initialInstalls }: Props) {
               <div className="grid grid-cols-3 gap-2">
                 {inst.completion_photo_urls.map((url, idx) => (
                   <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                    <img src={url} alt={inst.customer_name} className="w-full aspect-square object-cover rounded-lg border border-slate-200" />
+                    <img src={thumbUrl(url, 240)} alt={inst.customer_name} className="w-full aspect-square object-cover rounded-lg border border-slate-200" />
                   </a>
                 ))}
               </div>

@@ -39,7 +39,7 @@ export default async function UsersPage() {
 
       <CreateUserForm />
 
-      <UsersList users={usersWithEmail} currentUserId={user.id} />
+      <UsersList users={usersWithEmail} currentUserId={user.id} currentUserRole={profile.role} />
     </div>
   )
 }

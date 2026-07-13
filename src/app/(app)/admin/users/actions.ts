@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin } from '@/lib/auth/require-admin'
+import { requireAdmin, requireMaster } from '@/lib/auth/require-admin'
 
 const ROLES = ['master', 'admin', 'sales', 'cs', 'tech']
 
@@ -92,6 +92,25 @@ export async function setUserRole(userId: string, role: string) {
 
   const supabase = createAdminClient()
   const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
+export async function setUserName(userId: string, name: string) {
+  const authError = await requireMaster()
+  if (authError) return { error: authError }
+
+  const trimmed = name.trim()
+  if (!trimmed) return { error: '이름을 입력해주세요.' }
+
+  const supabase = createAdminClient()
+
+  const { data: existing } = await supabase.from('profiles').select('id').eq('name', trimmed).neq('id', userId).maybeSingle()
+  if (existing) return { error: `이미 "${trimmed}" 이름으로 등록된 계정이 있습니다.` }
+
+  const { error } = await supabase.from('profiles').update({ name: trimmed }).eq('id', userId)
   if (error) return { error: error.message }
 
   revalidatePath('/admin/users')

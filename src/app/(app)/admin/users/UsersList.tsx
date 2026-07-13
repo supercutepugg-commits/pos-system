@@ -6,6 +6,7 @@ import { ROLE_LABEL_KR } from './constants'
 import DeletePermissionToggle from './DeletePermissionToggle'
 import DeleteUserButton from './DeleteUserButton'
 import RoleSelect from './RoleSelect'
+import NameEdit from './NameEdit'
 
 const ROLE_COLOR: Record<string, string> = {
   master: 'bg-red-100 text-red-700',
@@ -31,9 +32,10 @@ interface UserRow {
 interface Props {
   users: UserRow[]
   currentUserId: string
+  currentUserRole: string
 }
 
-export default function UsersList({ users, currentUserId }: Props) {
+export default function UsersList({ users, currentUserId, currentUserRole }: Props) {
   const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
@@ -82,10 +84,14 @@ export default function UsersList({ users, currentUserId }: Props) {
                       {u.name[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900 text-sm">
-                        {u.name}
-                        {u.email && <span className="font-normal text-slate-400 ml-1.5 truncate" title={u.email}>{u.email}</span>}
-                      </p>
+                      <div className="flex items-center flex-wrap">
+                        {currentUserRole === 'master' ? (
+                          <NameEdit userId={u.id} initialName={u.name} />
+                        ) : (
+                          <span className="font-semibold text-slate-900 text-sm">{u.name}</span>
+                        )}
+                        {u.email && <span className="font-normal text-slate-400 text-sm ml-1.5 truncate" title={u.email}>{u.email}</span>}
+                      </div>
                       {u.phone && <p className="text-xs text-slate-400 mt-0.5">{u.phone}</p>}
                     </div>
                     {u.id !== currentUserId ? (

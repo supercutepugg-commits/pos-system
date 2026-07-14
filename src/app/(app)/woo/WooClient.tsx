@@ -37,7 +37,7 @@ function cardApplyStatusColor(value: string) {
   return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
-const DATE_FIELDS: (keyof WooCustomer)[] = ['received_date', 'open_date', 'internet_open_date', 'card_apply_date']
+const DATE_FIELDS: (keyof WooCustomer)[] = ['received_date', 'open_date', 'internet_open_date', 'card_apply_date', 'pos_install_date']
 
 const AUTO_FORMAT: Partial<Record<keyof WooCustomer, (raw: string) => string>> = {
   phone: formatPhone,
@@ -46,6 +46,7 @@ const AUTO_FORMAT: Partial<Record<keyof WooCustomer, (raw: string) => string>> =
 
 const EMPTY_FORM = {
   received_date: '',
+  manager: '',
   category: '',
   business_name: '',
   owner_name: '',
@@ -57,9 +58,13 @@ const EMPTY_FORM = {
   card_apply_date: '',
   card_apply_status: '',
   easy_payment: '',
+  pos_install_date: '',
+  install_schedule_note: '',
   setting: '',
   open_date: '',
+  van_company: '',
   pos_program: '',
+  product: '',
   address: '',
   memo: '',
 }
@@ -78,16 +83,31 @@ const MAIN_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
 ]
 
 const DETAIL_COLUMNS: { key: keyof WooCustomer; label: string }[] = [
+  { key: 'category', label: '분류' },
+  { key: 'received_date', label: '접수날짜' },
+  { key: 'manager', label: '담당자' },
+  { key: 'open_date', label: '오픈일' },
+  { key: 'business_name', label: '상호명' },
+  { key: 'owner_name', label: '대표자명' },
   { key: 'business_number', label: '사업자번호' },
+  { key: 'phone', label: '연락처' },
   { key: 'internet_type', label: '인터넷' },
+  { key: 'internet_note', label: '인터넷 비고' },
   { key: 'internet_open_date', label: '인터넷 개통일자' },
   { key: 'card_apply_date', label: '카드가맹 접수일자' },
+  { key: 'card_apply_status', label: '가맹여부' },
+  { key: 'easy_payment', label: '간편결제' },
+  { key: 'pos_install_date', label: '포스설치일' },
+  { key: 'install_schedule_note', label: '설치일정' },
+  { key: 'setting', label: '세팅' },
+  { key: 'van_company', label: 'VAN' },
   { key: 'pos_program', label: '포스프로그램' },
+  { key: 'product', label: '상품' },
   { key: 'address', label: '주소' },
   { key: 'memo', label: '비고' },
 ]
 
-const COLUMNS = [...MAIN_COLUMNS, ...DETAIL_COLUMNS]
+const COLUMNS = DETAIL_COLUMNS
 
 const DEFAULT_WIDTHS: Partial<Record<keyof WooCustomer, number>> = {
   category: 90,
@@ -664,8 +684,6 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
                       <td key={col.key} className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
                         {options ? (
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
-                        ) : col.key === 'business_name' ? (
-                          <span className="font-medium text-slate-900" title={row.business_name || undefined}>{row.business_name || '-'}</span>
                         ) : DATE_FIELDS.includes(col.key) ? (
                           <DateField row={row} field={col.key} onSave={saveField} />
                         ) : (
@@ -681,7 +699,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
                       <div className="grid grid-cols-4 gap-4">
                         {DETAIL_COLUMNS.map(col => {
                           const options = SELECT_OPTIONS[col.key]
-                          const wide = col.key === 'address' || col.key === 'memo'
+                          const wide = ['internet_note', 'install_schedule_note', 'address', 'memo'].includes(col.key)
                           return (
                             <div key={col.key} className={wide ? 'col-span-4' : ''}>
                               <label className="text-xs font-semibold text-slate-400">

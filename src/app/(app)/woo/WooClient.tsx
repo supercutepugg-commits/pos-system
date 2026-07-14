@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, ChevronDown, ChevronUp, Calendar, GripVertical } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
@@ -318,7 +318,6 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
   const [categoryFilter, setCategoryFilter] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
-  const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [localLinkedInstalls, setLocalLinkedInstalls] = useState<Record<string, { id: string; status: string }>>(linkedInstalls)
   const [transferringId, setTransferringId] = useState<string | null>(null)
@@ -374,29 +373,6 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
   }, [page, totalPages])
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const canReorder = !search.trim() && !categoryFilter
-
-  const reorderRows = useCallback(async (dragId: string, dropId: string) => {
-    if (dragId === dropId) return
-    const previous = localRows
-    const from = previous.findIndex(r => r.id === dragId)
-    const to = previous.findIndex(r => r.id === dropId)
-    if (from === -1 || to === -1) return
-    const next = [...previous]
-    const [moved] = next.splice(from, 1)
-    next.splice(to, 0, moved)
-    setLocalRows(next)
-    const n = next.length
-    const supabase = createClient()
-    const results = await Promise.all(next.map((r, i) =>
-      supabase.from('woo_customers').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
-    ))
-    const failed = results.some(r => r.error)
-    if (failed) {
-      setLocalRows(previous)
-      toast.error('순서 저장에 실패해 이전 순서로 되돌렸습니다.')
-    }
-  }, [localRows, toast])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
 
@@ -438,7 +414,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
     setSubmitting(true)
     const supabase = createClient()
     const payload = Object.fromEntries(
-      Object.entries(form).map(([k, v]) => [k, v || null])
+      Object.entries(form).map(([k, v]) => [k, k === 'internet_note' ? v : v || null])
     )
     const { error } = await supabase.from('woo_customers').insert(payload)
     setSubmitting(false)
@@ -546,7 +522,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
     const previousValue = row[field]
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value } : r))
     const supabase = createClient()
-    const { error } = await supabase.from('woo_customers').update({ [field]: value || null }).eq('id', row.id)
+    const { error } = await supabase.from('woo_customers').update({ [field]: field === 'internet_note' ? value : value || null }).eq('id', row.id)
     if (error) {
       setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: previousValue } : r))
       toast.error('수정 실패: ' + error.message)
@@ -628,7 +604,6 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
         <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: 24 }} />
             <col style={{ width: 32 }} />
             <col style={{ width: 24 }} />
             {MAIN_COLUMNS.map(col => (
@@ -637,7 +612,6 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
           </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
-              <th className="px-1 py-3 border-b border-slate-200" />
               <th className="px-3 py-3 border-b border-slate-200">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" />
               </th>
@@ -657,21 +631,9 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
             {pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
-                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
                   onClick={() => toggleExpand(row.id)}
-                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
-                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
-                  <td
-                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
-                    onClick={e => e.stopPropagation()}
-                    draggable={canReorder}
-                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
-                    onDragEnd={() => setRowDragId(null)}
-                    title={canReorder ? '드래그해서 순서 변경' : '검색/필터 중에는 순서를 변경할 수 없습니다'}
-                  >
-                    <GripVertical size={14} />
-                  </td>
                   <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
@@ -695,7 +657,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={MAIN_COLUMNS.length + 3} className="px-6 py-4">
+                    <td colSpan={MAIN_COLUMNS.length + 2} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4">
                         {DETAIL_COLUMNS.map(col => {
                           const options = SELECT_OPTIONS[col.key]
@@ -745,7 +707,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={MAIN_COLUMNS.length + 3} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr><td colSpan={MAIN_COLUMNS.length + 2} className="text-center text-slate-400 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

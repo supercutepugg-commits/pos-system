@@ -10,7 +10,6 @@ export default async function WooPage() {
   const { data: rows, error } = await supabase
     .from('woo_customers')
     .select('*')
-    .order('sort_order', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
 
   const linkedInstalls: Record<string, { id: string; status: string }> = {}

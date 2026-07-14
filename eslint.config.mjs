@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Copied build artifact from node_modules, see scripts/copy-pdf-worker.mjs
+    "public/pdf.worker.min.mjs",
   ]),
 ]);
 

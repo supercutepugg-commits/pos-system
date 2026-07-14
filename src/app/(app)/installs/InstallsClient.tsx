@@ -1357,7 +1357,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       <div className="flex gap-1 mt-2">
                         {inst.completion_photo_urls.map((url, idx) => (
                           <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                            <img src={thumbUrl(url, 40)} alt="설치완료사진" className="w-10 h-10 object-cover rounded border border-slate-200" />
+                            <img
+                              src={thumbUrl(url, 40)}
+                              alt="설치완료사진"
+                              loading="lazy"
+                              decoding="async"
+                              className="w-10 h-10 object-cover rounded border border-slate-200"
+                            />
                           </a>
                         ))}
                       </div>
@@ -1554,15 +1560,6 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           {inst.notes || (canEdit ? <span className="text-slate-500">비고 추가...</span> : '-')}
                         </span>
                       )}
-                      {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
-                        <div className="flex gap-1 mt-1">
-                          {inst.completion_photo_urls.map((url, idx) => (
-                            <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                              <img src={thumbUrl(url, 32)} alt="설치완료사진" className="w-8 h-8 object-cover rounded border border-slate-200" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap font-mono">
                       {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}
@@ -1687,7 +1684,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                               <div className="flex gap-2 flex-wrap">
                                 {inst.completion_photo_urls.map((url, idx) => (
                                   <a key={url} href={url} target="_blank" rel="noopener noreferrer" download={`${inst.customer_name} ${idx + 1}.jpg`}>
-                                    <img src={thumbUrl(url, 80)} alt="설치완료사진" className="w-20 h-20 object-cover rounded border border-slate-200" />
+                                    <img
+                                      src={thumbUrl(url, 80)}
+                                      alt="설치완료사진"
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="w-20 h-20 object-cover rounded border border-slate-200"
+                                    />
                                   </a>
                                 ))}
                               </div>

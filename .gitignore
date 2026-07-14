@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 deploy_log*.txt
 deploy_*.txt
+
+# pdfjs-dist worker (copied from node_modules on install/build, see scripts/copy-pdf-worker.mjs)
+/public/pdf.worker.min.mjs

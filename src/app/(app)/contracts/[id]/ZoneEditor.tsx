@@ -1,23 +1,23 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Save, ArrowLeft, Send } from 'lucide-react'
+import { Trash2, Save, ArrowLeft, Send, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { NotificationHistory } from '@/components/ui/NotificationHistory'
 import { useToast } from '@/components/ui/Toast'
+import { usePdfPageCanvas } from '@/hooks/usePdfPageCanvas'
+import { pixelToRatio, ratioToPixel, isRatioRect, type RatioRect } from '@/lib/pdf/zoneCoords'
 
 const MIN_ZONE_WIDTH = 20
 const MIN_ZONE_HEIGHT = 10
+const EDITOR_WIDTH = 800
 
-interface Zone {
+interface Zone extends RatioRect {
   id: string
   label: string
-  x: number
-  y: number
-  width: number
-  height: number
+  required: boolean
 }
 
 interface Contract {
@@ -28,7 +28,7 @@ interface Contract {
   signer_phone?: string
   status: string
   sign_token: string
-  signature_zones: Zone[]
+  signature_zones: unknown[]
 }
 
 interface Props {
@@ -36,33 +36,54 @@ interface Props {
 }
 
 export default function ZoneEditor({ contract }: Props) {
-  const [zones, setZones] = useState<Zone[]>(contract.signature_zones ?? [])
+  const initialZones = useMemo(
+    () => (contract.signature_zones ?? [])
+      .filter(isRatioRect)
+      .map(z => ({ ...z, required: (z as Partial<Zone>).required ?? true })) as Zone[],
+    [contract.signature_zones]
+  )
+  const [zones, setZones] = useState<Zone[]>(initialZones)
   const [drawing, setDrawing] = useState(false)
   const [startPos, setStartPos] = useState({ x: 0, y: 0 })
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   const [label, setLabel] = useState('')
+  const [requiredInput, setRequiredInput] = useState(false)
   const [showLabelInput, setShowLabelInput] = useState(false)
-  const [pendingZone, setPendingZone] = useState<Omit<Zone, 'id' | 'label'> | null>(null)
+  const [editingZone, setEditingZone] = useState<Zone | null>(null)
+  const [editLabel, setEditLabel] = useState('')
+  const [editRequired, setEditRequired] = useState(false)
+  const [pendingZone, setPendingZone] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [sending, setSending] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
   const toast = useToast()
 
+  const { canvasRef, renderedWidth, renderedHeight, error: pdfError } = usePdfPageCanvas(contract.pdf_url, containerRef)
+
+  useEffect(() => {
+    const raw = contract.signature_zones ?? []
+    if (raw.length > 0 && initialZones.length < raw.length) {
+      toast.warning('이전 버전 형식의 서명 위치가 있어 초기화되었습니다. 다시 지정해주세요.')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
-      if (JSON.stringify(zones) !== JSON.stringify(contract.signature_zones ?? [])) {
+      if (JSON.stringify(zones) !== JSON.stringify(initialZones)) {
         e.preventDefault()
         e.returnValue = ''
       }
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [zones, contract.signature_zones])
+  }, [zones, initialZones])
 
-  function getRelativePos(e: React.MouseEvent) {
+  function getRelativePos(e: React.PointerEvent) {
     const rect = overlayRef.current!.getBoundingClientRect()
     return {
       x: e.clientX - rect.left,
@@ -70,15 +91,16 @@ export default function ZoneEditor({ contract }: Props) {
     }
   }
 
-  function handleMouseDown(e: React.MouseEvent) {
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (showLabelInput) return
+    overlayRef.current?.setPointerCapture(e.pointerId)
     const pos = getRelativePos(e)
     setStartPos(pos)
     setDrawing(true)
     setCurrentRect(null)
   }
 
-  function handleMouseMove(e: React.MouseEvent) {
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!drawing) return
     const pos = getRelativePos(e)
     setCurrentRect({
@@ -89,7 +111,8 @@ export default function ZoneEditor({ contract }: Props) {
     })
   }
 
-  function handleMouseUp(e: React.MouseEvent) {
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    overlayRef.current?.releasePointerCapture(e.pointerId)
     if (!drawing) return
     setDrawing(false)
     if (!currentRect || currentRect.width < MIN_ZONE_WIDTH || currentRect.height < MIN_ZONE_HEIGHT) {
@@ -102,13 +125,16 @@ export default function ZoneEditor({ contract }: Props) {
   }
 
   function confirmZone() {
-    if (!pendingZone) return
+    if (!pendingZone || !renderedWidth || !renderedHeight) return
+    const ratio = pixelToRatio(pendingZone, renderedWidth, renderedHeight)
     setZones(prev => [...prev, {
       id: `zone-${Date.now()}`,
       label: label || `서명 ${zones.length + 1}`,
-      ...pendingZone,
+      required: requiredInput,
+      ...ratio,
     }])
     setLabel('')
+    setRequiredInput(false)
     setShowLabelInput(false)
     setPendingZone(null)
     setCurrentRect(null)
@@ -119,6 +145,23 @@ export default function ZoneEditor({ contract }: Props) {
     setPendingZone(null)
     setCurrentRect(null)
     setLabel('')
+    setRequiredInput(false)
+  }
+
+  function openEditZone(zone: Zone) {
+    setEditingZone(zone)
+    setEditLabel(zone.label)
+    setEditRequired(zone.required)
+  }
+
+  function confirmEditZone() {
+    if (!editingZone) return
+    setZones(prev => prev.map(z => z.id === editingZone.id ? { ...z, label: editLabel || z.label, required: editRequired } : z))
+    setEditingZone(null)
+  }
+
+  function cancelEditZone() {
+    setEditingZone(null)
   }
 
   async function handleSave() {
@@ -198,7 +241,7 @@ export default function ZoneEditor({ contract }: Props) {
 
       <div className="flex flex-1 overflow-hidden">
         {}
-        <div className="w-56 bg-white border-r border-slate-200 p-4 flex-shrink-0 overflow-y-auto">
+        <div className="w-80 bg-white border-r border-slate-200 p-4 flex-shrink-0 overflow-y-auto">
           <p className="text-xs font-semibold text-slate-500 mb-3">지정된 서명 위치</p>
           {zones.length === 0 ? (
             <p className="text-xs text-slate-400">PDF 위에서 드래그해서 서명 위치를 추가하세요</p>
@@ -206,11 +249,23 @@ export default function ZoneEditor({ contract }: Props) {
             <ul className="space-y-2">
               {zones.map((z, i) => (
                 <li key={z.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                  <span className="text-xs text-slate-700 font-medium">{z.label}</span>
-                  <button onClick={() => setZones(prev => prev.filter(zone => zone.id !== z.id))}
-                    className="text-slate-300 hover:text-red-400">
-                    <Trash2 size={13} />
-                  </button>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                    <span className="text-xs text-slate-700 font-medium truncate">{z.label}</span>
+                    <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded ${z.required ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-400'}`}>
+                      {z.required ? '필수' : '선택'}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => openEditZone(z)}
+                      className="text-slate-300 hover:text-blue-500">
+                      <Pencil size={13} />
+                    </button>
+                    <button onClick={() => setZones(prev => prev.filter(zone => zone.id !== z.id))}
+                      className="text-slate-300 hover:text-red-400">
+                      <Trash2 size={13} />
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -226,25 +281,32 @@ export default function ZoneEditor({ contract }: Props) {
 
         {}
         <div className="flex-1 overflow-auto p-4">
-          <div className="relative inline-block shadow-lg bg-white">
-            <iframe src={contract.pdf_url} className="block" style={{ width: 800, height: '90vh', minHeight: 600 }} />
+          <div ref={containerRef} className="relative shadow-lg bg-white" style={{ width: EDITOR_WIDTH }}>
+            <canvas ref={canvasRef} className="block" />
+            {pdfError && (
+              <p className="p-4 text-sm text-red-500">PDF를 불러오지 못했습니다: {pdfError}</p>
+            )}
 
             {}
             <div
               ref={overlayRef}
               className="absolute inset-0"
-              style={{ cursor: drawing ? 'crosshair' : 'crosshair' }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
+              style={{ cursor: 'crosshair', touchAction: 'none' }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
             >
               {}
-              {zones.map(z => (
-                <div key={z.id} style={{ position: 'absolute', left: z.x, top: z.y, width: z.width, height: z.height }}
-                  className="border-2 border-blue-500 bg-blue-50/40 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-blue-700 bg-white px-1 rounded shadow-sm">{z.label}</span>
-                </div>
-              ))}
+              {renderedWidth && renderedHeight && zones.map((z, i) => {
+                const px = ratioToPixel(z, renderedWidth, renderedHeight)
+                return (
+                  <div key={z.id} style={{ position: 'absolute', left: px.x, top: px.y, width: px.width, height: px.height }}
+                    className="border-2 border-blue-500 bg-blue-50/40 flex items-center justify-center">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center shadow-sm">{i + 1}</span>
+                  </div>
+                )
+              })}
 
               {}
               {currentRect && (
@@ -267,11 +329,39 @@ export default function ZoneEditor({ contract }: Props) {
               onChange={e => setLabel(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') confirmZone(); if (e.key === 'Escape') cancelZone() }}
               placeholder={`서명 ${zones.length + 1}`}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
             />
+            <label className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+              <input type="checkbox" checked={requiredInput} onChange={e => setRequiredInput(e.target.checked)} />
+              필수 항목
+            </label>
             <div className="flex gap-2">
               <button onClick={cancelZone} className="flex-1 py-2 border border-slate-200 rounded-xl text-sm text-slate-600">취소</button>
               <button onClick={confirmZone} className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold">추가</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      {editingZone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80">
+            <p className="font-bold text-slate-900 mb-3">서명 위치 수정</p>
+            <input
+              autoFocus
+              value={editLabel}
+              onChange={e => setEditLabel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') confirmEditZone(); if (e.key === 'Escape') cancelEditZone() }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+            />
+            <label className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+              <input type="checkbox" checked={editRequired} onChange={e => setEditRequired(e.target.checked)} />
+              필수 항목
+            </label>
+            <div className="flex gap-2">
+              <button onClick={cancelEditZone} className="flex-1 py-2 border border-slate-200 rounded-xl text-sm text-slate-600">취소</button>
+              <button onClick={confirmEditZone} className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold">저장</button>
             </div>
           </div>
         </div>

@@ -2,22 +2,20 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { DndContext, useDraggable, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { usePdfPageCanvas } from '@/hooks/usePdfPageCanvas'
+import { pixelToRatio, ratioToPixel, isRatioRect, type RatioRect, type PixelRect } from '@/lib/pdf/zoneCoords'
 
-interface SignatureItem {
+interface SignatureItem extends RatioRect {
   id: string
   type: 'signature' | 'stamp'
   dataUrl: string
-  x: number; y: number; width: number; height: number
   pageNumber: number
 }
 
-interface Zone {
+interface Zone extends RatioRect {
   id: string
   label: string
-  x: number
-  y: number
-  width: number
-  height: number
+  required: boolean
 }
 
 interface Contract {
@@ -28,7 +26,7 @@ interface Contract {
   status: string
   sign_token: string
   token_expires_at: string
-  signature_zones?: Zone[]
+  signature_zones?: unknown[]
   signer_phone?: string
 }
 
@@ -36,14 +34,14 @@ interface Props {
   contract: Contract
 }
 
-function DraggableItem({ item, onResize, onRemove }: { item: SignatureItem; onResize: (id: string, w: number, h: number) => void; onRemove: (id: string) => void }) {
+function DraggableItem({ item, px, onResize, onRemove }: { item: SignatureItem; px: PixelRect; onResize: (id: string, w: number, h: number) => void; onRemove: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: item.id })
   const style = {
     position: 'absolute' as const,
-    left: item.x + (transform?.x ?? 0),
-    top: item.y + (transform?.y ?? 0),
-    width: item.width,
-    height: item.height,
+    left: px.x + (transform?.x ?? 0),
+    top: px.y + (transform?.y ?? 0),
+    width: px.width,
+    height: px.height,
     userSelect: 'none' as const,
     touchAction: 'none' as const,
   }
@@ -51,7 +49,7 @@ function DraggableItem({ item, onResize, onRemove }: { item: SignatureItem; onRe
   function handleResizePointerDown(e: React.PointerEvent) {
     e.stopPropagation(); e.preventDefault()
     const startX = e.clientX, startY = e.clientY
-    const startW = item.width, startH = item.height
+    const startW = px.width, startH = px.height
     function onMove(ev: PointerEvent) { onResize(item.id, Math.max(40, startW + ev.clientX - startX), Math.max(20, startH + ev.clientY - startY)) }
     function onUp() { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
     window.addEventListener('pointermove', onMove)
@@ -87,24 +85,23 @@ function SignaturePadModal({ onComplete, onClose }: { onComplete: (dataUrl: stri
     ctx.lineJoin = 'round'
   }, [])
 
-  function getPos(e: React.MouseEvent | React.TouchEvent) {
+  function getPos(e: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-    return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) }
+    return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) }
   }
 
-  function startDraw(e: React.MouseEvent | React.TouchEvent) {
+  function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     e.preventDefault()
     const canvas = canvasRef.current!
+    canvas.setPointerCapture(e.pointerId)
     const ctx = canvas.getContext('2d')!
     const pos = getPos(e)
     ctx.beginPath(); ctx.moveTo(pos.x, pos.y)
     setDrawing(true)
   }
 
-  function draw(e: React.MouseEvent | React.TouchEvent) {
+  function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!drawing) return
     e.preventDefault()
     const canvas = canvasRef.current!
@@ -114,7 +111,10 @@ function SignaturePadModal({ onComplete, onClose }: { onComplete: (dataUrl: stri
     setHasStroke(true)
   }
 
-  function endDraw() { setDrawing(false) }
+  function handlePointerUp(e: React.PointerEvent<HTMLCanvasElement>) {
+    canvasRef.current?.releasePointerCapture(e.pointerId)
+    setDrawing(false)
+  }
 
   function clear() {
     const canvas = canvasRef.current!
@@ -137,8 +137,7 @@ function SignaturePadModal({ onComplete, onClose }: { onComplete: (dataUrl: stri
         <div className="p-4">
           <canvas ref={canvasRef} width={460} height={200}
             className="w-full border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 touch-none"
-            onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw}
-            onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw} />
+            onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} />
           <p className="text-xs text-gray-400 text-center mt-2">위 공간에 서명을 그려주세요</p>
         </div>
         <div className="px-4 pb-4 flex gap-2">
@@ -152,11 +151,12 @@ function SignaturePadModal({ onComplete, onClose }: { onComplete: (dataUrl: stri
 }
 
 export default function SignClient({ contract }: Props) {
-  const zones: Zone[] = contract.signature_zones ?? []
+  const zones: Zone[] = ((contract.signature_zones ?? []).filter(isRatioRect))
+    .map(z => ({ ...z, required: (z as Partial<Zone>).required ?? true })) as Zone[]
   const hasZones = zones.length > 0
+  const requiredZones = zones.filter(z => z.required)
 
-  
-  const [signedZones, setSignedZones] = useState<Record<string, string>>({}) 
+  const [signedZones, setSignedZones] = useState<Record<string, string>>({})
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
 
   const [items, setItems] = useState<SignatureItem[]>([])
@@ -164,6 +164,9 @@ export default function SignClient({ contract }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(contract.status === 'signed')
   const stampRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const { canvasRef, renderedWidth, renderedHeight, error: pdfError } = usePdfPageCanvas(contract.pdf_url, containerRef)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -177,9 +180,11 @@ export default function SignClient({ contract }: Props) {
       setActiveZoneId(null)
       return
     }
+    const w = renderedWidth ?? 600
+    const h = renderedHeight ?? 800
     setItems(prev => [...prev, {
       id: `sig-${Date.now()}`, type: 'signature', dataUrl,
-      x: 50, y: 50, width: 160, height: 80, pageNumber: 1,
+      xRatio: 50 / w, yRatio: 50 / h, widthRatio: 160 / w, heightRatio: 80 / h, pageNumber: 1,
     }])
   }
 
@@ -188,9 +193,11 @@ export default function SignClient({ contract }: Props) {
     if (!file) return
     const reader = new FileReader()
     reader.onload = ev => {
+      const w = renderedWidth ?? 600
+      const h = renderedHeight ?? 800
       setItems(prev => [...prev, {
         id: `stamp-${Date.now()}`, type: 'stamp', dataUrl: ev.target!.result as string,
-        x: 80, y: 80, width: 100, height: 100, pageNumber: 1,
+        xRatio: 80 / w, yRatio: 80 / h, widthRatio: 100 / w, heightRatio: 100 / h, pageNumber: 1,
       }])
     }
     reader.readAsDataURL(file)
@@ -199,32 +206,45 @@ export default function SignClient({ contract }: Props) {
 
   function handleDragEnd(event: any) {
     const { active, delta } = event
-    setItems(prev => prev.map(item => item.id === active.id ? { ...item, x: item.x + delta.x, y: item.y + delta.y } : item))
+    if (!renderedWidth || !renderedHeight) return
+    setItems(prev => prev.map(item => {
+      if (item.id !== active.id) return item
+      const px = ratioToPixel(item, renderedWidth, renderedHeight)
+      return {
+        ...item,
+        ...pixelToRatio({ x: px.x + delta.x, y: px.y + delta.y, width: px.width, height: px.height }, renderedWidth, renderedHeight),
+      }
+    }))
   }
 
   function handleResize(id: string, w: number, h: number) {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, width: w, height: h } : item))
+    if (!renderedWidth || !renderedHeight) return
+    setItems(prev => prev.map(item => item.id === id ? { ...item, widthRatio: w / renderedWidth, heightRatio: h / renderedHeight } : item))
   }
 
   async function handleSubmit() {
     if (hasZones) {
-      const missingZones = zones.filter(z => !signedZones[z.id])
-      if (missingZones.length > 0) {
-        alert(`아직 서명하지 않은 칸이 있습니다:\n${missingZones.map(z => z.label).join(', ')}`)
+      const missingRequired = requiredZones.filter(z => !signedZones[z.id])
+      if (missingRequired.length > 0) {
+        alert(`아직 서명하지 않은 칸이 있습니다:\n${missingRequired.map(z => z.label).join(', ')}`)
         return
       }
     } else if (items.length === 0) {
       alert('서명 또는 도장을 추가해주세요.')
       return
     }
-    if (!confirm('서명을 완료하시겠습니까? 이후 수정이 불가합니다.')) return
+
+    const missingOptional = zones.filter(z => !z.required && !signedZones[z.id])
+    const confirmMessage = missingOptional.length > 0
+      ? `다음 선택 항목에는 서명하지 않았습니다: ${missingOptional.map(z => z.label).join(', ')}.\n이대로 제출하시겠습니까? 이후 수정이 불가합니다.`
+      : '서명을 완료하시겠습니까? 이후 수정이 불가합니다.'
+    if (!confirm(confirmMessage)) return
     setSubmitting(true)
 
-    
     const submitItems: SignatureItem[] = hasZones
-      ? zones.map(z => ({
+      ? zones.filter(z => signedZones[z.id]).map(z => ({
           id: z.id, type: 'signature', dataUrl: signedZones[z.id],
-          x: z.x, y: z.y, width: z.width, height: z.height, pageNumber: 1,
+          xRatio: z.xRatio, yRatio: z.yRatio, widthRatio: z.widthRatio, heightRatio: z.heightRatio, pageNumber: 1,
         }))
       : items
 
@@ -241,7 +261,6 @@ export default function SignClient({ contract }: Props) {
       return
     }
 
-    
     fetch('/api/contracts/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -310,10 +329,16 @@ export default function SignClient({ contract }: Props) {
             <div>
               <p className="text-xs font-medium text-gray-700 mb-2">서명 위치 ({Object.keys(signedZones).length}/{zones.length})</p>
               <ul className="space-y-1.5">
-                {zones.map(zone => (
+                {zones.map((zone, i) => (
                   <li key={zone.id} className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 border ${signedZones[zone.id] ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-100 text-gray-500'}`}>
-                    <span>{zone.label}</span>
-                    {signedZones[zone.id] ? <span>✓ 완료</span> : <span className="text-gray-300">미서명</span>}
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-gray-900 text-white text-[9px] font-bold flex items-center justify-center">{i + 1}</span>
+                      <span className="truncate">{zone.label}</span>
+                      <span className={`flex-shrink-0 text-[9px] px-1 py-0.5 rounded ${zone.required ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-400'}`}>
+                        {zone.required ? '필수' : '선택'}
+                      </span>
+                    </span>
+                    {signedZones[zone.id] ? <span className="flex-shrink-0">✓ 완료</span> : <span className="text-gray-300 flex-shrink-0">미서명</span>}
                   </li>
                 ))}
               </ul>
@@ -350,12 +375,12 @@ export default function SignClient({ contract }: Props) {
         </div>
 
         <div className="px-6 py-5 border-t border-gray-100">
-          <button onClick={handleSubmit} disabled={submitting || (hasZones ? Object.keys(signedZones).length < zones.length : items.length === 0)}
+          <button onClick={handleSubmit} disabled={submitting || (hasZones ? requiredZones.some(z => !signedZones[z.id]) : items.length === 0)}
             className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 transition">
             {submitting ? '처리 중...' : '서명 완료'}
           </button>
-          {hasZones && Object.keys(signedZones).length < zones.length && (
-            <p className="text-xs text-gray-400 text-center mt-2">모든 서명 칸을 완료해주세요</p>
+          {hasZones && requiredZones.some(z => !signedZones[z.id]) && (
+            <p className="text-xs text-gray-400 text-center mt-2">필수 서명 칸을 모두 완료해주세요</p>
           )}
           {!hasZones && items.length === 0 && <p className="text-xs text-gray-400 text-center mt-2">서명을 먼저 추가해주세요</p>}
         </div>
@@ -363,34 +388,40 @@ export default function SignClient({ contract }: Props) {
 
       {}
       <div className="flex-1 overflow-auto bg-gray-100 relative p-4">
-        <div className="relative inline-block bg-white shadow-lg">
-          <iframe src={contract.pdf_url} className="w-full min-h-screen" style={{ minWidth: 600, height: '90vh' }} />
+        <div ref={containerRef} className="relative bg-white shadow-lg mx-auto" style={{ maxWidth: 900, minWidth: 320 }}>
+          <canvas ref={canvasRef} className="block" />
+          {pdfError && (
+            <p className="p-4 text-sm text-red-500">PDF를 불러오지 못했습니다: {pdfError}</p>
+          )}
 
           {}
-          {hasZones && (
+          {hasZones && renderedWidth && renderedHeight && (
             <div className="absolute inset-0 pointer-events-none">
-              {zones.map(zone => (
-                <div key={zone.id}
-                  style={{ position: 'absolute', left: zone.x, top: zone.y, width: zone.width, height: zone.height, pointerEvents: 'auto' }}
-                  className={`border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${signedZones[zone.id] ? 'border-green-400 bg-green-50/60' : 'border-blue-400 bg-blue-50/40 hover:bg-blue-100/60'}`}
-                  onClick={() => { if (!signedZones[zone.id]) { setActiveZoneId(zone.id); setShowPad(true) } }}>
-                  {signedZones[zone.id] ? (
-                    <img src={signedZones[zone.id]} alt="서명" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <span className="text-xs font-semibold text-blue-600 select-none">{zone.label} 클릭</span>
-                  )}
-                </div>
-              ))}
+              {zones.map((zone, i) => {
+                const px = ratioToPixel(zone, renderedWidth, renderedHeight)
+                return (
+                  <div key={zone.id}
+                    style={{ position: 'absolute', left: px.x, top: px.y, width: px.width, height: px.height, pointerEvents: 'auto' }}
+                    className={`border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${signedZones[zone.id] ? 'border-green-400 bg-green-50/60' : 'border-blue-400 bg-blue-50/40 hover:bg-blue-100/60'}`}
+                    onClick={() => { if (!signedZones[zone.id]) { setActiveZoneId(zone.id); setShowPad(true) } }}>
+                    {signedZones[zone.id] ? (
+                      <img src={signedZones[zone.id]} alt="서명" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-sm select-none">{i + 1}</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 
           {}
-          {!hasZones && (
+          {!hasZones && renderedWidth && renderedHeight && (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <div className="absolute inset-0 pointer-events-none">
                 <div style={{ pointerEvents: 'auto', position: 'relative', width: '100%', height: '100%' }}>
                   {items.map(item => (
-                    <DraggableItem key={item.id} item={item} onResize={handleResize}
+                    <DraggableItem key={item.id} item={item} px={ratioToPixel(item, renderedWidth, renderedHeight)} onResize={handleResize}
                       onRemove={id => setItems(prev => prev.filter(i => i.id !== id))} />
                   ))}
                 </div>

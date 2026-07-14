@@ -31,8 +31,6 @@ const SELECT_OPTIONS: Partial<Record<keyof WooCustomer, string[]>> = {
   setting: ['PC세팅', '포스세팅'],
 }
 
-const REQUIRED_FIELDS: (keyof WooCustomer)[] = ['business_name', 'owner_name', 'phone', 'internet_note']
-
 function cardApplyStatusColor(value: string) {
   if (value === '가맹완료') return 'bg-green-50 text-green-600 border-green-200'
   if (value === '가맹미확인') return 'bg-red-50 text-red-600 border-red-200'
@@ -249,13 +247,6 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: C
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    for (const field of REQUIRED_FIELDS) {
-      const col = COLUMNS.find(c => c.key === field)
-      if (!form[field as keyof typeof form]?.trim()) {
-        alert(`${col?.label ?? field}은(는) 필수 입력 항목입니다.`)
-        return
-      }
-    }
     await onSubmit(form)
     setForm(EMPTY_FORM)
   }
@@ -265,11 +256,10 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: C
     <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
       {COLUMNS.map(col => {
         const options = SELECT_OPTIONS[col.key]
-        const required = REQUIRED_FIELDS.includes(col.key)
         return (
           <div key={col.key} className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">
-              {col.label}{required && <span className="text-red-500"> *</span>}
+              {col.label}
             </label>
             {options ? (
               <select value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
@@ -533,11 +523,6 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
   }
 
   const saveField = useCallback(async (row: WooCustomer, field: keyof WooCustomer, value: string) => {
-    if (REQUIRED_FIELDS.includes(field) && !value.trim()) {
-      toast.warning(`${COLUMNS.find(c => c.key === field)?.label ?? field}은(는) 필수 입력 항목입니다.`)
-      return
-    }
-
     const previousValue = row[field]
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value } : r))
     const supabase = createClient()
@@ -696,12 +681,11 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
                       <div className="grid grid-cols-4 gap-4">
                         {DETAIL_COLUMNS.map(col => {
                           const options = SELECT_OPTIONS[col.key]
-                          const required = REQUIRED_FIELDS.includes(col.key)
                           const wide = col.key === 'address' || col.key === 'memo'
                           return (
                             <div key={col.key} className={wide ? 'col-span-4' : ''}>
                               <label className="text-xs font-semibold text-slate-400">
-                                {col.label}{required && <span className="text-red-500"> *</span>}
+                                {col.label}
                               </label>
                               {options ? (
                                 <SelectField row={row} field={col.key} options={options} onSave={saveField} />

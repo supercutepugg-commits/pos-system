@@ -1,10 +1,19 @@
 import { SolapiMessageService } from 'solapi'
 import type { ApplicantType } from '@/types'
 
-const service = new SolapiMessageService(
-  process.env.SOLAPI_API_KEY!,
-  process.env.SOLAPI_API_SECRET!
-)
+let service: SolapiMessageService | null = null
+
+function getService() {
+  const apiKey = process.env.SOLAPI_API_KEY
+  const apiSecret = process.env.SOLAPI_API_SECRET
+  if (!apiKey || !apiSecret) {
+    const message = 'Solapi API key and secret are required to send messages.'
+    console.error('[solapi]', message)
+    throw new Error(message)
+  }
+  service ??= new SolapiMessageService(apiKey, apiSecret)
+  return service
+}
 
 function kakaoOptions(templateEnvKey: string, variables: Record<string, string>, buttons?: object[]) {
   const pfId = process.env.SOLAPI_KAKAO_PFID
@@ -20,7 +29,7 @@ function kakaoOptions(templateEnvKey: string, variables: Record<string, string>,
 
 async function solapiSend(params: { to: string; from: string; text: string; kakaoOptions: object }) {
   try {
-    const result = await (service as any).send(params)
+    const result = await (getService() as any).send(params)
     const failed = result?.failedMessageList ?? result?.failed
     if (failed?.length) {
       const firstErr = failed[0]

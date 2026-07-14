@@ -1,0 +1,10 @@
+.next
+node_modules
+out
+build
+coverage
+playwright-report
+test-results
+public/pdf.worker.min.mjs
+package-lock.json
+src/lib/solapi.ts

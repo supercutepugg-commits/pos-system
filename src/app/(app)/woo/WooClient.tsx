@@ -138,11 +138,11 @@ function compareCreatedAt(a: WooCustomer, b: WooCustomer) {
 function compareDateText(a: WooCustomer, b: WooCustomer, field: 'open_date' | 'received_date') {
   const aValue = (a[field] ?? '').trim()
   const bValue = (b[field] ?? '').trim()
-  const rank = (value: string) => !value ? 0 : /^\d{4}-\d{2}-\d{2}$/.test(value) ? 2 : 1
+  const rank = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) ? 0 : value ? 1 : 2
   const aRank = rank(aValue)
   const bRank = rank(bValue)
   if (aRank !== bRank) return aRank - bRank
-  if (aRank === 2 && aValue !== bValue) return bValue.localeCompare(aValue)
+  if (aRank === 0 && aValue !== bValue) return bValue.localeCompare(aValue)
   return compareCreatedAt(a, b)
 }
 

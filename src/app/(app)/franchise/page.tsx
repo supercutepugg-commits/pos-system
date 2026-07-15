@@ -12,7 +12,11 @@ export default async function FranchisePage({ searchParams }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: rows, error }, { data: salesProfiles }, { data: csProfiles }, { data: currentProfile }] = await Promise.all([
+  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const kstDayStart = new Date(`${kstToday}T00:00:00+09:00`)
+  const kstNextDayStart = new Date(kstDayStart.getTime() + 24 * 60 * 60 * 1000)
+
+  const [{ data: rows, error }, { data: salesProfiles }, { data: csProfiles }, { data: currentProfile }, { data: todayCompletionLogs }] = await Promise.all([
     supabase
       .from('franchise_applications')
       .select('*, sales:profiles!franchise_applications_sales_id_fkey(id,name,role), cs:profiles!franchise_applications_cs_id_fkey(id,name,role), creator:profiles!franchise_applications_created_by_fkey(id,name,role)')
@@ -20,7 +24,15 @@ export default async function FranchisePage({ searchParams }: Props) {
     supabase.from('profiles').select('id,name,role').in('role', ['sales', 'admin', 'master']).order('name'),
     supabase.from('profiles').select('id,name,role').in('role', ['cs', 'admin', 'master']).order('name'),
     supabase.from('profiles').select('name,role').eq('id', user.id).single(),
+    supabase
+      .from('franchise_application_logs')
+      .select('franchise_application_id')
+      .in('to_status', ['card_done', 'toss_review_done'])
+      .gte('created_at', kstDayStart.toISOString())
+      .lt('created_at', kstNextDayStart.toISOString()),
   ])
+
+  const todayCompletedIds = [...new Set((todayCompletionLogs ?? []).map(log => log.franchise_application_id))]
 
   
   const linkedInstalls: Record<string, { id: string; status: string }> = {}
@@ -64,7 +76,7 @@ export default async function FranchisePage({ searchParams }: Props) {
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} currentUserName={currentProfile?.name ?? ''} currentUserRole={currentProfile?.role ?? ''} initialStatusFilter={status ?? ''} initialHighlightId={highlight} linkedInstalls={linkedInstalls} linkedInternets={linkedInternets} />
+        <FranchiseClient rows={rows ?? []} salesProfiles={salesProfiles ?? []} csProfiles={csProfiles ?? []} currentUserId={user.id} currentUserName={currentProfile?.name ?? ''} currentUserRole={currentProfile?.role ?? ''} initialStatusFilter={status ?? ''} initialHighlightId={highlight} linkedInstalls={linkedInstalls} linkedInternets={linkedInternets} todayDate={kstToday} todayCompletedIds={todayCompletedIds} />
       )}
     </div>
   )

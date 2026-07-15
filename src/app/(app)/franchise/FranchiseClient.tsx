@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Pin, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical, X } from 'lucide-react'
+import { Plus, Trash2, Pin, ChevronDown, ChevronUp, Search, Download, Calendar, GripVertical, X, ClipboardList, Clock3, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
@@ -57,9 +57,15 @@ interface Props {
   initialHighlightId?: string
   linkedInstalls?: Record<string, { id: string; status: string }>
   linkedInternets?: Record<string, { id: string; status: string | null; category: string | null }>
+  todayDate: string
+  todayCompletedIds: string[]
 }
 
 type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'review_waiting' | 'approved'
+type ReceiptKpi = 'today_received' | 'doc_waiting' | 'doc_incomplete' | 'reviewing' | 'today_completed'
+
+const REVIEWING_STATUS_SET = new Set<FranchiseStatus>(['card_apply_done', 'toss_review_apply_done'])
+const APPROVED_STATUS_SET = new Set<FranchiseStatus>(['card_done', 'toss_review_done'])
 
 const EMPTY_FORM = {
   business_name: '',
@@ -676,7 +682,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: C
   )
 })
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', initialHighlightId, linkedInstalls = {}, linkedInternets = {} }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', initialHighlightId, linkedInstalls = {}, linkedInternets = {}, todayDate, todayCompletedIds }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
@@ -718,6 +724,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkStatusConfirmOpen, setBulkStatusConfirmOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [tableView, setTableView] = useState<ReceiptTableView>('all')
+  const [activeKpi, setActiveKpi] = useState<ReceiptKpi | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [bulkAssignModal, setBulkAssignModal] = useState(false)
@@ -865,13 +872,22 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
   }, [router])
 
-  type FilterSkip = { skipView?: boolean; skipStatus?: boolean; skipChannel?: boolean }
+  const todayCompletedIdSet = useMemo(() => new Set(todayCompletedIds), [todayCompletedIds])
+
+  type FilterSkip = { skipView?: boolean; skipKpi?: boolean; skipStatus?: boolean; skipChannel?: boolean }
   const matchesFilters = useCallback((row: FranchiseApplication, skip: FilterSkip = {}) => {
+    if (!skip.skipKpi && activeKpi) {
+      if (activeKpi === 'today_received' && row.reception_date?.slice(0, 10) !== todayDate) return false
+      if (activeKpi === 'doc_waiting' && row.status !== 'doc_waiting') return false
+      if (activeKpi === 'doc_incomplete' && row.status !== 'doc_incomplete') return false
+      if (activeKpi === 'reviewing' && !REVIEWING_STATUS_SET.has(row.status)) return false
+      if (activeKpi === 'today_completed' && (!APPROVED_STATUS_SET.has(row.status) || !todayCompletedIdSet.has(row.id))) return false
+    }
     if (!skip.skipView) {
       if (tableView === 'mine' && row.sales_id !== currentUserId && row.cs_id !== currentUserId) return false
       if (tableView === 'doc_incomplete' && row.status !== 'doc_incomplete') return false
-      if (tableView === 'review_waiting' && !(['card_apply_done', 'toss_review_apply_done'] as FranchiseStatus[]).includes(row.status)) return false
-      if (tableView === 'approved' && !(['card_done', 'toss_review_done'] as FranchiseStatus[]).includes(row.status)) return false
+      if (tableView === 'review_waiting' && !REVIEWING_STATUS_SET.has(row.status)) return false
+      if (tableView === 'approved' && !APPROVED_STATUS_SET.has(row.status)) return false
     }
     if (!skip.skipStatus && statusFilter && row.status !== statusFilter) return false
     if (applicantTypeFilter && row.applicant_type !== applicantTypeFilter) return false
@@ -883,7 +899,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (dateTo && createdLocalDate > dateTo) return false
     }
     return true
-  }, [tableView, currentUserId, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
+  }, [activeKpi, todayDate, todayCompletedIdSet, tableView, currentUserId, statusFilter, applicantTypeFilter, channelFilter, vanFilter, dateFrom, dateTo])
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -905,7 +921,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
   }, [localRows, search, sortBy, matchesFilters])
 
-  useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, tableView, dateFrom, dateTo])
+  useEffect(() => { setPage(1) }, [search, statusFilter, applicantTypeFilter, channelFilter, vanFilter, sortBy, tableView, activeKpi, dateFrom, dateTo])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -923,6 +939,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setDateFrom('')
     setDateTo('')
     setTableView('all')
+    setActiveKpi(null)
     toggleExpand(target)
   }, [initialHighlightId, localRows])
 
@@ -937,7 +954,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }, [initialHighlightId, filteredRows])
 
   const canReorder = sortBy === 'manual' && !search.trim() && !statusFilter && !applicantTypeFilter
-    && !channelFilter && !vanFilter && !dateFrom && !dateTo && tableView === 'all'
+    && !channelFilter && !vanFilter && !dateFrom && !dateTo && tableView === 'all' && !activeKpi
 
   const reorderRows = useCallback((dragId: string, dropId: string) => {
     if (dragId === dropId) return
@@ -1028,7 +1045,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     for (const row of localRows) {
       
       
-      if (!matchesFilters(row, { skipView: true, skipStatus: true })) continue
+      if (!matchesFilters(row, { skipView: true, skipKpi: true, skipStatus: true })) continue
       counts[row.status] = (counts[row.status] ?? 0) + 1
     }
     return counts
@@ -1038,7 +1055,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const tableViewCounts = useMemo(() => {
     const term = search.trim().toLowerCase()
     const base = localRows.filter(row => {
-      if (!matchesFilters(row, { skipView: true })) return false
+      if (!matchesFilters(row, { skipView: true, skipKpi: true })) return false
       if (!term) return true
       const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''} ${row.business_number ?? ''}`.toLowerCase()
       return haystack.includes(term)
@@ -1047,10 +1064,27 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       all: base.length,
       mine: base.filter(row => row.sales_id === currentUserId || row.cs_id === currentUserId).length,
       doc_incomplete: base.filter(row => row.status === 'doc_incomplete').length,
-      review_waiting: base.filter(row => (['card_apply_done', 'toss_review_apply_done'] as FranchiseStatus[]).includes(row.status)).length,
-      approved: base.filter(row => (['card_done', 'toss_review_done'] as FranchiseStatus[]).includes(row.status)).length,
+      review_waiting: base.filter(row => REVIEWING_STATUS_SET.has(row.status)).length,
+      approved: base.filter(row => APPROVED_STATUS_SET.has(row.status)).length,
     }
   }, [localRows, search, matchesFilters, currentUserId])
+
+  const kpiCounts = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    const base = localRows.filter(row => {
+      if (!matchesFilters(row, { skipView: true, skipKpi: true, skipStatus: true })) return false
+      if (!term) return true
+      const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''} ${row.business_number ?? ''}`.toLowerCase()
+      return haystack.includes(term)
+    })
+    return {
+      today_received: base.filter(row => row.reception_date?.slice(0, 10) === todayDate).length,
+      doc_waiting: base.filter(row => row.status === 'doc_waiting').length,
+      doc_incomplete: base.filter(row => row.status === 'doc_incomplete').length,
+      reviewing: base.filter(row => REVIEWING_STATUS_SET.has(row.status)).length,
+      today_completed: base.filter(row => APPROVED_STATUS_SET.has(row.status) && todayCompletedIdSet.has(row.id)).length,
+    }
+  }, [localRows, search, matchesFilters, todayDate, todayCompletedIdSet])
 
   
 
@@ -1717,6 +1751,45 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
       {}
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {([
+          { key: 'today_received', label: '오늘 접수', icon: ClipboardList, iconClass: 'bg-blue-50 text-blue-600', activeClass: 'border-blue-300 ring-blue-100' },
+          { key: 'doc_waiting', label: '서류 대기', icon: Clock3, iconClass: 'bg-amber-50 text-amber-600', activeClass: 'border-amber-300 ring-amber-100' },
+          { key: 'doc_incomplete', label: '서류 미비', icon: AlertTriangle, iconClass: 'bg-red-50 text-red-600', activeClass: 'border-red-300 ring-red-100' },
+          { key: 'reviewing', label: '심사 중', icon: Search, iconClass: 'bg-indigo-50 text-indigo-600', activeClass: 'border-indigo-300 ring-indigo-100' },
+          { key: 'today_completed', label: '오늘 완료', icon: CheckCircle2, iconClass: 'bg-emerald-50 text-emerald-600', activeClass: 'border-emerald-300 ring-emerald-100' },
+        ] as const).map(card => {
+          const Icon = card.icon
+          const isActive = activeKpi === card.key
+          return (
+            <button
+              key={card.key}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => {
+                setActiveKpi(current => current === card.key ? null : card.key)
+                setTableView('all')
+                setStatusFilter('')
+              }}
+              className={`flex min-h-20 cursor-pointer items-center gap-3 rounded-xl border bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow focus-visible:outline-none focus-visible:ring-2 ${
+                isActive ? `${card.activeClass} ring-2` : 'border-slate-200 focus-visible:ring-blue-200'
+              }`}
+            >
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${card.iconClass}`}>
+                <Icon size={19} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-slate-500">{card.label}</span>
+                <span className="mt-0.5 block text-xl font-bold leading-none text-slate-900">
+                  {kpiCounts[card.key].toLocaleString()}
+                  <span className="ml-1 text-xs font-normal text-slate-400">건</span>
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 p-3">
           <div className="relative min-w-[260px] flex-1 max-w-md">
@@ -1812,7 +1885,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             <button
               key={view}
               type="button"
-              onClick={() => setTableView(view)}
+              onClick={() => {
+                setTableView(view)
+                setActiveKpi(null)
+                setStatusFilter('')
+              }}
               className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
                 tableView === view
                   ? 'border-blue-600 bg-blue-50/60 text-blue-600'
@@ -1829,7 +1906,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
         <div className="ml-auto flex shrink-0 items-center gap-2 pb-2">
           <div className="text-sm text-slate-500">
-            {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo || tableView !== 'all')
+            {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo || tableView !== 'all' || activeKpi)
               ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
               : `전체 ${localRows.length.toLocaleString()}건`}
           </div>

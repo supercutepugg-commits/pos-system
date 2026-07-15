@@ -123,6 +123,28 @@ const DEFAULT_WIDTHS: Partial<Record<keyof WooCustomer, number>> = {
 }
 const COL_WIDTHS_STORAGE_KEY = 'woo_customers_col_widths'
 const PAGE_SIZE = 50
+type SortKey = 'created_at' | 'open_date' | 'received_date'
+
+const EMPTY_STRING_FIELDS = new Set<keyof WooCustomer>(['business_name', 'owner_name', 'phone', 'internet_note'])
+
+function toStoredValue(field: keyof WooCustomer, value: string) {
+  return EMPTY_STRING_FIELDS.has(field) ? value : value || null
+}
+
+function compareCreatedAt(a: WooCustomer, b: WooCustomer) {
+  return b.created_at.localeCompare(a.created_at)
+}
+
+function compareDateText(a: WooCustomer, b: WooCustomer, field: 'open_date' | 'received_date') {
+  const aValue = (a[field] ?? '').trim()
+  const bValue = (b[field] ?? '').trim()
+  const rank = (value: string) => !value ? 0 : /^\d{4}-\d{2}-\d{2}$/.test(value) ? 2 : 1
+  const aRank = rank(aValue)
+  const bRank = rank(bValue)
+  if (aRank !== bRank) return aRank - bRank
+  if (aRank === 2 && aValue !== bValue) return bValue.localeCompare(aValue)
+  return compareCreatedAt(a, b)
+}
 
 interface EditableTextProps {
   row: WooCustomer
@@ -316,6 +338,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -355,7 +378,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return localRows.filter(row => {
+    const filtered = localRows.filter(row => {
       if (categoryFilter && row.category !== categoryFilter) return false
       if (term) {
         const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''} ${row.address ?? ''}`.toLowerCase()
@@ -363,9 +386,10 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
       }
       return true
     })
-  }, [localRows, search, categoryFilter])
+    return filtered.sort((a, b) => sortKey === 'created_at' ? compareCreatedAt(a, b) : compareDateText(a, b, sortKey))
+  }, [localRows, search, categoryFilter, sortKey])
 
-  useEffect(() => { setPage(1) }, [search, categoryFilter])
+  useEffect(() => { setPage(1) }, [search, categoryFilter, sortKey])
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   useEffect(() => {
 
@@ -414,7 +438,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
     setSubmitting(true)
     const supabase = createClient()
     const payload = Object.fromEntries(
-      Object.entries(form).map(([k, v]) => [k, k === 'internet_note' ? v : v || null])
+      Object.entries(form).map(([k, v]) => [k, toStoredValue(k as keyof WooCustomer, v)])
     )
     const { error } = await supabase.from('woo_customers').insert(payload)
     setSubmitting(false)
@@ -522,7 +546,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
     const previousValue = row[field]
     setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value } : r))
     const supabase = createClient()
-    const { error } = await supabase.from('woo_customers').update({ [field]: field === 'internet_note' ? value : value || null }).eq('id', row.id)
+    const { error } = await supabase.from('woo_customers').update({ [field]: toStoredValue(field, value) }).eq('id', row.id)
     if (error) {
       setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: previousValue } : r))
       toast.error('수정 실패: ' + error.message)
@@ -549,6 +573,13 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">분류 전체</option>
           {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}
+          aria-label="정렬 기준"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="created_at">등록일</option>
+          <option value="open_date">오픈일</option>
+          <option value="received_date">접수날짜</option>
         </select>
         {(search || categoryFilter) && (
           <button onClick={() => { setSearch(''); setCategoryFilter('') }}

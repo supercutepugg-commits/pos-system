@@ -61,11 +61,12 @@ interface Props {
   todayCompletedIds: string[]
 }
 
-type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'review_waiting' | 'approved'
+type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
 type ReceiptKpi = 'today_received' | 'doc_waiting' | 'doc_incomplete' | 'reviewing' | 'today_completed'
 
 const REVIEWING_STATUS_SET = new Set<FranchiseStatus>(['card_apply_done', 'toss_review_apply_done'])
 const APPROVED_STATUS_SET = new Set<FranchiseStatus>(['card_done', 'toss_review_done'])
+const COMPLETED_STATUS_SET = new Set<FranchiseStatus>(['card_done', 'internet_done', 'toss_review_done', 'completed'])
 
 const EMPTY_FORM = {
   business_name: '',
@@ -884,9 +885,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (activeKpi === 'today_completed' && (!APPROVED_STATUS_SET.has(row.status) || !todayCompletedIdSet.has(row.id))) return false
     }
     if (!skip.skipView) {
-      if (tableView === 'mine' && row.sales_id !== currentUserId && row.cs_id !== currentUserId) return false
+      if (tableView === 'mine' && ((row.sales_id !== currentUserId && row.cs_id !== currentUserId) || COMPLETED_STATUS_SET.has(row.status))) return false
       if (tableView === 'doc_incomplete' && row.status !== 'doc_incomplete') return false
-      if (tableView === 'review_waiting' && !REVIEWING_STATUS_SET.has(row.status)) return false
+      if (tableView === 'doc_waiting' && row.status !== 'doc_waiting') return false
       if (tableView === 'approved' && !APPROVED_STATUS_SET.has(row.status)) return false
     }
     if (!skip.skipStatus && statusFilter && row.status !== statusFilter) return false
@@ -1062,9 +1063,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     })
     return {
       all: base.length,
-      mine: base.filter(row => row.sales_id === currentUserId || row.cs_id === currentUserId).length,
+      mine: base.filter(row => (row.sales_id === currentUserId || row.cs_id === currentUserId) && !COMPLETED_STATUS_SET.has(row.status)).length,
       doc_incomplete: base.filter(row => row.status === 'doc_incomplete').length,
-      review_waiting: base.filter(row => REVIEWING_STATUS_SET.has(row.status)).length,
+      doc_waiting: base.filter(row => row.status === 'doc_waiting').length,
       approved: base.filter(row => APPROVED_STATUS_SET.has(row.status)).length,
     }
   }, [localRows, search, matchesFilters, currentUserId])
@@ -1879,7 +1880,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             ['all', '전체'],
             ['mine', '내 업무'],
             ['doc_incomplete', '서류 미비'],
-            ['review_waiting', '심사 대기'],
+            ['doc_waiting', '서류 대기'],
             ['approved', '승인 완료'],
           ] as const).map(([view, label]) => (
             <button

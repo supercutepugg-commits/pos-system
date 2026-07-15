@@ -709,6 +709,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
   const [vanFilter, setVanFilter] = useState('')
   const [channelFilter, setChannelFilter] = useState('')
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(true)
   const [bulkStatusModal, setBulkStatusModal] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<FranchiseStatus | ''>('')
   const [bulkChanging, setBulkChanging] = useState(false)
@@ -1062,15 +1063,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }, [localRows, matchesFilters, isHiddenInAllTab, statusFilter, transferredIds, completedIds, rejectedIds])
 
   
-  const channelCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const row of localRows) {
-      if (!matchesFilters(row, { skipChannel: true })) continue
-      const ch = row.reception_channel || '미지정'
-      counts[ch] = (counts[ch] ?? 0) + 1
-    }
-    return counts
-  }, [localRows, matchesFilters])
 
   const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
 
@@ -1749,116 +1741,103 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </select>
       </div>
 
-      {}
-      {(() => {
-        const total = Object.values(channelCounts).reduce((sum, n) => sum + n, 0)
-        return total > 0 ? (
-          <div className="flex flex-wrap gap-2 mb-2">
-            {Object.entries(channelCounts).filter(([, cnt]) => cnt > 0).sort((a, b) => b[1] - a[1]).map(([ch, cnt]) => (
-              <button key={ch} onClick={() => setChannelFilter(channelFilter === ch ? '' : ch)}
-                className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border transition-colors ${channelFilter === ch ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-transparent text-slate-500 hover:border-slate-200'}`}>
-                <span className="font-medium text-slate-700">{ch}</span>
-                <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(cnt / total) * 100}%` }} />
-                </div>
-                <span>{cnt}건</span>
-              </button>
-            ))}
+      <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-wrap items-center gap-2 p-3">
+          <div className="relative min-w-[260px] flex-1 max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="상호명, 대표자, 연락처, 사업자번호 통합 검색"
+              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-        ) : null
-      })()}
-
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="상호명, 대표자, 연락처..."
-            className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">상태 전체</option>
-          {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
-            <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]} ({statusCounts[s]})</option>
-          ))}
-        </select>
-        <select value={applicantTypeFilter} onChange={e => setApplicantTypeFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">사업자유형 전체</option>
-          {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
-            <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
-          ))}
-        </select>
-        <select value={vanFilter} onChange={e => setVanFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">VAN사 전체</option>
-          {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
-        </select>
-        <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">접수채널 전체</option>
-          {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="등록일 시작"
-          className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <span className="text-slate-400 text-xs">~</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="등록일 종료"
-          className="text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="updated_at">최근 수정순</option>
-          <option value="created_at">등록일순</option>
-          <option value="status">상태순</option>
-          <option value="open_date">오픈예정일순</option>
-          <option value="install_date">설치발송일순</option>
-          <option value="manual">직접 정렬 (드래그)</option>
-        </select>
-        {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (
-          <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setChannelFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
-            className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
-            초기화
+          <button
+            type="button"
+            onClick={() => setAdvancedFiltersOpen(open => !open)}
+            aria-expanded={advancedFiltersOpen}
+            className="ml-auto flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            상세 필터
+            <ChevronDown size={14} className={`transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
           </button>
-        )}
-        <button onClick={saveFilterPreset} title="현재 필터 저장"
-          className="text-sm text-slate-500 border border-slate-200 hover:bg-slate-50 px-2 py-2 rounded-lg transition-colors">
-          저장
-        </button>
-        {savedFilters.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
+        </div>
+
+        {advancedFiltersOpen && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-3">
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">상태 전체</option>
+              {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
+                <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]} ({statusCounts[s]})</option>
+              ))}
+            </select>
+            <select value={applicantTypeFilter} onChange={e => setApplicantTypeFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">사업자 유형 전체</option>
+              {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
+                <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
+              ))}
+            </select>
+            <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">접수 채널 전체</option>
+              {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={vanFilter} onChange={e => setVanFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">VAN사 전체</option>
+              {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="등록일 시작"
+              className="rounded-lg border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <span className="text-xs text-slate-400">~</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="등록일 종료"
+              className="rounded-lg border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="updated_at">최근 수정순</option>
+              <option value="created_at">등록일순</option>
+              <option value="status">상태순</option>
+              <option value="open_date">오픈예정일순</option>
+              <option value="install_date">설치발송일순</option>
+              <option value="manual">직접 정렬 (드래그)</option>
+            </select>
+            {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (
+              <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setChannelFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
+                className="px-2 py-2 text-sm text-slate-400 transition-colors hover:text-red-500">
+                초기화
+              </button>
+            )}
+            <button onClick={saveFilterPreset} title="현재 필터 저장"
+              className="rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50">
+              저장
+            </button>
             {savedFilters.map(f => (
-              <span key={f.name}
-                className="flex items-center gap-1 text-sm border border-slate-200 rounded-lg pl-2 pr-1 py-1 bg-white">
-                <button onClick={() => loadFilterPreset(f)} className="text-slate-600 hover:text-blue-600">
-                  {f.name}
-                </button>
-                <button onClick={() => removeFilterPreset(f.name)} title="프리셋 삭제"
-                  className="text-slate-300 hover:text-red-500 px-1">
-                  ×
-                </button>
+              <span key={f.name} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white py-1 pl-2 pr-1 text-sm">
+                <button onClick={() => loadFilterPreset(f)} className="text-slate-600 hover:text-blue-600">{f.name}</button>
+                <button onClick={() => removeFilterPreset(f.name)} title="프리셋 삭제" className="px-1 text-slate-300 hover:text-red-500">×</button>
               </span>
             ))}
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 px-3 py-2.5">
           <div className="text-sm text-slate-500">
             {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo)
               ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
               : `전체 ${localRows.length.toLocaleString()}건`}
           </div>
           <button onClick={handleExcel}
-            className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors">
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50">
             <Download size={14} />엑셀
           </button>
           <button onClick={() => setShowShortcuts(true)} title="단축키 도움말 (?)"
-            className="text-sm text-slate-400 hover:text-slate-600 border border-slate-200 hover:bg-slate-50 w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-sm text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600">
             ?
           </button>
           <button onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
             <Plus size={14} />
             정보 입력
           </button>
@@ -1866,6 +1845,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       </div>
 
       {selected.size > 0 && (
+
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
           <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
           {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (

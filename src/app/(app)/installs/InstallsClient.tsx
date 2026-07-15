@@ -342,6 +342,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [detailInst, setDetailInst] = useState<Installation | null>(null)
+  const [detailDraft, setDetailDraft] = useState<{
+    customer_name: string
+    customer_phone: string
+    address: string
+    scheduled_date: string
+    scheduled_time: string
+    items: { name: string; quantity: number }[]
+    notes: string
+  } | null>(null)
   const [completeModal, setCompleteModal] = useState<{ id: string; notes: string } | null>(null)
   const [completePhotos, setCompletePhotos] = useState<File[]>([])
   const [completing, setCompleting] = useState(false)
@@ -359,6 +368,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     highlightAppliedRef.current = true
     setMobileExpandedId(highlightId)
     setDetailInst(target)
+    setDetailDraft(buildDetailDraft(target))
     setSearch('')
     setStatusFilter('')
     setTechFilter('')
@@ -389,11 +399,21 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [savingRowId, setSavingRowId] = useState<string | null>(null)
-  const addressRefs = useRef<Record<string, HTMLInputElement | null>>({})
-  const notesRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
 
   const supabase = createClient()
+
+  function buildDetailDraft(inst: Installation) {
+    return {
+      customer_name: inst.customer_name,
+      customer_phone: inst.customer_phone ?? '',
+      address: inst.address ?? '',
+      scheduled_date: inst.scheduled_date ?? '',
+      scheduled_time: inst.scheduled_time ?? '',
+      items: inst.items ?? [],
+      notes: inst.notes ?? '',
+    }
+  }
 
   async function fetchInstalls() {
     setLoading(true)
@@ -723,12 +743,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function saveRowNow(id: string) {
     if (savingRowId) return
     const inst = installs.find(i => i.id === id)
-    if (!inst) return
-    const addressVal = addressRefs.current[id]?.value ?? (inst.address ?? '')
-    const notesVal = notesRefs.current[id]?.value ?? (inst.notes ?? '')
+    if (!inst || !detailDraft) return
     const tasks: Promise<boolean>[] = []
-    if (addressVal !== (inst.address ?? '')) tasks.push(saveInstallField(id, 'address', addressVal))
-    if (notesVal !== (inst.notes ?? '')) tasks.push(saveInstallField(id, 'notes', notesVal))
+    if (detailDraft.customer_name !== inst.customer_name) tasks.push(saveInstallField(id, 'customer_name', detailDraft.customer_name))
+    if (detailDraft.customer_phone !== (inst.customer_phone ?? '')) tasks.push(saveInstallField(id, 'customer_phone', detailDraft.customer_phone))
+    if (detailDraft.address !== (inst.address ?? '')) tasks.push(saveInstallField(id, 'address', detailDraft.address))
+    if (detailDraft.scheduled_date !== (inst.scheduled_date ?? '')) tasks.push(saveInstallField(id, 'scheduled_date', detailDraft.scheduled_date))
+    if (detailDraft.scheduled_time !== (inst.scheduled_time ?? '')) tasks.push(saveInstallField(id, 'scheduled_time', detailDraft.scheduled_time))
+    if (detailDraft.notes !== (inst.notes ?? '')) tasks.push(saveInstallField(id, 'notes', detailDraft.notes))
+    if (JSON.stringify(detailDraft.items) !== JSON.stringify(inst.items ?? [])) {
+      tasks.push(saveInstallItems(id, detailDraft.items).then(() => true))
+    }
     if (tasks.length === 0) { toast.success('변경사항이 없습니다'); return }
     setSavingRowId(id)
     const results = await Promise.all(tasks)
@@ -1458,7 +1483,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                   <tr
                     id={`install-row-${inst.id}`}
                     className={`hover:bg-blue-50/40 transition cursor-pointer ${rowDragId === inst.id ? 'opacity-40' : ''}`}
-                    onClick={() => setDetailInst(prev => prev?.id === inst.id ? null : inst)}
+                    onClick={() => setDetailInst(prev => {
+                      if (prev?.id === inst.id) { setDetailDraft(null); return null }
+                      setDetailDraft(buildDetailDraft(inst))
+                      return inst
+                    })}
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
                   >
@@ -1594,7 +1623,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>
                             {canEdit ? (
-                              <EditableInstallText value={inst.customer_name} onSave={v => saveInstallField(inst.id, 'customer_name', v)} />
+                              <input value={detailDraft?.customer_name ?? inst.customer_name} onClick={e => e.stopPropagation()}
+                                onChange={e => setDetailDraft(d => d ? { ...d, customer_name: e.target.value } : d)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             ) : (
                               <p className="text-slate-800">{inst.customer_name}</p>
                             )}
@@ -1602,7 +1633,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">전화번호</p>
                             {canEdit ? (
-                              <EditableInstallText value={inst.customer_phone ?? ''} onSave={v => saveInstallField(inst.id, 'customer_phone', v)} />
+                              <input value={detailDraft?.customer_phone ?? (inst.customer_phone ?? '')} onClick={e => e.stopPropagation()}
+                                onChange={e => setDetailDraft(d => d ? { ...d, customer_phone: e.target.value } : d)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             ) : (
                               <p className="text-slate-800">{inst.customer_phone ? formatPhone(inst.customer_phone) : '-'}</p>
                             )}
@@ -1614,8 +1647,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div className="col-span-2">
                             <p className="text-xs font-semibold text-slate-400 mb-1">주소</p>
                             {canEdit ? (
-                              <EditableInstallText value={inst.address ?? ''} onSave={v => saveInstallField(inst.id, 'address', v)}
-                                inputRef={el => { addressRefs.current[inst.id] = el }} />
+                              <input value={detailDraft?.address ?? (inst.address ?? '')} onClick={e => e.stopPropagation()}
+                                onChange={e => setDetailDraft(d => d ? { ...d, address: e.target.value } : d)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             ) : (
                               <p className="text-slate-800 break-words">{inst.address || '-'}</p>
                             )}
@@ -1631,8 +1665,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">설치 예정일</p>
                             {canEdit ? (
-                              <input type="date" value={inst.scheduled_date ?? ''} onClick={e => e.stopPropagation()}
-                                onChange={e => saveInstallField(inst.id, 'scheduled_date', e.target.value)}
+                              <input type="date" value={detailDraft?.scheduled_date ?? (inst.scheduled_date ?? '')} onClick={e => e.stopPropagation()}
+                                onChange={e => setDetailDraft(d => d ? { ...d, scheduled_date: e.target.value } : d)}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             ) : (
                               <p className="text-slate-800">{inst.scheduled_date || '-'}</p>
@@ -1641,8 +1675,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">희망 시간대</p>
                             {canEdit ? (
-                              <input type="time" value={inst.scheduled_time ?? ''} onClick={e => e.stopPropagation()}
-                                onChange={e => saveInstallField(inst.id, 'scheduled_time', e.target.value)}
+                              <input type="time" value={detailDraft?.scheduled_time ?? (inst.scheduled_time ?? '')} onClick={e => e.stopPropagation()}
+                                onChange={e => setDetailDraft(d => d ? { ...d, scheduled_time: e.target.value } : d)}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             ) : (
                               <p className="text-slate-800">{inst.scheduled_time || '-'}</p>
@@ -1651,7 +1685,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div className="col-span-2">
                             <p className="text-xs font-semibold text-slate-400 mb-1">제품</p>
                             {canEdit ? (
-                              <InstallItemsEditor items={inst.items ?? []} onChange={items => saveInstallItems(inst.id, items)} />
+                              <InstallItemsEditor items={detailDraft?.items ?? (inst.items ?? [])}
+                                onChange={items => setDetailDraft(d => d ? { ...d, items } : d)} />
                             ) : (
                               <p className="text-slate-800">{inst.items?.length > 0 ? inst.items.map(i => `${i.name} x${i.quantity}`).join(', ') : '-'}</p>
                             )}
@@ -1667,10 +1702,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                             <p className="text-xs font-semibold text-slate-400 mb-1">비고</p>
                             {canEdit ? (
                               <textarea
-                                ref={el => { notesRefs.current[inst.id] = el }}
-                                defaultValue={inst.notes ?? ''}
+                                value={detailDraft?.notes ?? (inst.notes ?? '')}
                                 onClick={e => e.stopPropagation()}
-                                onBlur={e => { if (e.target.value !== (inst.notes ?? '')) saveInstallField(inst.id, 'notes', e.target.value) }}
+                                onChange={e => setDetailDraft(d => d ? { ...d, notes: e.target.value } : d)}
                                 rows={4}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                               />

@@ -1028,7 +1028,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     for (const row of localRows) {
       
       
-      if (!matchesFilters(row, { skipStatus: true })) continue
+      if (!matchesFilters(row, { skipView: true, skipStatus: true })) continue
       counts[row.status] = (counts[row.status] ?? 0) + 1
     }
     return counts
@@ -1813,10 +1813,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               key={view}
               type="button"
               onClick={() => setTableView(view)}
-              className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors ${
+              className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
                 tableView === view
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'border-blue-600 bg-blue-50/60 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'
               }`}
             >
               {label}

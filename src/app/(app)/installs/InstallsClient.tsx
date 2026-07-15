@@ -17,6 +17,7 @@ import { NotificationHistory, logNotification } from '@/components/ui/Notificati
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
+import { deleteInstallations } from './actions'
 
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
@@ -329,6 +330,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
 
 export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, initialHighlightId }: Props) {
   const canEdit = ['tech', 'cs', 'admin', 'master'].includes(profile.role)
+  const canDelete = profile.role === 'admin' || profile.role === 'master' || !!profile.can_delete
   const toast = useToast()
   const router = useRouter()
   const [installs, setInstalls] = useState<Installation[]>(initialInstalls)
@@ -780,7 +782,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function handleDelete(id: string) {
     if (!confirm('삭제하시겠습니까?')) return
-    await supabase.from('installations').delete().eq('id', id)
+    const { error } = await deleteInstallations([id])
+    if (error) { toast.error('삭제 실패: ' + error); return }
     setInstalls(prev => prev.filter(i => i.id !== id))
     setSelected(prev => { const next = new Set(prev); next.delete(id); return next })
   }
@@ -794,13 +797,14 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }
 
   function toggleAll() {
+    const deletableInstalls = pagedInstalls.filter(i => !i.franchise_application_id)
     setSelected(prev => {
-      if (pagedInstalls.length > 0 && pagedInstalls.every(i => prev.has(i.id))) {
+      if (deletableInstalls.length > 0 && deletableInstalls.every(i => prev.has(i.id))) {
         const next = new Set(prev)
-        pagedInstalls.forEach(i => next.delete(i.id))
+        deletableInstalls.forEach(i => next.delete(i.id))
         return next
       }
-      return new Set([...prev, ...pagedInstalls.map(i => i.id)])
+      return new Set([...prev, ...deletableInstalls.map(i => i.id)])
     })
   }
 
@@ -812,10 +816,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function confirmBulkDelete() {
     setDeletingSelected(true)
     const ids = [...selected]
-    const { error } = await supabase.from('installations').delete().in('id', ids)
+    const { error } = await deleteInstallations(ids)
     setDeletingSelected(false)
     setBulkDeleteConfirmOpen(false)
-    if (error) { toast.error('삭제 실패: ' + error.message); return }
+    if (error) { toast.error('삭제 실패: ' + error); return }
     setInstalls(prev => prev.filter(i => !selected.has(i.id)))
     setSelected(new Set())
   }
@@ -1189,7 +1193,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         </div>
       </div>
 
-      {(profile.role === 'admin' || profile.role === 'master') && selected.size > 0 && (
+      {canDelete && selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
           <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
           <button onClick={handleBulkDelete} disabled={deletingSelected}
@@ -1447,7 +1451,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               style={{ tableLayout: 'fixed' }}
             >
               <colgroup>
-                {(profile.role === 'admin' || profile.role === 'master') && <col style={{ width: 32 }} />}
+                {canDelete && <col style={{ width: 32 }} />}
                 <col style={{ width: 24 }} />
                 {columns.map(col => (
                   <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
@@ -1455,10 +1459,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               </colgroup>
               <thead>
                 <tr className="bg-slate-50">
-                  {(profile.role === 'admin' || profile.role === 'master') && (
+                  {canDelete && (
                     <th className="px-3 py-3">
                       <input type="checkbox"
-                        checked={pagedInstalls.length > 0 && pagedInstalls.every(i => selected.has(i.id))}
+                        checked={pagedInstalls.some(i => !i.franchise_application_id) && pagedInstalls.filter(i => !i.franchise_application_id).every(i => selected.has(i.id))}
                         onChange={toggleAll}
                         className="w-4 h-4 accent-blue-600 cursor-pointer" />
                     </th>
@@ -1491,10 +1495,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                     onDrop={e => { e.preventDefault(); if (rowDragId) reorderInstalls(rowDragId, inst.id) }}
                   >
-                    {(profile.role === 'admin' || profile.role === 'master') && (
+                    {canDelete && (
                       <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                        <input type="checkbox" checked={selected.has(inst.id)} onChange={() => toggleOne(inst.id)}
-                          className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                        {!inst.franchise_application_id && (
+                          <input type="checkbox" checked={selected.has(inst.id)} onChange={() => toggleOne(inst.id)}
+                            className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                        )}
                       </td>
                     )}
                     <td
@@ -1609,7 +1615,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
                             className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>
                         )}
-                        {((profile.role === 'admin' || profile.role === 'master')) && (
+                        {canDelete && !inst.franchise_application_id && (
                           <button onClick={() => handleDelete(inst.id)}
                             className="text-xs text-red-400 border border-red-100 px-2 py-1 rounded-lg hover:bg-red-50">삭제</button>
                         )}
@@ -1618,7 +1624,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                   </tr>
                   {detailInst?.id === inst.id && (
                     <tr className="bg-blue-50/50 border-b border-slate-100">
-                      <td colSpan={((profile.role === 'admin' || profile.role === 'master') ? 1 : 0) + 1 + columns.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                      <td colSpan={(canDelete ? 1 : 0) + 1 + columns.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
                         <div className="grid grid-cols-4 gap-4 mb-3 text-sm">
                           <div>
                             <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical, ClipboardList, CalendarClock, Wifi, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
@@ -14,6 +14,7 @@ import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
+import KpiCard from '@/components/ui/KpiCard'
 
 interface Props {
   rows: InternetManagement[]
@@ -323,6 +324,18 @@ export default function InternetClient({ rows }: Props) {
   }, [localRows, search, statusFilter, categoryFilter])
 
   useEffect(() => { setPage(1) }, [search, statusFilter, categoryFilter])
+
+  const kpis = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const monthStr = todayStr.slice(0, 7)
+    return {
+      today: localRows.filter(r => r.apply_date === todayStr).length,
+      waiting: localRows.filter(r => r.status === '접수완료').length,
+      openedToday: localRows.filter(r => r.status === '개통완료' && r.open_date === todayStr).length,
+      openedMonth: localRows.filter(r => r.status === '개통완료' && (r.open_date ?? '').startsWith(monthStr)).length,
+    }
+  }, [localRows])
+
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -445,7 +458,13 @@ export default function InternetClient({ rows }: Props) {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirmOpen(false)}
       />
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-3">
+        <KpiCard label="오늘 접수" value={kpis.today} icon={ClipboardList} tone="blue" />
+        <KpiCard label="개통 대기" value={kpis.waiting} icon={CalendarClock} tone="amber" />
+        <KpiCard label="오늘 개통" value={kpis.openedToday} icon={Wifi} tone="green" />
+        <KpiCard label="이번 달 개통" value={kpis.openedMonth} icon={CheckCircle2} tone="green" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
@@ -504,7 +523,7 @@ export default function InternetClient({ rows }: Props) {
 
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
-      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
+      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
         <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: 24 }} />

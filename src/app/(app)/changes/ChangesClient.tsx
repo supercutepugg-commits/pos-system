@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef, useMemo, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, X } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Search, Download, X, ClipboardList, CalendarClock, FileWarning, CheckCircle2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
@@ -16,6 +16,7 @@ import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
+import KpiCard from '@/components/ui/KpiCard'
 
 const PAGE_SIZE = 50
 
@@ -189,6 +190,16 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  const kpis = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    return {
+      today: localRows.filter(r => r.reception_date === todayStr).length,
+      waitingDocs: localRows.filter(r => r.status === 'waiting_docs').length,
+      docsIncomplete: localRows.filter(r => r.status === 'docs_incomplete').length,
+      done: localRows.filter(r => r.status === 'done').length,
+    }
+  }, [localRows])
+
   function toggleExpand(row: ChangeRequest) {
     setExpandedId(prev => prev === row.id ? null : row.id)
   }
@@ -332,7 +343,13 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
 
   return (
     <div className="flex flex-col gap-3 flex-1 overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard label="오늘 접수" value={kpis.today} icon={ClipboardList} tone="blue" />
+        <KpiCard label="서류 대기" value={kpis.waitingDocs} icon={CalendarClock} tone="amber" />
+        <KpiCard label="서류 미비" value={kpis.docsIncomplete} icon={FileWarning} tone="red" />
+        <KpiCard label="접수 완료" value={kpis.done} icon={CheckCircle2} tone="green" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
@@ -457,7 +474,7 @@ export default function ChangesClient({ rows, csProfiles, currentUserId, current
         </FormModal>
       )}
 
-      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white">
+      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
         <table className="w-full text-sm border-collapse">
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr className="text-left text-slate-500 text-xs">

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "pretendard/dist/web/static/pretendard.css";
 
 /* Tailwind v4는 기본 테두리색이 currentColor로 바뀌어 색상 없는 border 클래스가
    거의 안 보이는 문제가 있음. v3처럼 기본 회색 테두리로 복원. */
@@ -51,7 +52,7 @@
 html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

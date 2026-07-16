@@ -15,11 +15,37 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --primary-muted: #eff6ff;
+  --error: #dc2626;
+  --error-foreground: #ffffff;
+  --border-strong: #cbd5e1;
+  --surface-subtle: #f6f8fb;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-muted: var(--primary-muted);
+  --color-error: var(--error);
+  --color-error-foreground: var(--error-foreground);
+  --color-border-strong: var(--border-strong);
+  --color-surface-subtle: var(--surface-subtle);
+  --shadow-card: var(--shadow-card);
 }
 
 html, body {
@@ -43,6 +69,19 @@ html, body {
   --background: #09090b;
   --foreground: #f4f4f5;
   color-scheme: dark;
+  --card: #18181b;
+  --border: #27272a;
+  --muted: #3f3f46;
+  --muted-foreground: #a1a1aa;
+  --primary: #f4f4f5;
+  --primary-hover: #ffffff;
+  --primary-foreground: #09090b;
+  --primary-muted: #27272a;
+  --error: #ef4444;
+  --error-foreground: #ffffff;
+  --border-strong: #52525b;
+  --surface-subtle: #141416;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5);
 }
 
 :root[data-theme="dark"] .bg-white { background-color: #16161a !important; }
@@ -157,8 +196,12 @@ html, body {
    ================================================================= */
 :root[data-theme="pink"] {
   color-scheme: light;
-}
 
+  --primary: #c2148a;
+  --primary-hover: #9d0f70;
+  --primary-foreground: #ffffff;
+  --primary-muted: #fce7f3;
+}
 /* 브랜드 포인트색(파랑 → 진한 마젠타) */
 :root[data-theme="pink"] .bg-blue-600 { background-color: #c2148a !important; }
 :root[data-theme="pink"] .bg-blue-700 { background-color: #9d0f70 !important; }

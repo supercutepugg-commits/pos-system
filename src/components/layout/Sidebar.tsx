@@ -1,314 +1,208 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import LogoMark from './LogoMark'
 import {
-  ExternalLink,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  type LucideIcon,
-} from "lucide-react";
-import LogoMark from "./LogoMark";
-import {
-  COMMON_NAV,
-  ROLE_FOLDERS,
   ADMIN_NAV,
-  MASTER_NAV,
   BOTTOM_NAV,
+  COMMON_NAV,
+  MASTER_NAV,
+  ROLE_FOLDERS,
+  isNavItemActive,
   type NavItem,
-} from "./nav-items";
-import type { Profile, Role } from "@/types";
-
-const EXTERNAL_LINKS: {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  roles: string[];
-}[] = [];
+} from './navItems'
+import type { Profile, Role } from '@/types'
 
 interface Props {
-  profile: Profile;
-  unreadCount: number;
-  unreadDmCount?: number;
+  profile: Profile
+  unreadDmCount?: number
 }
 
-export default function Sidebar({
-  profile,
-  unreadCount,
-  unreadDmCount = 0,
-}: Props) {
-  const pathname = usePathname();
-
-  const visibleFolders = ROLE_FOLDERS;
-  const storageKey = `sidebar_open_folders_${profile.id}`;
-
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("sidebar_collapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  function toggleCollapsed() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("sidebar_collapsed", next ? "1" : "0");
-      } catch {}
-      return next;
-    });
-  }
+export default function Sidebar({ profile, unreadDmCount = 0 }: Props) {
+  const pathname = usePathname()
+  const [collapsed, setCollapsed] = useState(false)
+  const storageKey = `sidebar_open_folders_${profile.id}`
 
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return new Set(JSON.parse(saved) as string[]);
+      const saved = localStorage.getItem(storageKey)
+      if (saved) return new Set(JSON.parse(saved) as string[])
     } catch {}
+
     return new Set(
-      visibleFolders
-        .filter(
-          (f) =>
-            f.key === profile.role ||
-            profile.role === "admin" ||
-            profile.role === "master",
-        )
-        .map((f) => f.key),
-    );
-  });
+      ROLE_FOLDERS.filter(
+        (folder) =>
+          folder.key === profile.role || profile.role === 'admin' || profile.role === 'master',
+      ).map((folder) => folder.key),
+    )
+  })
+
+  const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null)
 
   function toggleFolder(key: string) {
-    setOpenFolders((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+    setOpenFolders((previous) => {
+      const next = new Set(previous)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       try {
-        localStorage.setItem(storageKey, JSON.stringify([...next]));
+        localStorage.setItem(storageKey, JSON.stringify([...next]))
       } catch {}
-      return next;
-    });
-  }
-
-  const externalItems = EXTERNAL_LINKS.filter((n) =>
-    n.roles.includes(profile.role),
-  );
-
-  const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null);
-
-  const allHrefs = [
-    ...COMMON_NAV.map((n) => n.href),
-    ...ROLE_FOLDERS.flatMap((f) => f.items.map((i) => i.href)),
-    ...ADMIN_NAV.map((n) => n.href),
-    ...MASTER_NAV.map((n) => n.href),
-    ...BOTTOM_NAV.map((n) => n.href),
-  ];
-
-  function isActive(href: string) {
-    if (href.includes("?")) return false;
-    if (pathname === href) return true;
-    if (!pathname.startsWith(href + "/")) return false;
-    const moreSpecific = allHrefs.some(
-      (other) =>
-        other !== href &&
-        other.startsWith(href + "/") &&
-        (pathname === other || pathname.startsWith(other + "/")),
-    );
-    return !moreSpecific;
+      return next
+    })
   }
 
   function foldersContaining(href: string) {
-    return visibleFolders
-      .filter((f) => f.items.some((i) => i.href === href))
-      .map((f) => f.key);
+    return ROLE_FOLDERS.filter((folder) => folder.items.some((item) => item.href === href)).map(
+      (folder) => folder.key,
+    )
   }
 
   function isHighlighted(href: string, folderKey?: Role) {
-    if (!isActive(href)) return false;
-    if (!folderKey) return true;
-    const owners = foldersContaining(href);
-    if (owners.length <= 1) return true;
+    if (!isNavItemActive(pathname, href)) return false
+    if (!folderKey) return true
+
+    const owners = foldersContaining(href)
+    if (owners.length <= 1) return true
     const winner =
       activeFolderHint && owners.includes(activeFolderHint)
         ? activeFolderHint
         : owners.includes(profile.role)
           ? profile.role
-          : owners[0];
-    return winner === folderKey;
+          : owners[0]
+    return winner === folderKey
   }
 
-  function NavLink({
-    item,
-    indent,
-    folderKey,
-  }: {
-    item: NavItem;
-    indent?: boolean;
-    folderKey?: Role;
-  }) {
-    const active = isHighlighted(item.href, folderKey);
+  function NavLink({ item, folderKey }: { item: NavItem; folderKey?: Role }) {
+    const active = isHighlighted(item.href, folderKey)
+    const showDmBadge = item.href === '/chat' && unreadDmCount > 0
+
     return (
       <Link
-        key={item.href}
         href={item.href}
-        title={collapsed ? item.label : undefined}
         onClick={() => {
-          if (folderKey) setActiveFolderHint(folderKey);
+          if (folderKey) setActiveFolderHint(folderKey)
         }}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${collapsed ? "justify-center" : ""} ${indent && !collapsed ? "ml-3" : ""} ${
+        title={collapsed ? item.label : undefined}
+        className={[
+          'relative flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors',
+          collapsed ? 'justify-center' : '',
           active
-            ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
-            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-        }`}
+            ? 'bg-blue-50 font-semibold text-blue-700'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
+        ].join(' ')}
       >
-        <item.icon
-          size={17}
-          className={`shrink-0 ${active ? "text-white" : "text-slate-400"}`}
-        />
-        {!collapsed && item.label}
-        {!collapsed && item.href === "/notifications" && unreadCount > 0 && (
+        <item.icon className="size-[18px] shrink-0" />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+        {showDmBadge && (
           <span
-            className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
+            className={[
+              'flex size-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white',
+              collapsed ? 'absolute right-0 top-0' : 'ml-auto',
+            ].join(' ')}
           >
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-        {!collapsed && item.href === "/chat" && unreadDmCount > 0 && (
-          <span
-            className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
-          >
-            {unreadDmCount > 9 ? "9+" : unreadDmCount}
+            {unreadDmCount > 9 ? '9+' : unreadDmCount}
           </span>
         )}
       </Link>
-    );
+    )
   }
 
   return (
     <aside
-      className={`bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm transition-[width] duration-150 ${collapsed ? "w-[70px]" : "w-64"}`}
+      className={[
+        'flex h-dvh shrink-0 flex-col border-r border-slate-200 bg-white shadow-[1px_0_3px_rgb(15_23_42/0.04)] transition-[width] duration-150',
+        collapsed ? 'w-[70px]' : 'w-[244px]',
+      ].join(' ')}
     >
-      {}
       <div
-        className={`px-4 py-5 border-b border-slate-100 flex items-center ${collapsed ? "justify-center" : "justify-between px-6"}`}
+        className={[
+          'flex h-[58px] shrink-0 items-center gap-2 border-b border-slate-100 px-4',
+          collapsed ? 'justify-center' : 'justify-between',
+        ].join(' ')}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <LogoMark className="size-8 shrink-0" />
+        <Link href="/dashboard" aria-label="POSMOS 홈" className="flex min-w-0 items-center gap-2">
+          <LogoMark className="size-7 shrink-0" />
           {!collapsed && (
-            <div className="min-w-0">
-              <p className="font-bold text-slate-900 text-sm leading-tight truncate">
-                POS 전산
-              </p>
-              <p className="text-xs text-slate-400">관리 시스템</p>
-            </div>
+            <span className="truncate text-base font-bold tracking-tight text-slate-900">POSMOS</span>
           )}
-        </div>
+        </Link>
         {!collapsed && (
           <button
             type="button"
-            onClick={toggleCollapsed}
+            onClick={() => setCollapsed(true)}
             aria-label="메뉴 접기"
-            className="shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg p-1"
+            className="flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft className="size-4" />
           </button>
         )}
       </div>
+
       {collapsed && (
         <button
           type="button"
-          onClick={toggleCollapsed}
+          onClick={() => setCollapsed(false)}
           aria-label="메뉴 펼치기"
-          className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center h-8 border-b border-slate-100"
+          className="flex h-9 shrink-0 items-center justify-center border-b border-slate-100 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
         >
-          <ChevronRight size={16} />
+          <ChevronRight className="size-4" />
         </button>
       )}
 
-      {}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
         {COMMON_NAV.map((item) => (
           <NavLink key={item.href} item={item} />
         ))}
 
-        {visibleFolders.length > 0 && (
-          <div className="my-2 border-t border-slate-100" />
-        )}
-
-        {visibleFolders.map((folder) => {
-          const open = collapsed || openFolders.has(folder.key);
+        {ROLE_FOLDERS.map((folder, index) => {
+          const open = collapsed || openFolders.has(folder.key)
           return (
-            <div key={folder.key} className="mb-0.5">
+            <div
+              key={folder.key}
+              className={[
+                'mb-1',
+                index === 0 ? 'mt-1 border-t border-slate-200 pt-1' : '',
+              ].join(' ')}
+            >
               {!collapsed && (
                 <button
+                  type="button"
                   onClick={() => toggleFolder(folder.key)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-all w-full"
+                  className="flex w-full items-center gap-2 px-2.5 pb-1.5 pt-1.5 text-[11px] font-semibold tracking-wide text-slate-400 hover:text-slate-700"
                 >
-                  <folder.icon size={17} className="text-slate-400" />
-                  {folder.label}
+                  <span>{folder.label}</span>
                   <ChevronDown
-                    size={15}
-                    className={`ml-auto text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+                    className={[
+                      'ml-auto size-3.5 transition-transform',
+                      open ? 'rotate-180' : '',
+                    ].join(' ')}
                   />
                 </button>
               )}
               {open && (
-                <div className={collapsed ? "" : "mt-0.5"}>
+                <div className="flex flex-col gap-1">
                   {folder.items.map((item) => (
-                    <NavLink
-                      key={item.href}
-                      item={item}
-                      indent
-                      folderKey={folder.key}
-                    />
+                    <NavLink key={item.href} item={item} folderKey={folder.key} />
                   ))}
                 </div>
               )}
             </div>
-          );
+          )
         })}
 
-        <div className="my-2 border-t border-slate-100" />
-        {BOTTOM_NAV.map((item) => (
-          <NavLink key={item.href} item={item} />
-        ))}
-
-        {(profile.role === "admin" || profile.role === "master") && (
-          <>
-            {ADMIN_NAV.map((item) => (
-              <NavLink key={item.href} item={item} />
-            ))}
-          </>
-        )}
-
-        {profile.role === "master" && (
-          <>
-            {MASTER_NAV.map((item) => (
-              <NavLink key={item.href} item={item} />
-            ))}
-          </>
-        )}
-      </nav>
-
-      {}
-      {!collapsed && externalItems.length > 0 && (
-        <div className="px-3 pb-2 border-t border-slate-100 pt-3">
-          {externalItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all mb-0.5"
-            >
-              <item.icon size={17} className="text-slate-400" />
-              {item.label}
-              <ExternalLink size={12} className="ml-auto text-slate-300" />
-            </a>
+        <div className="mt-1 border-t border-slate-200 pt-1">
+          {BOTTOM_NAV.map((item) => (
+            <NavLink key={item.href} item={item} />
           ))}
+          {(profile.role === 'admin' || profile.role === 'master') &&
+            ADMIN_NAV.map((item) => <NavLink key={item.href} item={item} />)}
+          {profile.role === 'master' &&
+            MASTER_NAV.map((item) => <NavLink key={item.href} item={item} />)}
         </div>
-      )}
-
+      </nav>
     </aside>
-  );
+  )
 }

@@ -186,15 +186,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
-      <div className="flex h-screen overflow-hidden bg-slate-50">
+      <div className="flex h-dvh overflow-hidden bg-slate-50">
         <div className="hidden md:flex">
-          <Sidebar profile={profile as Profile} unreadCount={unreadCount ?? 0} unreadDmCount={unreadDmCount} />
+          <Sidebar profile={profile as Profile} unreadDmCount={unreadDmCount} />
         </div>
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="hidden md:block">
-            <AppHeader profile={profile as Profile} unreadCount={unreadCount ?? 0} />
+            <AppHeader profile={profile as Profile} />
           </div>
-          <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+          <main className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0 md:[&>.h-screen]:h-full">
             {children}
           </main>
         </div>

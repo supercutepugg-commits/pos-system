@@ -1,0 +1,123 @@
+import {
+  BookUser,
+  CalendarDays,
+  ClipboardList,
+  Code2,
+  FileEdit,
+  FileText,
+  HardHat,
+  Hash,
+  Images,
+  LayoutDashboard,
+  MessageCircle,
+  Network,
+  Package,
+  PenLine,
+  RefreshCw,
+  Store,
+  Users,
+  Wifi,
+  type LucideIcon,
+} from 'lucide-react'
+import type { Role } from '@/types'
+
+export interface NavItem {
+  href: string
+  label: string
+  icon: LucideIcon
+}
+
+export interface NavGroup {
+  key: Role
+  label: string
+  icon: LucideIcon
+  items: NavItem[]
+}
+
+export const COMMON_NAV: NavItem[] = [
+  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+  { href: '/calendar', label: '캘린더', icon: CalendarDays },
+  { href: '/merchants', label: '가맹점', icon: Store },
+  { href: '/chat', label: '채팅', icon: MessageCircle },
+  { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
+  { href: '/dev-requests', label: '개발요청', icon: Code2 },
+  { href: '/slack', label: 'Slack', icon: Hash },
+]
+
+export const ROLE_FOLDERS: NavGroup[] = [
+  {
+    key: 'cs',
+    label: 'CS',
+    icon: ClipboardList,
+    items: [
+      { href: '/franchise', label: '가맹 접수', icon: FileText },
+      { href: '/changes', label: '변경 관리', icon: FileEdit },
+      { href: '/woo', label: '우국상 관리', icon: BookUser },
+      { href: '/internet', label: '인터넷 관리', icon: Wifi },
+    ],
+  },
+  {
+    key: 'tech',
+    label: '기술지원',
+    icon: HardHat,
+    items: [
+      { href: '/installs', label: '설치 관리', icon: Package },
+      { href: '/installs/mine', label: '기사 페이지', icon: HardHat },
+      { href: '/installs/photos', label: '완료사진', icon: Images },
+      { href: '/external-techs', label: '외부 기사 관리', icon: Users },
+      { href: '/inventory', label: '재고 실사', icon: ClipboardList },
+      { href: '/transfers', label: '전환건', icon: RefreshCw },
+      { href: '/blueprints', label: '설계도', icon: Network },
+    ],
+  },
+]
+
+export const BOTTOM_NAV: NavItem[] = [
+  { href: '/paper-orders', label: '용지 요청', icon: FileText },
+]
+
+export const ADMIN_NAV: NavItem[] = [
+  { href: '/admin/users', label: '직원 관리', icon: Users },
+]
+
+export const MASTER_NAV: NavItem[] = [
+  { href: '/admin/logs', label: '직원 활동 로그', icon: ClipboardList },
+]
+
+export const ALL_NAV_HREFS = [
+  ...COMMON_NAV,
+  ...ROLE_FOLDERS.flatMap((folder) => folder.items),
+  ...BOTTOM_NAV,
+  ...ADMIN_NAV,
+  ...MASTER_NAV,
+].map((item) => item.href)
+
+export function isNavItemActive(pathname: string, href: string) {
+  if (href.includes('?')) return false
+  if (pathname === href) return true
+  if (!pathname.startsWith(`${href}/`)) return false
+
+  return !ALL_NAV_HREFS.some(
+    (other) =>
+      other !== href &&
+      other.startsWith(`${href}/`) &&
+      (pathname === other || pathname.startsWith(`${other}/`)),
+  )
+}
+
+export function breadcrumbForPath(pathname: string) {
+  const common = COMMON_NAV.find((item) => isNavItemActive(pathname, item.href))
+  if (common) return [common.label]
+
+  for (const group of ROLE_FOLDERS) {
+    const child = group.items.find((item) => isNavItemActive(pathname, item.href))
+    if (child) return [group.label, child.label]
+  }
+
+  const managed = [...BOTTOM_NAV, ...ADMIN_NAV, ...MASTER_NAV].find((item) =>
+    isNavItemActive(pathname, item.href),
+  )
+  if (managed) return ['관리', managed.label]
+
+  return ['대시보드']
+}

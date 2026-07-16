@@ -14,11 +14,14 @@ import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseAppli
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import type { DocCase } from '@/lib/solapi'
 import { useToast } from '@/components/ui/Toast'
-import { logNotification } from '@/components/ui/NotificationHistory'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import HistoryIcon from '@/components/ui/HistoryIcon'
+import FranchiseCreateDialog from './FranchiseCreateDialog'
+import FranchiseDetailDrawer from './FranchiseDetailDrawer'
+import FranchiseMemoDrawer from './FranchiseMemoDrawer'
+import FranchiseReceiptSurface from './FranchiseReceiptSurface'
 import {
   docCaseOf,
   createLinkedInstallTicket as createLinkedInstallTicketShared,
@@ -62,7 +65,7 @@ interface Props {
   todayCompletedIds: string[]
 }
 
-type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'reviewing' | 'approved'
+type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
 type ReceiptKpi = 'today_received' | 'doc_waiting' | 'doc_incomplete' | 'reviewing' | 'today_completed'
 
 const REVIEWING_STATUS_SET = new Set<FranchiseStatus>(['card_apply_done', 'toss_review_apply_done'])
@@ -411,9 +414,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative flex h-full w-[36rem] max-w-[calc(100vw-3rem)] flex-col bg-slate-900 text-white shadow-2xl border-l border-slate-700">
+    <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[95vh] max-h-[95vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
         <p className="flex items-center gap-2 text-base font-semibold">
           <HistoryIcon size={32} />
@@ -435,7 +436,6 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
         ) : (
           <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}
-      </div>
       </div>
     </div>
   )
@@ -537,61 +537,6 @@ const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   card_done: 'completed',
 }
 
-// 서류 접수 -> VAN(카드가맹) 접수 -> 토스 심사 -> 완료, 4단계로 압축한 진행률 표시용 매핑.
-// 실제 상태값(FranchiseStatus)은 더 세분화되어 있어 이 매핑은 화면 표시 전용이며 DB에는 영향을 주지 않는다.
-const STAGE_LABELS = ['서류', 'VAN', '토스', '완료'] as const
-const STAGE_INDEX: Record<FranchiseStatus, number> = {
-  info_input: 0,
-  doc_waiting: 0,
-  doc_incomplete: 0,
-  card_apply_done: 1,
-  internet_apply_done: 1,
-  card_internet_apply_done: 1,
-  toss_review_apply_done: 2,
-  toss_review_done: 3,
-  card_done: 3,
-  internet_done: 3,
-  completed: 3,
-}
-
-function StageProgress({ status }: { status: FranchiseStatus }) {
-  const stage = STAGE_INDEX[status] ?? 0
-  const lastIdx = STAGE_LABELS.length - 1
-  const fraction = (idx: number) => idx / lastIdx
-  const solid = status === 'doc_incomplete' ? 'bg-red-500' : 'bg-blue-500'
-  const border = status === 'doc_incomplete' ? 'border-red-500' : 'border-blue-500'
-  return (
-    <div className="flex w-full flex-col gap-1.5 py-1">
-      <div className="relative h-2.5 w-full">
-        <div className="absolute top-1/2 right-0 left-0 h-0.5 -translate-y-1/2 bg-slate-200" />
-        {stage > 0 && (
-          <div className={`absolute top-1/2 left-0 h-0.5 -translate-y-1/2 ${solid}`} style={{ width: `${fraction(stage) * 100}%` }} />
-        )}
-        {STAGE_LABELS.map((label, idx) => (
-          <div
-            key={label}
-            className={`absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
-              idx < stage ? `${solid} ${border}` : idx === stage ? `bg-white ${border}` : 'bg-white border-slate-300'
-            }`}
-            style={{ left: `${fraction(idx) * 100}%` }}
-          />
-        ))}
-      </div>
-      <div className="relative h-3 w-full">
-        {STAGE_LABELS.map((label, idx) => (
-          <span
-            key={label}
-            className="absolute top-0 text-[9.5px] whitespace-nowrap text-slate-400"
-            style={idx === 0 ? { left: 0 } : idx === lastIdx ? { right: 0 } : { left: `${fraction(idx) * 100}%`, transform: 'translateX(-50%)' }}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 const MAIN_COLUMNS = [
   { key: 'reception_date', label: '접수날짜' },
   { key: 'reception_channel', label: '접수채널' },
@@ -603,7 +548,6 @@ const MAIN_COLUMNS = [
   { key: 'cs_id', label: '담당자' },
   { key: 'internet_status', label: '인터넷' },
   { key: 'status', label: '상태' },
-  { key: 'progress', label: '진행률' },
   { key: 'memo', label: '메모' },
 ] as const
 const DEFAULT_WIDTHS: Record<string, number> = {
@@ -617,7 +561,6 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   cs_id: 90,
   internet_status: 110,
   status: 140,
-  progress: 120,
   memo: 160,
 }
 const COL_WIDTHS_STORAGE_KEY = 'franchise_col_widths'
@@ -949,7 +892,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (tableView === 'mine' && ((row.sales_id !== currentUserId && row.cs_id !== currentUserId) || COMPLETED_STATUS_SET.has(row.status))) return false
       if (tableView === 'doc_incomplete' && row.status !== 'doc_incomplete') return false
       if (tableView === 'doc_waiting' && row.status !== 'doc_waiting') return false
-      if (tableView === 'reviewing' && !REVIEWING_STATUS_SET.has(row.status)) return false
       if (tableView === 'approved' && !APPROVED_STATUS_SET.has(row.status)) return false
     }
     if (!skip.skipStatus && statusFilter && row.status !== statusFilter) return false
@@ -1128,7 +1070,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       mine: base.filter(row => (row.sales_id === currentUserId || row.cs_id === currentUserId) && !COMPLETED_STATUS_SET.has(row.status)).length,
       doc_incomplete: base.filter(row => row.status === 'doc_incomplete').length,
       doc_waiting: base.filter(row => row.status === 'doc_waiting').length,
-      reviewing: base.filter(row => REVIEWING_STATUS_SET.has(row.status)).length,
       approved: base.filter(row => APPROVED_STATUS_SET.has(row.status)).length,
     }
   }, [localRows, search, matchesFilters, currentUserId])
@@ -1237,20 +1178,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (form.sendDocNotify && form.phone) {
       const docCase = docCaseOf(form.owner_name, form.business_name)
       try {
-        const res = await fetch('/api/franchise/notify', {
+        await fetch('/api/franchise/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'doc_request', phone: form.phone, ownerName: form.owner_name, businessName: form.business_name, applicantType: form.applicant_type, docCase }),
         })
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}))
-          await logNotification({ entityType: 'franchise', entityId: data.id, templateKey: 'doc_request', status: 'failed', error: json.error })
-        } else {
-          await logNotification({ entityType: 'franchise', entityId: data.id, templateKey: 'doc_request', status: 'sent' })
-        }
-      } catch (e: any) {
-        await logNotification({ entityType: 'franchise', entityId: data.id, templateKey: 'doc_request', status: 'failed', error: e?.message })
-      }
+      } catch {  }
     }
     setShowForm(false)
     const sales = form.sales_id ? salesProfiles.find(p => p.id === form.sales_id) ?? null : null
@@ -1647,7 +1580,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const canNotifyConfirm = statusConfirm ? statusConfirm.newStatus !== 'completed' && !!statusConfirm.row.phone : false
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {}
       {showShortcuts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowShortcuts(false)}>
@@ -1823,547 +1756,120 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         </div>
       )}
       {}
-      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        {([
-          { key: 'today_received', label: '오늘 접수', icon: ClipboardList, iconClass: 'bg-blue-50 text-blue-600', activeClass: 'border-blue-300 ring-blue-100' },
-          { key: 'doc_waiting', label: '서류 대기', icon: Clock3, iconClass: 'bg-amber-50 text-amber-600', activeClass: 'border-amber-300 ring-amber-100' },
-          { key: 'doc_incomplete', label: '서류 미비', icon: AlertTriangle, iconClass: 'bg-red-50 text-red-600', activeClass: 'border-red-300 ring-red-100' },
-          { key: 'reviewing', label: '심사 중', icon: Search, iconClass: 'bg-indigo-50 text-indigo-600', activeClass: 'border-indigo-300 ring-indigo-100' },
-          { key: 'today_completed', label: '오늘 완료', icon: CheckCircle2, iconClass: 'bg-emerald-50 text-emerald-600', activeClass: 'border-emerald-300 ring-emerald-100' },
-        ] as const).map(card => {
-          const Icon = card.icon
-          const isActive = activeKpi === card.key
-          return (
-            <button
-              key={card.key}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => {
-                setActiveKpi(current => current === card.key ? null : card.key)
-                setTableView('all')
-                setStatusFilter('')
-              }}
-              className={`flex min-h-20 cursor-pointer items-center gap-3 rounded-xl border bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow focus-visible:outline-none focus-visible:ring-2 ${
-                isActive ? `${card.activeClass} ring-2` : 'border-slate-200 focus-visible:ring-blue-200'
-              }`}
-            >
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${card.iconClass}`}>
-                <Icon size={19} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-medium text-slate-500">{card.label}</span>
-                <span className="mt-0.5 block text-xl font-bold leading-none text-slate-900">
-                  {kpiCounts[card.key].toLocaleString()}
-                  <span className="ml-1 text-xs font-normal text-slate-400">건</span>
-                </span>
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <FranchiseReceiptSurface
+        rows={pagedRows}
+        allRows={localRows}
+        filteredCount={filteredRows.length}
+        selected={selected}
+        allChecked={allChecked}
+        page={page}
+        totalPages={totalPages}
+        kpiCounts={kpiCounts}
+        activeKpi={activeKpi}
+        tableView={tableView}
+        tableViewCounts={tableViewCounts}
+        search={search}
+        statusFilter={statusFilter}
+        applicantTypeFilter={applicantTypeFilter}
+        channelFilter={channelFilter}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        sortBy={sortBy}
+        csProfiles={csProfiles}
+        linkedInstalls={localLinkedInstalls}
+        linkedInternets={localLinkedInternets}
+        busyId={busyId}
+        onHelp={() => setShowShortcuts(true)}
+        onNew={() => setShowForm(true)}
+        onKpiChange={key => {
+          setActiveKpi(current => current === key ? null : key)
+          setTableView('all')
+          setStatusFilter('')
+        }}
+        onTableViewChange={(view, kpi) => {
+          setTableView(view)
+          setActiveKpi(kpi ?? null)
+          setStatusFilter('')
+        }}
+        onSearchChange={setSearch}
+        onStatusFilterChange={setStatusFilter}
+        onApplicantTypeFilterChange={setApplicantTypeFilter}
+        onChannelFilterChange={setChannelFilter}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        onSortChange={setSortBy}
+        onToggleAll={toggleAll}
+        onToggleRow={toggleOne}
+        onSaveField={saveField}
+        onApplicantTypeChange={updateApplicantType}
+        onCsChange={updateCs}
+        onStatusChange={handleStatusChange}
+        onOpenDetail={toggleExpand}
+        onOpenMemo={setHistoryOpenId}
+        onPageChange={setPage}
+        onSelectAllFiltered={selectAllFiltered}
+        onBulkStatus={() => setBulkStatusModal(true)}
+        onBulkAssign={() => setBulkAssignModal(true)}
+        onBulkDelete={handleDelete}
+        onBulkTransfer={() => setBulkTransferConfirmOpen(true)}
+      />
 
-      <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex flex-wrap items-center gap-2 p-3">
-          <div className="relative min-w-[260px] flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="상호명, 대표자, 연락처, 사업자번호 통합 검색"
-              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setAdvancedFiltersOpen(open => !open)}
-            aria-expanded={advancedFiltersOpen}
-            className="ml-auto flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            상세 필터
-            <ChevronDown size={14} className={`transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
+      {showForm && <FranchiseCreateDialog onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} csProfiles={csProfiles} />}
 
-        {advancedFiltersOpen && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-3">
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">상태 전체</option>
-              {(Object.keys(FRANCHISE_STATUS_LABEL) as FranchiseStatus[]).filter(s => statusCounts[s]).map(s => (
-                <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]} ({statusCounts[s]})</option>
-              ))}
-            </select>
-            <select value={applicantTypeFilter} onChange={e => setApplicantTypeFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">사업자 유형 전체</option>
-              {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
-                <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
-              ))}
-            </select>
-            <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">접수 채널 전체</option>
-              {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={vanFilter} onChange={e => setVanFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">VAN사 전체</option>
-              {VAN_COMPANIES.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="등록일 시작"
-              className="rounded-lg border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <span className="text-xs text-slate-400">~</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="등록일 종료"
-              className="rounded-lg border border-slate-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="updated_at">최근 수정순</option>
-              <option value="created_at">등록일순</option>
-              <option value="status">상태순</option>
-              <option value="open_date">오픈예정일순</option>
-              <option value="install_date">설치발송일순</option>
-              <option value="manual">직접 정렬 (드래그)</option>
-            </select>
-            {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (
-              <button onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setChannelFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
-                className="px-2 py-2 text-sm text-slate-400 transition-colors hover:text-red-500">
-                초기화
-              </button>
-            )}
-            <button onClick={saveFilterPreset} title="현재 필터 저장"
-              className="rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50">
-              저장
-            </button>
-            {savedFilters.map(f => (
-              <span key={f.name} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white py-1 pl-2 pr-1 text-sm">
-                <button onClick={() => loadFilterPreset(f)} className="text-slate-600 hover:text-blue-600">{f.name}</button>
-                <button onClick={() => removeFilterPreset(f.name)} title="프리셋 삭제" className="px-1 text-slate-300 hover:text-red-500">×</button>
-              </span>
-            ))}
-          </div>
-        )}
+      {expandedId && (() => {
+        const row = localRows.find(item => item.id === expandedId)
+        if (!row) return null
+        return (
+          <FranchiseDetailDrawer
+            key={row.id}
+            row={row}
+            salesProfiles={salesProfiles}
+            csProfiles={csProfiles}
+            linkedInstall={localLinkedInstalls[row.id]}
+            linkedInternet={localLinkedInternets[row.id]}
+            busy={busyId === row.id}
+            transferring={transferringId === row.id}
+            linkingInternet={linkingInternetId === row.id}
+            onClose={() => setExpandedId(null)}
+            onSave={(field, value) => saveField(row, field, value)}
+            onEquipmentChange={items => saveEquipmentItems(row, items)}
+            onApplicantTypeChange={value => updateApplicantType(row, value)}
+            onCsChange={value => updateCs(row, value)}
+            onSalesChange={value => updateSales(row, value)}
+            onStatusChange={value => handleStatusChange(row, value)}
+            onCopyLink={() => shareLink(row.id)}
+            onResendDocuments={() => {
+              if (!row.phone) return
+              const dc = docCaseOf(row.owner_name, row.business_name)
+              notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase: dc })
+            }}
+            onTransfer={() => transferToTech(row)}
+            onOpenInstalls={() => router.push('/installs')}
+            onLinkInternet={() => linkToInternet(row)}
+            onOpenInternet={() => router.push('/internet')}
+            onOpenHistory={() => setHistoryOpenId(row.id)}
+          />
+        )
+      })()}
 
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {([
-            ['all', '전체'],
-            ['mine', '내 업무'],
-            ['doc_incomplete', '서류 미비'],
-            ['doc_waiting', '서류 대기'],
-            ['reviewing', '심사 중'],
-            ['approved', '승인 완료'],
-          ] as const).map(([view, label]) => (
-            <button
-              key={view}
-              type="button"
-              onClick={() => {
-                setTableView(view)
-                setActiveKpi(null)
-                setStatusFilter('')
-              }}
-              className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md border-b-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
-                tableView === view
-                  ? 'border-blue-600 bg-blue-50/60 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-              }`}
-            >
-              {label}
-              <span className={`rounded-full px-1.5 py-0.5 text-xs ${tableView === view ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                {tableViewCounts[view].toLocaleString()}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto flex shrink-0 items-center gap-2 pb-2">
-          <div className="text-sm text-slate-500">
-            {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo || tableView !== 'all' || activeKpi)
-              ? <><span className="font-semibold text-slate-800">{filteredRows.length.toLocaleString()}건</span> / 전체 {localRows.length.toLocaleString()}건</>
-              : `전체 ${localRows.length.toLocaleString()}건`}
-          </div>
-          <button onClick={handleExcel}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50">
-            <Download size={14} />엑셀
-          </button>
-          <button onClick={() => setShowShortcuts(true)} title="단축키 도움말 (?)"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-sm text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600">
-            ?
-          </button>
-          <button onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
-            <Plus size={14} />
-            정보 입력
-          </button>
-        </div>
-      </div>
-      {selected.size > 0 && (
-
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
-          <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
-          {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
-            <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
-              className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
-              필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
-            </button>
-          )}
-          <button onClick={() => setBulkStatusModal(true)}
-            className="text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors">
-            일괄 상태 변경
-          </button>
-          <button onClick={() => setBulkAssignModal(true)}
-            className="text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-colors">
-            일괄 배정
-          </button>
-          <button onClick={() => setBulkTransferConfirmOpen(true)}
-            className="text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition-colors">
-            일괄 기술지원 이관
-          </button>
-          <button onClick={handleDelete} disabled={deleting}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
-            <Trash2 size={14} />
-            {deleting ? '삭제 중...' : '선택 삭제'}
-          </button>
-          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 hover:text-slate-700">
-            취소
-          </button>
-        </div>
-      )}
-
-      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
-
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-[13px] border-collapse min-w-[1250px]" style={{ tableLayout: 'fixed' }}>
-          <colgroup>
-            <col style={{ width: 24 }} />
-            <col style={{ width: 32 }} />
-            <col style={{ width: 24 }} />
-            {MAIN_COLUMNS.map(col => (
-              <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
-            ))}
-          </colgroup>
-          <thead className="bg-slate-50 sticky top-0 z-10">
-            <tr>
-              <th className="px-1 py-2.5 border-b border-slate-200" />
-              <th className="px-3 py-2.5 border-b border-slate-200">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" title="이 페이지 전체 선택 (필터링된 전체가 아님)" />
-              </th>
-              <th className="px-3 py-2.5 border-b border-slate-200" />
-              {MAIN_COLUMNS.map(col => (
-                <th key={col.key} title={col.label} className="relative text-left px-2.5 py-2.5 font-semibold text-xs text-slate-500 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
-                  {col.label}
-                  <div
-                    onMouseDown={e => startResize(e, col.key)}
-                    className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
-                  />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pagedRows.map(row => (
-              <Fragment key={row.id}>
-                <tr
-                  id={`franchise-row-${row.id}`}
-                  className={`border-b border-slate-100 transition-colors cursor-pointer ${selected.has(row.id) ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-slate-50'} ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
-                  onClick={() => toggleExpand(row)}
-                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
-                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
-                >
-                  <td
-                    className={`px-1 py-2.5 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
-                    onClick={e => e.stopPropagation()}
-                    draggable={canReorder}
-                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
-                    onDragEnd={() => setRowDragId(null)}
-                    title={canReorder ? '드래그해서 순서 변경' : '"직접 정렬" + 필터 해제 상태에서만 순서를 바꿀 수 있습니다'}
-                  >
-                    <GripVertical size={14} />
-                  </td>
-                  <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
-                  </td>
-                  <td className="px-3 py-2.5 text-slate-500">
-                    {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </td>
-                  <td className="px-2.5 py-2.5 whitespace-nowrap text-sm" onClick={e => e.stopPropagation()}>
-                    <DateField row={row} field="reception_date" onSave={saveField} />
-                  </td>
-                  <td className="px-2.5 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    <select
-                      value={row.reception_channel ?? ''}
-                      onChange={e => saveField(row, 'reception_channel', e.target.value)}
-                      className="text-sm font-medium text-slate-700 border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
-                    >
-                      <option value="">미지정</option>
-                      {RECEPTION_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    <select
-                      value={row.applicant_type}
-                      onChange={e => updateApplicantType(row, e.target.value as ApplicantType)}
-                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 border border-slate-200 bg-slate-100 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-                    >
-                      {(Object.keys(APPLICANT_TYPE_LABEL) as ApplicantType[]).map(t => (
-                        <option key={t} value={t}>{APPLICANT_TYPE_LABEL[t]}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-3 font-semibold text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis" title={row.business_name || undefined}>
-                    <div className="flex items-center gap-1.5">
-                      <span>{row.business_name || '-'}</span>
-                      {(() => { const pct = completeness(row); return pct < 100 ? (
-                        <span className={`text-xs px-1 py-0.5 rounded font-medium ${pct >= 75 ? 'bg-blue-50 text-blue-500' : pct >= 50 ? 'bg-amber-50 text-amber-500' : 'bg-red-50 text-red-500'}`}>{pct}%</span>
-                      ) : null })()}
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" title={row.owner_name || undefined}>{row.owner_name || '-'}</td>
-                  <td className="px-3 py-3 text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">
-                    {row.phone ? (
-                      <button
-                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.phone!); toast.success(`복사됨: ${row.phone}`) }}
-                        className="hover:text-blue-600 hover:underline transition-colors cursor-pointer"
-                        title="클릭하여 복사"
-                      >{row.phone}</button>
-                    ) : '-'}
-                  </td>
-                  <td className="px-3 py-3 text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis text-xs">{row.creator?.name ?? '-'}</td>
-                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    <select
-                      value={row.cs_id ?? ''}
-                      onChange={e => updateCs(row, e.target.value)}
-                      className="text-sm font-medium text-slate-700 border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-400 rounded cursor-pointer"
-                    >
-                      <option value="">미배정</option>
-                      {csProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-center">
-                    {localLinkedInternets[row.id] && (
-                      <span className="text-sm font-extrabold text-green-700">
-                        {localLinkedInternets[row.id].category || 'O'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    <div className="flex flex-col gap-1">
-                      <select
-                        value={row.status}
-                        disabled={busyId === row.id}
-                        onChange={e => handleStatusChange(row, e.target.value as FranchiseStatus)}
-                        className={`text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer disabled:opacity-50 ${FRANCHISE_STATUS_COLOR[row.status]}`}
-                      >
-                        {SELECTABLE_FRANCHISE_STATUSES.map(s => (
-                          <option key={s} value={s}>{FRANCHISE_STATUS_LABEL[s]}</option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-1">
-                        {(() => { const d = statusAgeDays(row); return d >= 1 ? (
-                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${d >= 30 ? 'bg-red-100 text-red-600' : d >= 15 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>{d}일째</span>
-                        ) : null })()}
-                        {NEXT_STATUS[row.status] && busyId !== row.id && (
-                          <button
-                            onClick={() => handleStatusChange(row, NEXT_STATUS[row.status]!)}
-                            title={`→ ${FRANCHISE_STATUS_LABEL[NEXT_STATUS[row.status]!]}`}
-                            className="text-xs text-slate-400 hover:text-blue-600 hover:bg-blue-50 px-1 py-0.5 rounded transition-colors"
-                          >→</button>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3">
-                    <StageProgress status={row.status} />
-                  </td>
-                  <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate" title={row.memo || undefined}>{row.memo || '-'}</td>
-                </tr>
-                {expandedId === row.id && (
-                  <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={15} className="px-6 py-4">
-                      <div className="grid grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">상호명</label>
-                          <EditableText row={row} field="business_name" placeholder="-" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">대표자명</label>
-                          <EditableText row={row} field="owner_name" placeholder="-" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">연락처</label>
-                          <EditableText row={row} field="phone" placeholder="010-0000-0000" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">사업자번호</label>
-                          <EditableText row={row} field="business_number" placeholder="000-00-00000" onSave={saveField} />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="text-xs font-semibold text-slate-400">상품</label>
-                          <EquipmentCart items={row.equipment_items ?? []} onChange={items => saveEquipmentItems(row, items)} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">작업제목</label>
-                          <EditableText row={row} field="title" placeholder="-" onSave={saveField} />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="text-xs font-semibold text-slate-400">주소</label>
-                          <EditableText row={row} field="address" placeholder="-" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">상세주소</label>
-                          <EditableText row={row} field="address_detail" placeholder="-" onSave={saveField} />
-                        </div>
-                        {row.applicant_type !== 'giga_individual' && row.applicant_type !== 'giga_corporate' && (
-                          <div>
-                            <label className="text-xs font-semibold text-slate-400">오픈예정일</label>
-                            <DateField row={row} field="open_date" onSave={saveField} />
-                          </div>
-                        )}
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">카드가맹접수일</label>
-                          <DateField row={row} field="card_apply_date" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">설치 및 발송일</label>
-                          <DateField row={row} field="install_date" onSave={saveField} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-400">인터넷</label>
-                          <select
-                            value={row.internet ?? ''}
-                            onChange={e => saveField(row, 'internet', e.target.value)}
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
-                          >
-                            <option value="">-</option>
-                            {INTERNET_PROVIDERS.map(v => <option key={v} value={v}>{v}</option>)}
-                          </select>
-                        </div>
-                        <div className="col-span-2">
-                          <label className="text-xs font-semibold text-slate-400">VAN사 (중복선택 가능)</label>
-                          <VanMultiSelect value={row.van_company ?? ''} onChange={v => saveField(row, 'van_company', v)} />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 mb-4 flex-wrap">
-                        <button onClick={() => shareLink(row.id)}
-                          className="text-xs text-slate-400 hover:text-blue-500 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-colors">
-                          링크 복사
-                        </button>
-                        {row.phone && (
-                          <button
-                            onClick={() => {
-                              const dc = docCaseOf(row.owner_name, row.business_name)
-                              notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase: dc })
-                            }}
-                            className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 hover:border-blue-400 px-2 py-1 rounded-lg transition-colors"
-                          >
-                            서류안내 재발송
-                          </button>
-                        )}
-                        {localLinkedInstalls[row.id] && localLinkedInstalls[row.id].status !== 'rejected' ? (
-                          <button onClick={() => router.push('/installs')}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${
-                            localLinkedInstalls[row.id].status === 'completed'
-                              ? 'bg-green-50 text-green-600 border-green-200'
-                              : 'bg-purple-50 text-purple-600 border-purple-200'
-                          }`}>
-                            {localLinkedInstalls[row.id].status === 'completed' ? '설치완료 →' : '기술지원 이관됨 →'}
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            {localLinkedInstalls[row.id]?.status === 'rejected' && (
-                              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg border bg-red-50 text-red-600 border-red-200">
-                                기술지원 반려됨
-                              </span>
-                            )}
-                            <button
-                              onClick={() => transferToTech(row)}
-                              disabled={transferringId === row.id}
-                              className="text-xs font-semibold bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                            >
-                              {transferringId === row.id ? '처리 중...' :
-                               localLinkedInstalls[row.id]?.status === 'rejected' ? '재이관' : '기술지원 이관'}
-                            </button>
-                          </div>
-                        )}
-                        {localLinkedInternets[row.id] ? (
-                          <button onClick={() => router.push('/internet')}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${
-                            localLinkedInternets[row.id].status === '개통완료'
-                              ? 'bg-green-50 text-green-600 border-green-200'
-                              : localLinkedInternets[row.id].status === '취소'
-                                ? 'bg-red-50 text-red-600 border-red-200'
-                                : 'bg-cyan-50 text-cyan-600 border-cyan-200'
-                          }`}>
-                            인터넷 {localLinkedInternets[row.id].status || '등록됨'} →
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => linkToInternet(row)}
-                            disabled={linkingInternetId === row.id}
-                            className="text-xs font-semibold bg-cyan-600 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-700 disabled:opacity-50"
-                          >
-                            {linkingInternetId === row.id ? '처리 중...' : '인터넷 등록'}
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex justify-end">
-                        <HistoryButton onClick={() => setHistoryOpenId(row.id)} />
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-            {filteredRows.length === 0 && (
-              <tr><td colSpan={15} className="text-center text-slate-400 py-10">
-                <div className="flex flex-col items-center gap-2">
-                  <span>조건에 맞는 가맹 접수가 없습니다.</span>
-                  {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (
-                    <button
-                      onClick={() => { setSearch(''); setStatusFilter(''); setApplicantTypeFilter(''); setChannelFilter(''); setVanFilter(''); setDateFrom(''); setDateTo('') }}
-                      className="text-sm text-blue-500 hover:text-blue-700 underline">
-                      필터 초기화
-                    </button>
-                  )}
-                </div>
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/60 px-4 py-2.5">
-        <span className="text-xs text-slate-500">
-          전체 <span className="font-semibold text-slate-700">{filteredRows.length.toLocaleString()}</span>건 중{' '}
-          {filteredRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRows.length)}건 표시
-        </span>
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setPage(1)} disabled={page === 1}
-              className="text-xs px-2 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">처음</button>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">이전</button>
-            <span className="text-xs text-slate-500 px-1">{page} / {totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">다음</button>
-            <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
-              className="text-xs px-2 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">마지막</button>
-          </div>
-        )}
-      </div>
-      </div>{/* end table card */}
       {historyOpenId && (() => {
         const row = localRows.find(r => r.id === historyOpenId)
         if (!row) return null
+        const entries = parseMemoEntries(row.memo, row.created_at).map((entry, index) => ({
+          ...entry,
+          index,
+        }))
         return (
-          <HistoryPanel
+          <FranchiseMemoDrawer
             row={row}
-            logs={logsByRow[row.id]}
-            onSave={saveField}
-            onDeleteMemo={(r, newMemo) => saveMemoRaw(r, newMemo)}
-            onTogglePin={(r, newMemo) => saveMemoRaw(r, newMemo)}
+            entries={entries}
             onClose={() => setHistoryOpenId(null)}
+            onAdd={content => saveField(row, 'memo', content)}
+            onDelete={index => {
+              if (!confirm('\uC774 \uBA54\uBAA8\uB97C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return
+              return saveMemoRaw(row, removeMemoEntry(row.memo, index))
+            }}
+            onTogglePin={index => saveMemoRaw(row, togglePinEntry(row.memo, index))}
           />
         )
       })()}

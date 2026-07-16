@@ -13,7 +13,7 @@ export default async function InstallPhotosPage() {
 
   const { data: installs } = await supabase
     .from('installations')
-    .select('id, customer_name, delivery_type, completion_photo_urls, created_at, assignee:profiles!installations_assigned_to_fkey(name)')
+    .select('id, customer_name, delivery_type, completion_photo_urls, notes, created_at, assignee:profiles!installations_assigned_to_fkey(name)')
     .eq('status', 'completed')
     .not('completion_photo_urls', 'is', null)
     .order('created_at', { ascending: false })

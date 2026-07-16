@@ -8,12 +8,15 @@ import { createClient } from '@/lib/supabase/client'
 import { thumbUrl } from '@/lib/format'
 import { useToast } from '@/components/ui/Toast'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
+import HistoryButton from '@/components/ui/HistoryButton'
+import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
 
 interface Install {
   id: string
   customer_name: string
   delivery_type?: string
   completion_photo_urls: string[]
+  notes?: string | null
   created_at: string
   assignee?: { name: string } | null
 }
@@ -29,13 +32,14 @@ const TABS = [
   ['as', 'AS'],
 ] as const
 
-export default function PhotosClient({ installs: initialInstalls }: Props) {
+export default function PhotosClient({ profile, installs: initialInstalls }: Props) {
   const [installs, setInstalls] = useState(initialInstalls)
   const [tab, setTab] = useState<'all' | 'install' | 'as'>('all')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const [deletingSelected, setDeletingSelected] = useState(false)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const supabase = createClient()
   const toast = useToast()
 
@@ -70,6 +74,31 @@ export default function PhotosClient({ installs: initialInstalls }: Props) {
   function handleBulkDelete() {
     if (selected.size === 0) return
     setBulkDeleteConfirmOpen(true)
+  }
+
+  async function saveNotes(id: string, notes: string, raw?: boolean) {
+    const prev = installs.find(i => i.id === id)
+    const prevNotes = (prev?.notes ?? '').trim()
+    let saveValue: string | null = notes || null
+    if (raw) {
+      // 메모 삭제 등 이미 완성된 원본 텍스트를 그대로 저장할 때는 스탬프 로직을 건너뛴다
+    } else if (notes && prevNotes) {
+      if (notes.startsWith(prevNotes)) {
+        const added = notes.slice(prevNotes.length).replace(/^\n+/, '')
+        if (!added.trim()) {
+          saveValue = prevNotes
+        } else {
+          const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+          saveValue = `${prevNotes}\n${stamp} ${added}`
+        }
+      }
+    } else if (notes && !prevNotes) {
+      const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
+      saveValue = `${stamp} ${notes}`
+    }
+    const { error } = await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
+    if (error) { toast.error('저장 실패: ' + error.message); return }
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue } : i))
   }
 
   async function confirmBulkDelete() {
@@ -160,6 +189,9 @@ export default function PhotosClient({ installs: initialInstalls }: Props) {
                   </a>
                 ))}
               </div>
+              <div className="flex justify-end mt-3">
+                <HistoryButton onClick={() => setHistoryOpenId(inst.id)} size="small" />
+              </div>
             </div>
           ))}
         </div>
@@ -175,6 +207,23 @@ export default function PhotosClient({ installs: initialInstalls }: Props) {
         onCancel={() => setBulkDeleteConfirmOpen(false)}
         onConfirm={confirmBulkDelete}
       />
+
+      {historyOpenId && (() => {
+        const row = installs.find(i => i.id === historyOpenId)
+        if (!row) return null
+        return (
+          <MemoHistoryPanel
+            title={row.customer_name}
+            memo={row.notes}
+            createdAt={row.created_at}
+            entityType="install"
+            entityId={row.id}
+            onAddMemo={(value) => saveNotes(row.id, `${(row.notes ?? '').trim()}${(row.notes ?? '').trim() ? '\n' : ''}${value}`)}
+            onDeleteMemo={(newMemo) => saveNotes(row.id, newMemo, true)}
+            onClose={() => setHistoryOpenId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

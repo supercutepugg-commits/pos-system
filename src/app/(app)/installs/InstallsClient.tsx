@@ -630,6 +630,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     completingRef.current = true
     setCompleting(true)
     const { id, notes } = completeModal
+    const prevInst = installs.find(i => i.id === id)
+    const prevNotes = (prevInst?.notes ?? '').trim()
+    const saveValue = computeStampedNotes(prevNotes, notes)
 
     const photoUrls: string[] = []
     for (const [i, file] of completePhotos.entries()) {
@@ -644,13 +647,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
     const { error } = await supabase.from('installations').update({
       status: 'completed',
-      notes: notes || null,
+      notes: saveValue,
       completion_photo_urls: photoUrls,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
     if (error) { toast.error('완료 처리 실패: ' + error.message); setCompleting(false); completingRef.current = false; return }
 
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'completed', notes, completion_photo_urls: photoUrls } : i))
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'completed', notes: saveValue ?? undefined, completion_photo_urls: photoUrls } : i))
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
@@ -697,15 +700,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     }
   }
 
-  async function saveNotes(id: string, notes: string, raw?: boolean) {
-    const prev = installs.find(i => i.id === id)
-    const prevNotes = (prev?.notes ?? '').trim()
+  function computeStampedNotes(prevNotes: string, notes: string): string | null {
     let saveValue: string | null = notes || null
-    if (raw) {
-      // 메모 삭제 등 이미 완성된 원본 텍스트를 그대로 저장할 때는 스탬프 로직을 건너뛴다
-    } else if (notes && prevNotes) {
-
-
+    if (notes && prevNotes) {
       if (notes.startsWith(prevNotes)) {
         const added = notes.slice(prevNotes.length).replace(/^\n+/, '')
         if (!added.trim()) {
@@ -719,6 +716,14 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       const stamp = `[${profile.name} ${new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}]`
       saveValue = `${stamp} ${notes}`
     }
+    return saveValue
+  }
+
+  async function saveNotes(id: string, notes: string, raw?: boolean) {
+    const prev = installs.find(i => i.id === id)
+    const prevNotes = (prev?.notes ?? '').trim()
+    // 메모 삭제 등 이미 완성된 원본 텍스트를 그대로 저장할 때는 스탬프 로직을 건너뛴다
+    const saveValue = raw ? (notes || null) : computeStampedNotes(prevNotes, notes)
     const { error } = await supabase.from('installations').update({ notes: saveValue }).eq('id', id)
     if (error) { toast.error('수정 실패: ' + error.message); return false }
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined } : i))

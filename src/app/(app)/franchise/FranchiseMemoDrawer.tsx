@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { ArrowUp, Pin, Trash2, XIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Pin, Trash2, X } from 'lucide-react'
+import HistoryIcon from '@/components/ui/HistoryIcon'
 import type { FranchiseApplication } from '@/types'
 import { APPLICANT_TYPE_LABEL } from '@/types'
 
@@ -30,8 +31,6 @@ function formatEntryDate(value: string) {
 
 export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTogglePin, onDelete }: Props) {
   const [draft, setDraft] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const sortedEntries = [...entries].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
     if (a.pinned && b.pinned) {
@@ -40,110 +39,75 @@ export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTo
     return new Date(b.at).getTime() - new Date(a.at).getTime()
   })
 
-  function resizeTextarea() {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`
-  }
-
-  async function submit() {
+  function submit() {
     const content = draft.trim()
-    if (!content || submitting) return
-    setSubmitting(true)
-    try {
-      await onAdd(content)
-      setDraft('')
-      requestAnimationFrame(resizeTextarea)
-    } finally {
-      setSubmitting(false)
-    }
+    if (!content) return
+    void onAdd(content)
+    setDraft('')
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/35" onMouseDown={onClose}>
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="franchise-memo-title"
-        onMouseDown={event => event.stopPropagation()}
-        className="bg-card text-foreground absolute inset-y-0 right-0 flex h-dvh w-[560px] max-w-[calc(100vw-32px)] flex-col shadow-2xl"
-      >
-        <header className="border-border flex flex-shrink-0 items-start justify-between border-b px-6 py-5">
-          <div className="min-w-0">
-            <h2 id="franchise-memo-title" className="truncate text-lg font-bold">{row.business_name || row.owner_name || '-'}</h2>
-            <p className="text-muted-foreground mt-1 truncate text-[13.5px]">
+    <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[85vh] max-h-[85vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+        <p className="flex items-center gap-2 text-base font-semibold min-w-0">
+          <HistoryIcon size={32} />
+          <span className="truncate">
+            히스토리 · {row.business_name || row.owner_name || '-'}
+            <span className="text-slate-400 font-normal text-sm ml-2">
               {row.owner_name || '-'} · {APPLICANT_TYPE_LABEL[row.applicant_type]} · {row.phone || '-'}
-            </p>
-          </div>
-          <button type="button" aria-label="닫기" onClick={onClose} className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-9 shrink-0 items-center justify-center rounded-lg">
-            <XIcon className="size-4" />
-          </button>
-        </header>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {sortedEntries.length === 0 ? (
-            <div className="text-muted-foreground flex h-full min-h-48 items-center justify-center text-sm">메모가 없습니다.</div>
-          ) : (
-            <ol className="flex flex-col gap-3">
-              {sortedEntries.map(entry => (
-                <li key={`${entry.index}-${entry.at}`} className={`group rounded-xl border px-4 py-3.5 ${entry.pinned ? 'border-primary/35 bg-primary/5' : 'border-border bg-card'}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-muted-foreground text-xs">{formatEntryDate(entry.at)} · {entry.user || '-'}</div>
-                      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{entry.text}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label={entry.pinned ? '고정 해제' : '상단 고정'}
-                        onClick={() => onTogglePin(entry.index)}
-                        className={entry.pinned ? 'text-primary hover:text-primary-hover inline-flex size-8 items-center justify-center rounded-lg' : 'text-muted-foreground hover:bg-muted hover:text-foreground inline-flex size-8 items-center justify-center rounded-lg'}
-                      >
-                        <Pin className={`size-4 ${entry.pinned ? 'fill-current' : ''}`} />
-                      </button>
-                      <button type="button" aria-label="메모 삭제" onClick={() => onDelete(entry.index)} className="text-muted-foreground hover:bg-error/10 hover:text-error inline-flex size-8 items-center justify-center rounded-lg">
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
+            </span>
+          </span>
+        </p>
+        <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors shrink-0" aria-label="닫기">
+          <X size={20} />
+        </button>
+      </div>
+      <div className="px-5 py-4 border-b border-slate-700">
+        <label className="text-xs font-semibold text-slate-400">새 히스토리 추가</label>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={submit}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              submit()
+            }
+          }}
+          placeholder="새 히스토리 입력..."
+          rows={2}
+          className="w-full mt-1 bg-slate-800 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-2 py-1.5 text-sm resize-y text-white"
+        />
+      </div>
+      <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
+        {sortedEntries.length === 0 ? (
+          <p className="text-[15pt] text-slate-400">이력이 없습니다.</p>
+        ) : (
+          <ul className="space-y-2.5">
+            {sortedEntries.map(entry => (
+              <li key={`${entry.index}-${entry.at}`} className={`text-[15pt] group ${entry.pinned ? 'text-amber-200' : 'text-slate-200'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-slate-400">
+                    {formatEntryDate(entry.at)}
+                    {' · '}
+                    <span className="font-semibold text-blue-300">{entry.user || '-'}</span>
                   </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-
-        <footer className="border-border flex-shrink-0 border-t px-6 py-4">
-          <div className="relative">
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={draft}
-              placeholder="새 히스토리 입력..."
-              onChange={event => {
-                setDraft(event.target.value)
-                requestAnimationFrame(resizeTextarea)
-              }}
-              onKeyDown={event => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void submit()
-                }
-              }}
-              className="border-border bg-card text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/30 max-h-32 min-h-11 w-full resize-none rounded-2xl border py-2.5 pr-12 pl-4 text-sm leading-6 outline-none focus-visible:ring-2"
-            />
-            <button
-              type="button"
-              aria-label="메모 등록"
-              disabled={!draft.trim() || submitting}
-              onClick={() => void submit()}
-              className="bg-primary text-primary-foreground hover:bg-primary-hover absolute right-2 bottom-2 inline-flex size-8 items-center justify-center rounded-full transition-colors disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ArrowUp className="size-4" />
-            </button>
-          </div>
-        </footer>
-      </aside>
+                  <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => onTogglePin(entry.index)} aria-label={entry.pinned ? '고정 해제' : '상단 고정'}
+                      className={entry.pinned ? 'text-amber-300 hover:text-amber-200' : 'text-slate-500 hover:text-amber-300'}>
+                      <Pin size={14} className={entry.pinned ? 'fill-current' : ''} />
+                    </button>
+                    <button onClick={() => onDelete(entry.index)} aria-label="히스토리 삭제" className="text-slate-500 hover:text-red-400">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="whitespace-pre-wrap break-words">{entry.text}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

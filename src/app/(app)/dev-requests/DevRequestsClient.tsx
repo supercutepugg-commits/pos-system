@@ -6,9 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import BulkDeleteActions from '@/components/ui/BulkDeleteActions'
 import FormModal from '@/components/ui/FormModal'
+import DevRequestDetailDrawer from './DevRequestDetailDrawer'
 import type { Profile } from '@/types'
 
-export type DevRequestStatus = '확인중' | '미승인' | '승인'
+export type DevRequestStatus = '확인중' | '미승인' | '승인' | '처리완료'
 
 export interface DevRequest {
   id: string
@@ -27,6 +28,14 @@ const STATUS_STYLE: Record<DevRequestStatus, string> = {
   '확인중': 'bg-amber-100 text-amber-700',
   '미승인': 'bg-red-100 text-red-700',
   '승인': 'bg-emerald-100 text-emerald-700',
+  '처리완료': 'bg-blue-100 text-blue-700',
+}
+
+const STATUS_OPTIONS: DevRequestStatus[] = ['확인중', '미승인', '승인', '처리완료']
+
+function formatDateTime(value: string) {
+  const date = new Date(value)
+  return `${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
 const EMPTY_FORM = { title: '', content: '' }
@@ -90,6 +99,7 @@ export default function DevRequestsClient({ rows, profile }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DevRequestStatus>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -155,7 +165,7 @@ export default function DevRequestsClient({ rows, profile }: Props) {
   const changeStatus = useCallback(async (row: DevRequest, status: DevRequestStatus) => {
     const supabase = createClient()
     const patch: Partial<DevRequest> =
-      status === '승인'
+      status === '승인' || status === '처리완료'
         ? { status, approver_id: profile.id, approver_name: profile.name, approved_at: new Date().toISOString() }
         : { status, approver_id: null, approver_name: null, approved_at: null }
     const { error } = await supabase.from('dev_requests').update(patch).eq('id', row.id)
@@ -178,9 +188,7 @@ export default function DevRequestsClient({ rows, profile }: Props) {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}
           className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="all">전체</option>
-          <option value="확인중">확인중</option>
-          <option value="미승인">미승인</option>
-          <option value="승인">승인</option>
+          {STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
         </select>
         {(search || statusFilter !== 'all') && (
           <button onClick={() => { setSearch(''); setStatusFilter('all') }}
@@ -216,7 +224,8 @@ export default function DevRequestsClient({ rows, profile }: Props) {
               <th className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">요청자</th>
               <th className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">상태</th>
               <th className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">승인자</th>
-              <th className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">요청일</th>
+              <th className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">요청일시</th>
+              <th className="text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">상세</th>
             </tr>
           </thead>
           <tbody>
@@ -234,21 +243,38 @@ export default function DevRequestsClient({ rows, profile }: Props) {
                     onChange={e => changeStatus(row, e.target.value as DevRequestStatus)}
                     className={`text-xs font-semibold rounded-full px-2 py-1 border-0 cursor-pointer ${STATUS_STYLE[row.status]}`}
                   >
-                    <option value="확인중">확인중</option>
-                    <option value="미승인">미승인</option>
-                    <option value="승인">승인</option>
+                    {STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </td>
                 <td className="px-3 py-3 text-slate-700 whitespace-nowrap">{row.approver_name ?? '-'}</td>
-                <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{new Date(row.created_at).toLocaleDateString('ko-KR')}</td>
+                <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{formatDateTime(row.created_at)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  <button onClick={() => setExpandedId(row.id)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                    상세보기
+                  </button>
+                </td>
               </tr>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={7} className="text-center text-slate-400 py-10">데이터가 없습니다.</td></tr>
+              <tr><td colSpan={8} className="text-center text-slate-400 py-10">데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {expandedId && (() => {
+        const row = localRows.find(r => r.id === expandedId)
+        if (!row) return null
+        return (
+          <DevRequestDetailDrawer
+            key={row.id}
+            row={row}
+            onClose={() => setExpandedId(null)}
+            onStatusChange={status => changeStatus(row, status)}
+          />
+        )
+      })()}
     </div>
   )
 }

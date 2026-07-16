@@ -14,6 +14,7 @@ import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseAppli
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import type { DocCase } from '@/lib/solapi'
 import { useToast } from '@/components/ui/Toast'
+import { logNotification } from '@/components/ui/NotificationHistory'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
@@ -1174,12 +1175,20 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (form.sendDocNotify && form.phone) {
       const docCase = docCaseOf(form.owner_name, form.business_name)
       try {
-        await fetch('/api/franchise/notify', {
+        const res = await fetch('/api/franchise/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'doc_request', phone: form.phone, ownerName: form.owner_name, businessName: form.business_name, applicantType: form.applicant_type, docCase }),
         })
-      } catch {  }
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          await logNotification({ entityType: 'franchise', entityId: data.id, templateKey: 'doc_request', status: 'failed', error: json.error })
+        } else {
+          await logNotification({ entityType: 'franchise', entityId: data.id, templateKey: 'doc_request', status: 'sent' })
+        }
+      } catch (e: any) {
+        await logNotification({ entityType: 'franchise', entityId: data.id, templateKey: 'doc_request', status: 'failed', error: e?.message })
+      }
     }
     setShowForm(false)
     const sales = form.sales_id ? salesProfiles.find(p => p.id === form.sales_id) ?? null : null
@@ -1961,8 +1970,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
-      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse min-w-[1250px]" style={{ tableLayout: 'fixed' }}>
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-[13px] border-collapse min-w-[1250px]" style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: 24 }} />
             <col style={{ width: 32 }} />
@@ -1979,7 +1989,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </th>
               <th className="px-3 py-2.5 border-b border-slate-200" />
               {MAIN_COLUMNS.map(col => (
-                <th key={col.key} title={col.label} className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+                <th key={col.key} title={col.label} className="relative text-left px-2.5 py-2.5 font-semibold text-xs text-slate-500 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
                   {col.label}
                   <div
                     onMouseDown={e => startResize(e, col.key)}
@@ -1994,13 +2004,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               <Fragment key={row.id}>
                 <tr
                   id={`franchise-row-${row.id}`}
-                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  className={`border-b border-slate-100 transition-colors cursor-pointer ${selected.has(row.id) ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-slate-50'} ${busyId === row.id ? 'opacity-60' : ''} ${rowDragId === row.id ? 'opacity-40' : ''}`}
                   onClick={() => toggleExpand(row)}
                   onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
                   onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
                 >
                   <td
-                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
+                    className={`px-1 py-2.5 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
                     onClick={e => e.stopPropagation()}
                     draggable={canReorder}
                     onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
@@ -2009,16 +2019,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                   >
                     <GripVertical size={14} />
                   </td>
-                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                  <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                   </td>
-                  <td className="px-3 py-3 text-slate-500">
+                  <td className="px-3 py-2.5 text-slate-500">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm" onClick={e => e.stopPropagation()}>
+                  <td className="px-2.5 py-2.5 whitespace-nowrap text-sm" onClick={e => e.stopPropagation()}>
                     <DateField row={row} field="reception_date" onSave={saveField} />
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <td className="px-2.5 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <select
                       value={row.reception_channel ?? ''}
                       onChange={e => saveField(row, 'reception_channel', e.target.value)}
@@ -2257,15 +2267,26 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 py-1">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
-          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
-        </div>
-      )}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/60 px-4 py-2.5">
+        <span className="text-xs text-slate-500">
+          전체 <span className="font-semibold text-slate-700">{filteredRows.length.toLocaleString()}</span>건 중{' '}
+          {filteredRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRows.length)}건 표시
+        </span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setPage(1)} disabled={page === 1}
+              className="text-xs px-2 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">처음</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">이전</button>
+            <span className="text-xs text-slate-500 px-1">{page} / {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">다음</button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+              className="text-xs px-2 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-white">마지막</button>
+          </div>
+        )}
+      </div>
+      </div>{/* end table card */}
       {historyOpenId && (() => {
         const row = localRows.find(r => r.id === historyOpenId)
         if (!row) return null

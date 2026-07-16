@@ -882,7 +882,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   type FilterSkip = { skipView?: boolean; skipKpi?: boolean; skipStatus?: boolean; skipChannel?: boolean }
   const matchesFilters = useCallback((row: FranchiseApplication, skip: FilterSkip = {}) => {
     if (!skip.skipKpi && activeKpi) {
-      if (activeKpi === 'today_received' && row.reception_date?.slice(0, 10) !== todayDate) return false
+      if (activeKpi === 'today_received' && format(new Date(row.created_at), 'yyyy-MM-dd') !== todayDate) return false
       if (activeKpi === 'doc_waiting' && row.status !== 'doc_waiting') return false
       if (activeKpi === 'doc_incomplete' && row.status !== 'doc_incomplete') return false
       if (activeKpi === 'reviewing' && !REVIEWING_STATUS_SET.has(row.status)) return false
@@ -1083,7 +1083,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       return haystack.includes(term)
     })
     return {
-      today_received: base.filter(row => row.reception_date?.slice(0, 10) === todayDate).length,
+      today_received: base.filter(row => format(new Date(row.created_at), 'yyyy-MM-dd') === todayDate).length,
       doc_waiting: base.filter(row => row.status === 'doc_waiting').length,
       doc_incomplete: base.filter(row => row.status === 'doc_incomplete').length,
       reviewing: base.filter(row => REVIEWING_STATUS_SET.has(row.status)).length,

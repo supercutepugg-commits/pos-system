@@ -2,120 +2,29 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Store,
-  Bell,
-  LogOut,
-  Wrench,
-  Users,
-  MessageCircle,
   ExternalLink,
-  Package,
-  PenLine,
-  CalendarDays,
-  ClipboardList,
-  Briefcase,
-  Headset,
-  HardHat,
   ChevronDown,
-  BookUser,
-  Wifi,
-  RefreshCw,
-  FileText,
-  Network,
-  FileEdit,
-  Hash,
-  Images,
-  Code2,
-  NotebookText,
+  ChevronLeft,
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import ThemeToggle from "./ThemeToggle";
+import LogoMark from "./LogoMark";
+import {
+  COMMON_NAV,
+  ROLE_FOLDERS,
+  ADMIN_NAV,
+  MASTER_NAV,
+  BOTTOM_NAV,
+  type NavItem,
+} from "./nav-items";
 import type { Profile, Role } from "@/types";
-
-const ROLE_LABEL = {
-  master: "마스터",
-  admin: "관리자",
-  sales: "영업",
-  cs: "CS",
-  tech: "기술지원",
-};
-const ROLE_COLOR = {
-  master: "bg-red-100 text-red-700",
-  admin: "bg-purple-100 text-purple-700",
-  sales: "bg-blue-100 text-blue-700",
-  cs: "bg-emerald-100 text-emerald-700",
-  tech: "bg-orange-100 text-orange-700",
-};
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: any;
-}
-
-const COMMON_NAV: NavItem[] = [
-  { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
-  { href: "/calendar", label: "캘린더", icon: CalendarDays },
-  { href: "/merchants", label: "가맹점", icon: Store },
-  { href: "/chat", label: "채팅", icon: MessageCircle },
-  { href: "/contracts", label: "계약서 / 서명", icon: PenLine },
-  { href: "/dev-requests", label: "개발요청", icon: Code2 },
-  { href: "/slack", label: "Slack", icon: Hash },
-];
-
-const ROLE_FOLDERS: {
-  key: Role;
-  label: string;
-  icon: any;
-  items: NavItem[];
-}[] = [
-  {
-    key: "cs",
-    label: "CS",
-    icon: Headset,
-    items: [
-      { href: "/franchise", label: "가맹 접수", icon: ClipboardList },
-      { href: "/changes", label: "변경 관리", icon: FileEdit },
-      { href: "/woo", label: "우국상 관리", icon: BookUser },
-      { href: "/internet", label: "인터넷 관리", icon: Wifi },
-    ],
-  },
-  {
-    key: "tech",
-    label: "기술지원",
-    icon: HardHat,
-    items: [
-      { href: "/installs", label: "설치 관리", icon: Package },
-      { href: "/installs/mine", label: "기사 페이지", icon: HardHat },
-      { href: "/installs/photos", label: "완료사진", icon: Images },
-      { href: "/external-techs", label: "외부 기사 관리", icon: Users },
-      { href: "/inventory", label: "재고 실사", icon: ClipboardList },
-      { href: "/transfers", label: "전환건", icon: RefreshCw },
-      { href: "/blueprints", label: "설계도", icon: Network },
-      { href: "/customer-ledger", label: "고객 관리 대장", icon: NotebookText },
-    ],
-  },
-];
-
-const ADMIN_NAV: NavItem[] = [
-  { href: "/admin/users", label: "직원 관리", icon: Users },
-];
-
-const MASTER_NAV: NavItem[] = [
-  { href: "/admin/logs", label: "직원 활동 로그", icon: ClipboardList },
-];
-
-const BOTTOM_NAV: NavItem[] = [
-  { href: "/paper-orders", label: "용지 요청", icon: FileText },
-];
 
 const EXTERNAL_LINKS: {
   href: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   roles: string[];
 }[] = [];
 
@@ -131,10 +40,27 @@ export default function Sidebar({
   unreadDmCount = 0,
 }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const visibleFolders = ROLE_FOLDERS;
   const storageKey = `sidebar_open_folders_${profile.id}`;
+
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("sidebar_collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("sidebar_collapsed", next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  }
 
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => {
     try {
@@ -162,13 +88,6 @@ export default function Sidebar({
       } catch {}
       return next;
     });
-  }
-
-  async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
   }
 
   const externalItems = EXTERNAL_LINKS.filter((n) =>
@@ -232,10 +151,11 @@ export default function Sidebar({
       <Link
         key={item.href}
         href={item.href}
+        title={collapsed ? item.label : undefined}
         onClick={() => {
           if (folderKey) setActiveFolderHint(folderKey);
         }}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${indent ? "ml-3" : ""} ${
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${collapsed ? "justify-center" : ""} ${indent && !collapsed ? "ml-3" : ""} ${
           active
             ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
             : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -243,17 +163,17 @@ export default function Sidebar({
       >
         <item.icon
           size={17}
-          className={active ? "text-white" : "text-slate-400"}
+          className={`shrink-0 ${active ? "text-white" : "text-slate-400"}`}
         />
-        {item.label}
-        {item.href === "/notifications" && unreadCount > 0 && (
+        {!collapsed && item.label}
+        {!collapsed && item.href === "/notifications" && unreadCount > 0 && (
           <span
             className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
           >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
-        {item.href === "/chat" && unreadDmCount > 0 && (
+        {!collapsed && item.href === "/chat" && unreadDmCount > 0 && (
           <span
             className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
           >
@@ -265,33 +185,45 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm">
+    <aside
+      className={`bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm transition-[width] duration-150 ${collapsed ? "w-[70px]" : "w-64"}`}
+    >
       {}
-      <div className="px-6 py-5 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Wrench size={18} className="text-white" />
-          </div>
-          <div>
-            <p className="font-bold text-slate-900 text-sm leading-tight">
-              POS 전산
-            </p>
-            <p className="text-xs text-slate-400">관리 시스템</p>
-          </div>
+      <div
+        className={`px-4 py-5 border-b border-slate-100 flex items-center ${collapsed ? "justify-center" : "justify-between px-6"}`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <LogoMark className="size-8 shrink-0" />
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="font-bold text-slate-900 text-sm leading-tight truncate">
+                POS 전산
+              </p>
+              <p className="text-xs text-slate-400">관리 시스템</p>
+            </div>
+          )}
         </div>
-      </div>
-
-      {}
-      <div className="px-4 py-4 border-b border-slate-100">
-        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-3">
-          <p className="font-semibold text-slate-900 text-sm">{profile.name}</p>
-          <span
-            className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLOR[profile.role]}`}
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label="메뉴 접기"
+            className="shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg p-1"
           >
-            {ROLE_LABEL[profile.role]}
-          </span>
-        </div>
+            <ChevronLeft size={16} />
+          </button>
+        )}
       </div>
+      {collapsed && (
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label="메뉴 펼치기"
+          className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center h-8 border-b border-slate-100"
+        >
+          <ChevronRight size={16} />
+        </button>
+      )}
 
       {}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
@@ -304,22 +236,24 @@ export default function Sidebar({
         )}
 
         {visibleFolders.map((folder) => {
-          const open = openFolders.has(folder.key);
+          const open = collapsed || openFolders.has(folder.key);
           return (
             <div key={folder.key} className="mb-0.5">
-              <button
-                onClick={() => toggleFolder(folder.key)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-all w-full"
-              >
-                <folder.icon size={17} className="text-slate-400" />
-                {folder.label}
-                <ChevronDown
-                  size={15}
-                  className={`ml-auto text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
-                />
-              </button>
+              {!collapsed && (
+                <button
+                  onClick={() => toggleFolder(folder.key)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-all w-full"
+                >
+                  <folder.icon size={17} className="text-slate-400" />
+                  {folder.label}
+                  <ChevronDown
+                    size={15}
+                    className={`ml-auto text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </button>
+              )}
               {open && (
-                <div className="mt-0.5">
+                <div className={collapsed ? "" : "mt-0.5"}>
                   {folder.items.map((item) => (
                     <NavLink
                       key={item.href}
@@ -357,7 +291,7 @@ export default function Sidebar({
       </nav>
 
       {}
-      {externalItems.length > 0 && (
+      {!collapsed && externalItems.length > 0 && (
         <div className="px-3 pb-2 border-t border-slate-100 pt-3">
           {externalItems.map((item) => (
             <a
@@ -375,28 +309,6 @@ export default function Sidebar({
         </div>
       )}
 
-      {}
-      <div className="px-3 pt-3">
-        <ThemeToggle />
-      </div>
-
-      {}
-      <div className="px-3 py-4 border-t border-slate-100 flex flex-col gap-1">
-        <button
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all w-full"
-        >
-          <RefreshCw size={17} />
-          하드 새로고침
-        </button>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all w-full"
-        >
-          <LogOut size={17} />
-          로그아웃
-        </button>
-      </div>
     </aside>
   );
 }

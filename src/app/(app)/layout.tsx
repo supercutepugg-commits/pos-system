@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
+import AppHeader from '@/components/layout/AppHeader'
 import MobileNav from '@/components/layout/MobileNav'
 import RealtimeNotification from '@/components/layout/RealtimeNotification'
 import ScheduleAlertBanner from '@/components/layout/ScheduleAlertBanner'
@@ -189,9 +190,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="hidden md:flex">
           <Sidebar profile={profile as Profile} unreadCount={unreadCount ?? 0} unreadDmCount={unreadDmCount} />
         </div>
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-          {children}
-        </main>
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="hidden md:block">
+            <AppHeader profile={profile as Profile} unreadCount={unreadCount ?? 0} />
+          </div>
+          <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+            {children}
+          </main>
+        </div>
         <div className="md:hidden">
           <MobileNav role={(profile as Profile).role} unreadCount={unreadCount ?? 0} />
         </div>

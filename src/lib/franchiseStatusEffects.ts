@@ -204,16 +204,19 @@ export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEff
 }
 
 export function franchiseStatusChangeConfirm(row: FranchiseApplication, newStatus: FranchiseStatus): { msg: string; canNotify: boolean } {
-  const canNotify = newStatus !== 'completed' && !!row.phone
+  const silentStatus = newStatus === 'completed' || newStatus === 'hold'
+  const canNotify = !silentStatus && !!row.phone
   const confirmMsg = newStatus === 'completed'
     ? `'완료'로 상태만 변경됩니다. (고객 안내 메시지는 발송되지 않습니다)`
-    : newStatus === 'doc_waiting'
-      ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 진행하시겠습니까?`
-      : newStatus === 'toss_review_done'
-        ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다.`
-        : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다.`
+    : newStatus === 'hold'
+      ? `'보류'로 상태만 변경됩니다. (고객 안내 메시지는 발송되지 않습니다)`
+      : newStatus === 'doc_waiting'
+        ? `'${APPLICANT_TYPE_LABEL[row.applicant_type]}' 서류 안내 메시지가 고객에게 발송됩니다. 진행하시겠습니까?`
+        : newStatus === 'toss_review_done'
+          ? `토스심사완료로 변경하면 고객에게 메시지가 발송되고, 입력된 정보로 설치 작업이 자동 생성됩니다.`
+          : `'${FRANCHISE_STATUS_LABEL[newStatus]}'(으)로 변경하면 고객에게 메시지가 발송됩니다.`
   return {
-    msg: newStatus === 'completed' ? confirmMsg : canNotify ? confirmMsg : '연락처가 없어 메시지 발송 없이 상태만 변경됩니다.',
+    msg: silentStatus ? confirmMsg : canNotify ? confirmMsg : '연락처가 없어 메시지 발송 없이 상태만 변경됩니다.',
     canNotify,
   }
 }

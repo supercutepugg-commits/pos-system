@@ -52,6 +52,7 @@ function tone(status: FranchiseStatus) {
   if (status === 'card_done') return { pill: '!bg-sky-500/15 !text-sky-500', solid: 'bg-sky-500', border: 'border-sky-500', stage: 2 }
   if (status === 'toss_review_done') return { pill: '!bg-teal-500/15 !text-teal-500', solid: 'bg-teal-500', border: 'border-teal-500', stage: 2 }
   if (status === 'completed' || status === 'internet_done') return { pill: '!bg-green-500/15 !text-green-500', solid: 'bg-green-500', border: 'border-green-500', stage: 3 }
+  if (status === 'hold') return { pill: '!bg-gray-500/15 !text-gray-500', solid: 'bg-gray-500', border: 'border-gray-500', stage: 0 }
   return { pill: '!bg-zinc-500/15 !text-zinc-500', solid: 'bg-zinc-500', border: 'border-zinc-500', stage: 0 }
 }
 

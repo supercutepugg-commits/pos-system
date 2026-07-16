@@ -62,7 +62,7 @@ interface Props {
   todayCompletedIds: string[]
 }
 
-type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
+type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'reviewing' | 'approved'
 type ReceiptKpi = 'today_received' | 'doc_waiting' | 'doc_incomplete' | 'reviewing' | 'today_completed'
 
 const REVIEWING_STATUS_SET = new Set<FranchiseStatus>(['card_apply_done', 'toss_review_apply_done'])
@@ -411,7 +411,9 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
   })
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-[36rem] max-w-[calc(100vw-3rem)] h-[95vh] max-h-[95vh] flex flex-col bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700">
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative flex h-full w-[36rem] max-w-[calc(100vw-3rem)] flex-col bg-slate-900 text-white shadow-2xl border-l border-slate-700">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
         <p className="flex items-center gap-2 text-base font-semibold">
           <HistoryIcon size={32} />
@@ -433,6 +435,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
         ) : (
           <ul className="space-y-2.5">{timeline.map(entry => entry.node)}</ul>
         )}
+      </div>
       </div>
     </div>
   )
@@ -534,6 +537,61 @@ const NEXT_STATUS: Partial<Record<FranchiseStatus, FranchiseStatus>> = {
   card_done: 'completed',
 }
 
+// 서류 접수 -> VAN(카드가맹) 접수 -> 토스 심사 -> 완료, 4단계로 압축한 진행률 표시용 매핑.
+// 실제 상태값(FranchiseStatus)은 더 세분화되어 있어 이 매핑은 화면 표시 전용이며 DB에는 영향을 주지 않는다.
+const STAGE_LABELS = ['서류', 'VAN', '토스', '완료'] as const
+const STAGE_INDEX: Record<FranchiseStatus, number> = {
+  info_input: 0,
+  doc_waiting: 0,
+  doc_incomplete: 0,
+  card_apply_done: 1,
+  internet_apply_done: 1,
+  card_internet_apply_done: 1,
+  toss_review_apply_done: 2,
+  toss_review_done: 3,
+  card_done: 3,
+  internet_done: 3,
+  completed: 3,
+}
+
+function StageProgress({ status }: { status: FranchiseStatus }) {
+  const stage = STAGE_INDEX[status] ?? 0
+  const lastIdx = STAGE_LABELS.length - 1
+  const fraction = (idx: number) => idx / lastIdx
+  const solid = status === 'doc_incomplete' ? 'bg-red-500' : 'bg-blue-500'
+  const border = status === 'doc_incomplete' ? 'border-red-500' : 'border-blue-500'
+  return (
+    <div className="flex w-full flex-col gap-1.5 py-1">
+      <div className="relative h-2.5 w-full">
+        <div className="absolute top-1/2 right-0 left-0 h-0.5 -translate-y-1/2 bg-slate-200" />
+        {stage > 0 && (
+          <div className={`absolute top-1/2 left-0 h-0.5 -translate-y-1/2 ${solid}`} style={{ width: `${fraction(stage) * 100}%` }} />
+        )}
+        {STAGE_LABELS.map((label, idx) => (
+          <div
+            key={label}
+            className={`absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
+              idx < stage ? `${solid} ${border}` : idx === stage ? `bg-white ${border}` : 'bg-white border-slate-300'
+            }`}
+            style={{ left: `${fraction(idx) * 100}%` }}
+          />
+        ))}
+      </div>
+      <div className="relative h-3 w-full">
+        {STAGE_LABELS.map((label, idx) => (
+          <span
+            key={label}
+            className="absolute top-0 text-[9.5px] whitespace-nowrap text-slate-400"
+            style={idx === 0 ? { left: 0 } : idx === lastIdx ? { right: 0 } : { left: `${fraction(idx) * 100}%`, transform: 'translateX(-50%)' }}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const MAIN_COLUMNS = [
   { key: 'reception_date', label: '접수날짜' },
   { key: 'reception_channel', label: '접수채널' },
@@ -545,6 +603,7 @@ const MAIN_COLUMNS = [
   { key: 'cs_id', label: '담당자' },
   { key: 'internet_status', label: '인터넷' },
   { key: 'status', label: '상태' },
+  { key: 'progress', label: '진행률' },
   { key: 'memo', label: '메모' },
 ] as const
 const DEFAULT_WIDTHS: Record<string, number> = {
@@ -558,6 +617,7 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   cs_id: 90,
   internet_status: 110,
   status: 140,
+  progress: 120,
   memo: 160,
 }
 const COL_WIDTHS_STORAGE_KEY = 'franchise_col_widths'
@@ -889,6 +949,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       if (tableView === 'mine' && ((row.sales_id !== currentUserId && row.cs_id !== currentUserId) || COMPLETED_STATUS_SET.has(row.status))) return false
       if (tableView === 'doc_incomplete' && row.status !== 'doc_incomplete') return false
       if (tableView === 'doc_waiting' && row.status !== 'doc_waiting') return false
+      if (tableView === 'reviewing' && !REVIEWING_STATUS_SET.has(row.status)) return false
       if (tableView === 'approved' && !APPROVED_STATUS_SET.has(row.status)) return false
     }
     if (!skip.skipStatus && statusFilter && row.status !== statusFilter) return false
@@ -1067,6 +1128,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       mine: base.filter(row => (row.sales_id === currentUserId || row.cs_id === currentUserId) && !COMPLETED_STATUS_SET.has(row.status)).length,
       doc_incomplete: base.filter(row => row.status === 'doc_incomplete').length,
       doc_waiting: base.filter(row => row.status === 'doc_waiting').length,
+      reviewing: base.filter(row => REVIEWING_STATUS_SET.has(row.status)).length,
       approved: base.filter(row => APPROVED_STATUS_SET.has(row.status)).length,
     }
   }, [localRows, search, matchesFilters, currentUserId])
@@ -1890,6 +1952,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
             ['mine', '내 업무'],
             ['doc_incomplete', '서류 미비'],
             ['doc_waiting', '서류 대기'],
+            ['reviewing', '심사 중'],
             ['approved', '승인 완료'],
           ] as const).map(([view, label]) => (
             <button
@@ -2111,11 +2174,14 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                       </div>
                     </div>
                   </td>
+                  <td className="px-3 py-3">
+                    <StageProgress status={row.status} />
+                  </td>
                   <td className="px-3 py-3 text-slate-600 max-w-[200px] truncate" title={row.memo || undefined}>{row.memo || '-'}</td>
                 </tr>
                 {expandedId === row.id && (
                   <tr key={`${row.id}-expand`} className="bg-blue-50/50 border-b border-slate-100">
-                    <td colSpan={14} className="px-6 py-4">
+                    <td colSpan={15} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
                           <label className="text-xs font-semibold text-slate-400">상호명</label>
@@ -2251,7 +2317,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={14} className="text-center text-slate-400 py-10">
+              <tr><td colSpan={15} className="text-center text-slate-400 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <span>조건에 맞는 가맹 접수가 없습니다.</span>
                   {(search || statusFilter || applicantTypeFilter || channelFilter || vanFilter || dateFrom || dateTo) && (

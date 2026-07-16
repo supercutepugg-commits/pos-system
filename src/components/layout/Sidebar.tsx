@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
   CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, RefreshCw, FileText,
-  Network, FileEdit, Hash, Images,
+  Network, FileEdit, Hash, Images, Code2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ThemeToggle from './ThemeToggle'
@@ -34,6 +34,7 @@ const COMMON_NAV: NavItem[] = [
   { href: '/merchants', label: '가맹점', icon: Store },
   { href: '/chat', label: '채팅', icon: MessageCircle },
   { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
+  { href: '/dev-requests', label: '개발요청', icon: Code2 },
   { href: '/slack', label: 'Slack', icon: Hash },
 ]
 

@@ -360,3 +360,15 @@ export const CHANGE_STATUS_COLOR: Record<ChangeRequestStatus, string> = {
   docs_incomplete: 'bg-red-100 text-red-700',
   done: 'bg-emerald-100 text-emerald-700',
 }
+
+export interface CustomerLedger {
+  id: string
+  record_date: string
+  manager_id: string | null
+  manager_name: string | null
+  business_name: string
+  phone: string | null
+  issue: string | null
+  solution: string | null
+  created_at: string
+}

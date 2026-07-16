@@ -1,187 +1,267 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Store, Bell, LogOut, Wrench, Users, MessageCircle, ExternalLink, Package, PenLine,
-  CalendarDays, ClipboardList, Briefcase, Headset, HardHat, ChevronDown, BookUser, Wifi, RefreshCw, FileText,
-  Network, FileEdit, Hash, Images, Code2,
-} from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import ThemeToggle from './ThemeToggle'
-import type { Profile, Role } from '@/types'
+  LayoutDashboard,
+  Store,
+  Bell,
+  LogOut,
+  Wrench,
+  Users,
+  MessageCircle,
+  ExternalLink,
+  Package,
+  PenLine,
+  CalendarDays,
+  ClipboardList,
+  Briefcase,
+  Headset,
+  HardHat,
+  ChevronDown,
+  BookUser,
+  Wifi,
+  RefreshCw,
+  FileText,
+  Network,
+  FileEdit,
+  Hash,
+  Images,
+  Code2,
+  NotebookText,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import ThemeToggle from "./ThemeToggle";
+import type { Profile, Role } from "@/types";
 
-const ROLE_LABEL = { master: '마스터', admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
+const ROLE_LABEL = {
+  master: "마스터",
+  admin: "관리자",
+  sales: "영업",
+  cs: "CS",
+  tech: "기술지원",
+};
 const ROLE_COLOR = {
-  master: 'bg-red-100 text-red-700',
-  admin: 'bg-purple-100 text-purple-700',
-  sales: 'bg-blue-100 text-blue-700',
-  cs: 'bg-emerald-100 text-emerald-700',
-  tech: 'bg-orange-100 text-orange-700'
-}
+  master: "bg-red-100 text-red-700",
+  admin: "bg-purple-100 text-purple-700",
+  sales: "bg-blue-100 text-blue-700",
+  cs: "bg-emerald-100 text-emerald-700",
+  tech: "bg-orange-100 text-orange-700",
+};
 
 interface NavItem {
-  href: string
-  label: string
-  icon: any
+  href: string;
+  label: string;
+  icon: any;
 }
-
 
 const COMMON_NAV: NavItem[] = [
-  { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
-  { href: '/calendar', label: '캘린더', icon: CalendarDays },
-  { href: '/merchants', label: '가맹점', icon: Store },
-  { href: '/chat', label: '채팅', icon: MessageCircle },
-  { href: '/contracts', label: '계약서 / 서명', icon: PenLine },
-  { href: '/dev-requests', label: '개발요청', icon: Code2 },
-  { href: '/slack', label: 'Slack', icon: Hash },
-]
+  { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
+  { href: "/calendar", label: "캘린더", icon: CalendarDays },
+  { href: "/merchants", label: "가맹점", icon: Store },
+  { href: "/chat", label: "채팅", icon: MessageCircle },
+  { href: "/contracts", label: "계약서 / 서명", icon: PenLine },
+  { href: "/dev-requests", label: "개발요청", icon: Code2 },
+  { href: "/slack", label: "Slack", icon: Hash },
+];
 
-
-const ROLE_FOLDERS: { key: Role; label: string; icon: any; items: NavItem[] }[] = [
+const ROLE_FOLDERS: {
+  key: Role;
+  label: string;
+  icon: any;
+  items: NavItem[];
+}[] = [
   {
-    key: 'cs',
-    label: 'CS',
+    key: "cs",
+    label: "CS",
     icon: Headset,
     items: [
-      { href: '/franchise', label: '가맹 접수', icon: ClipboardList },
-      { href: '/changes', label: '변경 관리', icon: FileEdit },
-      { href: '/woo', label: '우국상 관리', icon: BookUser },
-      { href: '/internet', label: '인터넷 관리', icon: Wifi },
+      { href: "/franchise", label: "가맹 접수", icon: ClipboardList },
+      { href: "/changes", label: "변경 관리", icon: FileEdit },
+      { href: "/woo", label: "우국상 관리", icon: BookUser },
+      { href: "/internet", label: "인터넷 관리", icon: Wifi },
     ],
   },
   {
-    key: 'tech',
-    label: '기술지원',
+    key: "tech",
+    label: "기술지원",
     icon: HardHat,
     items: [
-      { href: '/installs', label: '설치 관리', icon: Package },
-      { href: '/installs/mine', label: '기사 페이지', icon: HardHat },
-      { href: '/installs/photos', label: '완료사진', icon: Images },
-      { href: '/external-techs', label: '외부 기사 관리', icon: Users },
-      { href: '/inventory', label: '재고 실사', icon: ClipboardList },
-      { href: '/transfers', label: '전환건', icon: RefreshCw },
-      { href: '/blueprints', label: '설계도', icon: Network },
+      { href: "/installs", label: "설치 관리", icon: Package },
+      { href: "/installs/mine", label: "기사 페이지", icon: HardHat },
+      { href: "/installs/photos", label: "완료사진", icon: Images },
+      { href: "/external-techs", label: "외부 기사 관리", icon: Users },
+      { href: "/inventory", label: "재고 실사", icon: ClipboardList },
+      { href: "/transfers", label: "전환건", icon: RefreshCw },
+      { href: "/blueprints", label: "설계도", icon: Network },
+      { href: "/customer-ledger", label: "고객 관리 대장", icon: NotebookText },
     ],
   },
-]
+];
 
 const ADMIN_NAV: NavItem[] = [
-  { href: '/admin/users', label: '직원 관리', icon: Users },
-]
+  { href: "/admin/users", label: "직원 관리", icon: Users },
+];
 
 const MASTER_NAV: NavItem[] = [
-  { href: '/admin/logs', label: '직원 활동 로그', icon: ClipboardList },
-]
+  { href: "/admin/logs", label: "직원 활동 로그", icon: ClipboardList },
+];
 
 const BOTTOM_NAV: NavItem[] = [
-  { href: '/paper-orders', label: '용지 요청', icon: FileText },
-]
+  { href: "/paper-orders", label: "용지 요청", icon: FileText },
+];
 
-const EXTERNAL_LINKS: { href: string; label: string; icon: any; roles: string[] }[] = []
+const EXTERNAL_LINKS: {
+  href: string;
+  label: string;
+  icon: any;
+  roles: string[];
+}[] = [];
 
 interface Props {
-  profile: Profile
-  unreadCount: number
-  unreadDmCount?: number
+  profile: Profile;
+  unreadCount: number;
+  unreadDmCount?: number;
 }
 
-export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Props) {
-  const pathname = usePathname()
-  const router = useRouter()
+export default function Sidebar({
+  profile,
+  unreadCount,
+  unreadDmCount = 0,
+}: Props) {
+  const pathname = usePathname();
+  const router = useRouter();
 
-  
-  const visibleFolders = ROLE_FOLDERS
-  const storageKey = `sidebar_open_folders_${profile.id}`
+  const visibleFolders = ROLE_FOLDERS;
+  const storageKey = `sidebar_open_folders_${profile.id}`;
 
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem(storageKey)
-      if (saved) return new Set(JSON.parse(saved) as string[])
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return new Set(JSON.parse(saved) as string[]);
     } catch {}
-    return new Set(visibleFolders.filter(f => f.key === profile.role || profile.role === 'admin' || profile.role === 'master').map(f => f.key))
-  })
+    return new Set(
+      visibleFolders
+        .filter(
+          (f) =>
+            f.key === profile.role ||
+            profile.role === "admin" ||
+            profile.role === "master",
+        )
+        .map((f) => f.key),
+    );
+  });
 
   function toggleFolder(key: string) {
-    setOpenFolders(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      try { localStorage.setItem(storageKey, JSON.stringify([...next])) } catch {}
-      return next
-    })
+    setOpenFolders((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
   }
 
   async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
   }
 
-  const externalItems = EXTERNAL_LINKS.filter(n => n.roles.includes(profile.role))
+  const externalItems = EXTERNAL_LINKS.filter((n) =>
+    n.roles.includes(profile.role),
+  );
 
-  
-  const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null)
+  const [activeFolderHint, setActiveFolderHint] = useState<Role | null>(null);
 
   const allHrefs = [
-    ...COMMON_NAV.map(n => n.href),
-    ...ROLE_FOLDERS.flatMap(f => f.items.map(i => i.href)),
-    ...ADMIN_NAV.map(n => n.href),
-    ...MASTER_NAV.map(n => n.href),
-    ...BOTTOM_NAV.map(n => n.href),
-  ]
+    ...COMMON_NAV.map((n) => n.href),
+    ...ROLE_FOLDERS.flatMap((f) => f.items.map((i) => i.href)),
+    ...ADMIN_NAV.map((n) => n.href),
+    ...MASTER_NAV.map((n) => n.href),
+    ...BOTTOM_NAV.map((n) => n.href),
+  ];
 
-  
-  
   function isActive(href: string) {
-    if (href.includes('?')) return false
-    if (pathname === href) return true
-    if (!pathname.startsWith(href + '/')) return false
+    if (href.includes("?")) return false;
+    if (pathname === href) return true;
+    if (!pathname.startsWith(href + "/")) return false;
     const moreSpecific = allHrefs.some(
-      other => other !== href && other.startsWith(href + '/') && (pathname === other || pathname.startsWith(other + '/'))
-    )
-    return !moreSpecific
+      (other) =>
+        other !== href &&
+        other.startsWith(href + "/") &&
+        (pathname === other || pathname.startsWith(other + "/")),
+    );
+    return !moreSpecific;
   }
 
   function foldersContaining(href: string) {
-    return visibleFolders.filter(f => f.items.some(i => i.href === href)).map(f => f.key)
+    return visibleFolders
+      .filter((f) => f.items.some((i) => i.href === href))
+      .map((f) => f.key);
   }
 
   function isHighlighted(href: string, folderKey?: Role) {
-    if (!isActive(href)) return false
-    if (!folderKey) return true
-    const owners = foldersContaining(href)
-    if (owners.length <= 1) return true
-    const winner = activeFolderHint && owners.includes(activeFolderHint) ? activeFolderHint : (owners.includes(profile.role) ? profile.role : owners[0])
-    return winner === folderKey
+    if (!isActive(href)) return false;
+    if (!folderKey) return true;
+    const owners = foldersContaining(href);
+    if (owners.length <= 1) return true;
+    const winner =
+      activeFolderHint && owners.includes(activeFolderHint)
+        ? activeFolderHint
+        : owners.includes(profile.role)
+          ? profile.role
+          : owners[0];
+    return winner === folderKey;
   }
 
-  function NavLink({ item, indent, folderKey }: { item: NavItem; indent?: boolean; folderKey?: Role }) {
-    const active = isHighlighted(item.href, folderKey)
+  function NavLink({
+    item,
+    indent,
+    folderKey,
+  }: {
+    item: NavItem;
+    indent?: boolean;
+    folderKey?: Role;
+  }) {
+    const active = isHighlighted(item.href, folderKey);
     return (
-      <Link key={item.href} href={item.href}
-        onClick={() => { if (folderKey) setActiveFolderHint(folderKey) }}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${indent ? 'ml-3' : ''} ${
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => {
+          if (folderKey) setActiveFolderHint(folderKey);
+        }}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5 ${indent ? "ml-3" : ""} ${
           active
-            ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         }`}
       >
-        <item.icon size={17} className={active ? 'text-white' : 'text-slate-400'} />
+        <item.icon
+          size={17}
+          className={active ? "text-white" : "text-slate-400"}
+        />
         {item.label}
-        {item.href === '/notifications' && unreadCount > 0 && (
-          <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
-            {unreadCount > 9 ? '9+' : unreadCount}
+        {item.href === "/notifications" && unreadCount > 0 && (
+          <span
+            className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
-        {item.href === '/chat' && unreadDmCount > 0 && (
-          <span className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? 'bg-white text-blue-600' : 'bg-red-500 text-white'}`}>
-            {unreadDmCount > 9 ? '9+' : unreadDmCount}
+        {item.href === "/chat" && unreadDmCount > 0 && (
+          <span
+            className={`ml-auto text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold ${active ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
+          >
+            {unreadDmCount > 9 ? "9+" : unreadDmCount}
           </span>
         )}
       </Link>
-    )
+    );
   }
 
   return (
@@ -193,7 +273,9 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
             <Wrench size={18} className="text-white" />
           </div>
           <div>
-            <p className="font-bold text-slate-900 text-sm leading-tight">POS 전산</p>
+            <p className="font-bold text-slate-900 text-sm leading-tight">
+              POS 전산
+            </p>
             <p className="text-xs text-slate-400">관리 시스템</p>
           </div>
         </div>
@@ -203,7 +285,9 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
       <div className="px-4 py-4 border-b border-slate-100">
         <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-3">
           <p className="font-semibold text-slate-900 text-sm">{profile.name}</p>
-          <span className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLOR[profile.role]}`}>
+          <span
+            className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLOR[profile.role]}`}
+          >
             {ROLE_LABEL[profile.role]}
           </span>
         </div>
@@ -211,12 +295,16 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
 
       {}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {COMMON_NAV.map(item => <NavLink key={item.href} item={item} />)}
+        {COMMON_NAV.map((item) => (
+          <NavLink key={item.href} item={item} />
+        ))}
 
-        {visibleFolders.length > 0 && <div className="my-2 border-t border-slate-100" />}
+        {visibleFolders.length > 0 && (
+          <div className="my-2 border-t border-slate-100" />
+        )}
 
-        {visibleFolders.map(folder => {
-          const open = openFolders.has(folder.key)
+        {visibleFolders.map((folder) => {
+          const open = openFolders.has(folder.key);
           return (
             <div key={folder.key} className="mb-0.5">
               <button
@@ -225,29 +313,45 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
               >
                 <folder.icon size={17} className="text-slate-400" />
                 {folder.label}
-                <ChevronDown size={15} className={`ml-auto text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  size={15}
+                  className={`ml-auto text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+                />
               </button>
               {open && (
                 <div className="mt-0.5">
-                  {folder.items.map(item => <NavLink key={item.href} item={item} indent folderKey={folder.key} />)}
+                  {folder.items.map((item) => (
+                    <NavLink
+                      key={item.href}
+                      item={item}
+                      indent
+                      folderKey={folder.key}
+                    />
+                  ))}
                 </div>
               )}
             </div>
-          )
+          );
         })}
 
         <div className="my-2 border-t border-slate-100" />
-        {BOTTOM_NAV.map(item => <NavLink key={item.href} item={item} />)}
+        {BOTTOM_NAV.map((item) => (
+          <NavLink key={item.href} item={item} />
+        ))}
 
-        {(profile.role === 'admin' || profile.role === 'master') && (
+        {(profile.role === "admin" || profile.role === "master") && (
           <>
-            {ADMIN_NAV.map(item => <NavLink key={item.href} item={item} />)}
+            {ADMIN_NAV.map((item) => (
+              <NavLink key={item.href} item={item} />
+            ))}
           </>
         )}
 
-        {profile.role === 'master' && (
+        {profile.role === "master" && (
           <>
-            {MASTER_NAV.map(item => <NavLink key={item.href} item={item} />)}
+            {MASTER_NAV.map((item) => (
+              <NavLink key={item.href} item={item} />
+            ))}
           </>
         )}
       </nav>
@@ -255,9 +359,14 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
       {}
       {externalItems.length > 0 && (
         <div className="px-3 pb-2 border-t border-slate-100 pt-3">
-          {externalItems.map(item => (
-            <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all mb-0.5">
+          {externalItems.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all mb-0.5"
+            >
               <item.icon size={17} className="text-slate-400" />
               {item.label}
               <ExternalLink size={12} className="ml-auto text-slate-300" />
@@ -289,5 +398,5 @@ export default function Sidebar({ profile, unreadCount, unreadDmCount = 0 }: Pro
         </button>
       </div>
     </aside>
-  )
+  );
 }

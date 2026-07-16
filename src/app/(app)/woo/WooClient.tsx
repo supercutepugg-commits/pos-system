@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
+import { Plus, Search, ChevronDown, ChevronUp, Calendar, ClipboardList, CalendarCheck, FileWarning, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
@@ -15,6 +15,7 @@ import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
+import KpiCard from '@/components/ui/KpiCard'
 
 interface Props {
   rows: WooCustomer[]
@@ -390,6 +391,21 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
   }, [localRows, search, categoryFilter, sortKey])
 
   useEffect(() => { setPage(1) }, [search, categoryFilter, sortKey])
+
+  const kpis = useMemo(() => {
+    const now = new Date()
+    const todayStr = now.toISOString().slice(0, 10)
+    const in7 = new Date(now)
+    in7.setDate(in7.getDate() + 7)
+    const in7Str = in7.toISOString().slice(0, 10)
+    return {
+      today: localRows.filter(r => r.received_date === todayStr).length,
+      openSoon: localRows.filter(r => !!r.open_date && r.open_date >= todayStr && r.open_date <= in7Str).length,
+      unconfirmed: localRows.filter(r => r.card_apply_status === '가맹미확인').length,
+      done: localRows.filter(r => r.card_apply_status === '가맹완료').length,
+    }
+  }, [localRows])
+
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   useEffect(() => {
 
@@ -559,7 +575,13 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-3">
+        <KpiCard label="오늘 접수" value={kpis.today} icon={ClipboardList} tone="blue" />
+        <KpiCard label="7일 내 오픈" value={kpis.openSoon} icon={CalendarCheck} tone="amber" />
+        <KpiCard label="가맹 미확인" value={kpis.unconfirmed} icon={FileWarning} tone="red" />
+        <KpiCard label="가맹 완료" value={kpis.done} icon={CheckCircle2} tone="green" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
@@ -632,7 +654,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
 
       {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
 
-      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl">
+      <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
         <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: 32 }} />

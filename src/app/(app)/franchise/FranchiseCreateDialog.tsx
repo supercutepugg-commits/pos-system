@@ -60,7 +60,6 @@ export default function FranchiseCreateDialog({ onSubmit, submitting, onClose, c
   const [productSelect, setProductSelect] = useState(EQUIPMENT_CATALOG[0])
   const [productQty, setProductQty] = useState(1)
   const vanSelected = form.van_company ? form.van_company.split(',').map(value => value.trim()).filter(Boolean) : []
-  const canSubmit = !!form.business_name.trim() && !!form.owner_name.trim() && !!form.phone.trim()
 
   function addProduct() {
     setForm(current => ({ ...current, equipmentItems: [...current.equipmentItems, { name: productSelect, quantity: productQty }] }))
@@ -76,7 +75,7 @@ export default function FranchiseCreateDialog({ onSubmit, submitting, onClose, c
   }
 
   async function handleSubmit() {
-    if (!canSubmit || submitting) return
+    if (submitting) return
     const success = await onSubmit(form)
     if (success) {
       setForm(initialForm())
@@ -135,7 +134,7 @@ export default function FranchiseCreateDialog({ onSubmit, submitting, onClose, c
           </div>
         </div>
 
-        <div className="border-border flex flex-shrink-0 items-center justify-between border-t px-7 py-4"><label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none"><input type="checkbox" checked={form.sendDocNotify} onChange={event => setForm({ ...form, sendDocNotify: event.target.checked })} className="accent-primary size-[15px] cursor-pointer" />등록 즉시 서류안내 알림톡 발송</label><button type="button" disabled={!canSubmit || submitting} onClick={handleSubmit} className={primaryButton}>{submitting ? '등록 중...' : '등록'}</button></div>
+        <div className="border-border flex flex-shrink-0 items-center justify-between border-t px-7 py-4"><label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none"><input type="checkbox" checked={form.sendDocNotify} onChange={event => setForm({ ...form, sendDocNotify: event.target.checked })} className="accent-primary size-[15px] cursor-pointer" />등록 즉시 서류안내 알림톡 발송</label><button type="button" disabled={submitting} onClick={handleSubmit} className={primaryButton}>{submitting ? '등록 중...' : '등록'}</button></div>
       </div>
     </div>
   )

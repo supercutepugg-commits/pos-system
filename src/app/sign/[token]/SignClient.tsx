@@ -3,7 +3,12 @@
 import { useRef, useState, useEffect } from 'react'
 import { DndContext, useDraggable, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { usePdfPageCanvas } from '@/hooks/usePdfPageCanvas'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { pixelToRatio, ratioToPixel, isRatioRect, type RatioRect, type PixelRect } from '@/lib/pdf/zoneCoords'
+import { detectInAppBrowser, buildExternalBrowserUrl, type InAppBrowser } from '@/lib/inAppBrowser'
+
+// 모바일 서명 단계에서 서명란으로 확대해서 이동할 때 사용하는 배율.
+const MOBILE_ZONE_ZOOM = 1.8
 
 interface SignatureItem extends RatioRect {
   id: string
@@ -165,6 +170,25 @@ export default function SignClient({ contract }: Props) {
   const [done, setDone] = useState(contract.status === 'signed')
   const stampRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  const isMobile = useIsMobile()
+  const [mobileStep, setMobileStep] = useState<'review' | 'sign' | 'complete'>('review')
+  const [currentZoneIndex, setCurrentZoneIndex] = useState(0)
+  const [reviewedToEnd, setReviewedToEnd] = useState(false)
+
+  const [inAppExit, setInAppExit] = useState<{ browser: InAppBrowser; externalUrl: string | null } | null>(null)
+
+  useEffect(() => {
+    const ua = navigator.userAgent
+    const browser = detectInAppBrowser(ua)
+    if (!browser) return
+    const externalUrl = buildExternalBrowserUrl(browser, window.location.href, ua)
+    // navigator.userAgent is unavailable during SSR, so this must run post-hydration in an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInAppExit({ browser, externalUrl })
+    if (externalUrl) window.location.href = externalUrl
+  }, [])
 
   const { canvasRef, renderedWidth, renderedHeight, error: pdfError } = usePdfPageCanvas(contract.pdf_url, containerRef)
 
@@ -173,11 +197,54 @@ export default function SignClient({ contract }: Props) {
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   )
 
+  // 검토 단계: PDF를 끝까지 스크롤했거나(또는 로드 실패/한 화면에 다 들어오는 경우) 다음 단계로 넘어갈 수 있게 한다.
+  useEffect(() => {
+    if (!isMobile || mobileStep !== 'review') return
+    const el = scrollAreaRef.current
+    const alreadyFits = !!el && el.scrollHeight <= el.clientHeight + 24
+    if (pdfError || alreadyFits) setReviewedToEnd(true)
+  }, [isMobile, mobileStep, pdfError, renderedWidth, renderedHeight])
+
+  function handleReviewScroll(e: React.UIEvent<HTMLDivElement>) {
+    if (!isMobile || mobileStep !== 'review' || reviewedToEnd) return
+    const el = e.currentTarget
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 24) setReviewedToEnd(true)
+  }
+
+  // 서명 단계: 현재 서명란이 화면 중앙에 오도록 확대 위치로 이동한다.
+  useEffect(() => {
+    if (!isMobile || mobileStep !== 'sign' || !hasZones) return
+    if (!renderedWidth || !renderedHeight) return
+    const zone = zones[currentZoneIndex]
+    const containerEl = containerRef.current
+    const scrollEl = scrollAreaRef.current
+    if (!zone || !containerEl || !scrollEl) return
+    const px = ratioToPixel(zone, renderedWidth, renderedHeight)
+    const targetX = containerEl.offsetLeft + px.x + px.width / 2
+    const targetY = containerEl.offsetTop + px.y + px.height / 2
+    scrollEl.scrollTo({
+      left: Math.max(0, targetX - scrollEl.clientWidth / 2),
+      top: Math.max(0, targetY - scrollEl.clientHeight / 2),
+      behavior: 'smooth',
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, mobileStep, currentZoneIndex, hasZones, renderedWidth, renderedHeight])
+
+  function goToNextZone() {
+    if (currentZoneIndex < zones.length - 1) setCurrentZoneIndex(i => i + 1)
+    else setMobileStep('complete')
+  }
+
+  function goToPrevZone() {
+    setCurrentZoneIndex(i => Math.max(0, i - 1))
+  }
+
   function handleSignatureComplete(dataUrl: string) {
     setShowPad(false)
     if (activeZoneId) {
       setSignedZones(prev => ({ ...prev, [activeZoneId]: dataUrl }))
       setActiveZoneId(null)
+      if (isMobile && mobileStep === 'sign') goToNextZone()
       return
     }
     const w = renderedWidth ?? 600
@@ -282,6 +349,30 @@ export default function SignClient({ contract }: Props) {
     setDone(true)
   }
 
+  if (inAppExit) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center max-w-sm px-6">
+          {inAppExit.externalUrl ? (
+            <>
+              <h1 className="text-lg font-semibold text-gray-900 mb-2">외부 브라우저로 이동 중입니다</h1>
+              <p className="text-sm text-gray-500 mb-5">계약서 확인 및 서명을 위해 기본 브라우저로 이동합니다.<br />자동으로 이동하지 않으면 아래 버튼을 눌러주세요.</p>
+              <a href={inAppExit.externalUrl}
+                className="inline-block w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition">
+                외부 브라우저로 열기
+              </a>
+            </>
+          ) : (
+            <>
+              <h1 className="text-lg font-semibold text-gray-900 mb-2">외부 브라우저로 열어주세요</h1>
+              <p className="text-sm text-gray-500">현재 앱 내 브라우저에서는 계약서를 정상적으로 표시할 수 없습니다.<br />우측 상단 메뉴에서 &apos;다른 브라우저로 열기&apos; 또는 &apos;Safari로 열기&apos;를 선택해주세요.</p>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -310,15 +401,20 @@ export default function SignClient({ contract }: Props) {
     )
   }
 
+  const currentZone = hasZones ? zones[currentZoneIndex] : null
+  const isMobileSignStep = isMobile && mobileStep === 'sign'
+  const zoomActive = isMobileSignStep && hasZones && !!currentZone && !!renderedWidth && !!renderedHeight
+  const currentZonePx = zoomActive ? ratioToPixel(currentZone!, renderedWidth!, renderedHeight!) : null
+
   return (
-    <div className="min-h-screen bg-white flex flex-col lg:flex-row">
+    <div className="h-screen overflow-hidden bg-white flex flex-col lg:h-auto lg:min-h-screen lg:overflow-visible lg:flex-row">
       {}
-      <div className="w-full lg:w-72 bg-gray-50 border-b lg:border-b-0 lg:border-r border-gray-100 flex flex-col">
+      <div className="hidden lg:flex lg:w-72 bg-gray-50 lg:border-r border-gray-100 flex-col">
         <div className="h-14 flex items-center gap-2.5 px-6 border-b border-gray-100">
           <div className="w-2 h-2 rounded-full bg-gray-900" />
           <span className="text-sm font-semibold text-gray-900">POS 전산</span>
         </div>
-        <div className="flex-1 px-6 py-6 space-y-5 overflow-y-auto">
+        <div className="flex-1 px-6 py-6 space-y-5">
           <div>
             <p className="text-xs text-gray-400 mb-1">계약서</p>
             <h1 className="text-base font-semibold text-gray-900">{contract.title}</h1>
@@ -387,23 +483,75 @@ export default function SignClient({ contract }: Props) {
       </div>
 
       {}
-      <div className="flex-1 overflow-auto bg-gray-100 relative p-4">
-        <div ref={containerRef} className="relative bg-white shadow-lg mx-auto" style={{ maxWidth: 900, minWidth: 320 }}>
+      <div className="lg:hidden flex-shrink-0 bg-gray-50 border-b border-gray-100 px-4 py-3">
+        <div className="flex items-center justify-center gap-1.5 mb-2">
+          {(['review', 'sign', 'complete'] as const).map((step, idx, arr) => {
+            const stepLabel = step === 'review' ? '검토' : step === 'sign' ? '서명' : '완료'
+            const currentIdx = arr.indexOf(mobileStep)
+            const isDone = idx < currentIdx
+            const isActive = step === mobileStep
+            return (
+              <div key={step} className="flex items-center gap-1.5">
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${isActive ? 'bg-gray-900 text-white' : isDone ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                  {isDone ? '✓' : idx + 1} {stepLabel}
+                </span>
+                {idx < arr.length - 1 && <span className="w-3 h-px bg-gray-300" />}
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-sm font-semibold text-gray-900 truncate text-center">{contract.title}</p>
+        {mobileStep === 'review' && <p className="text-xs text-gray-500 text-center mt-0.5">계약 내용을 끝까지 확인해주세요</p>}
+        {mobileStep === 'sign' && hasZones && currentZone && (
+          <p className="text-xs text-gray-500 text-center mt-0.5">{currentZoneIndex + 1} / {zones.length} · {currentZone.label}</p>
+        )}
+        {mobileStep === 'sign' && !hasZones && <p className="text-xs text-gray-500 text-center mt-0.5">서명 또는 도장을 추가해주세요</p>}
+        {mobileStep === 'complete' && <p className="text-xs text-gray-500 text-center mt-0.5">서명 내용을 확인하고 제출해주세요</p>}
+        {mobileStep === 'complete' && hasZones && (
+          <ul className="mt-2 space-y-1 max-h-24 overflow-y-auto">
+            {zones.map((zone, i) => (
+              <li key={zone.id} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 border ${signedZones[zone.id] ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-100 text-gray-400'}`}>
+                <span className="truncate">{i + 1}. {zone.label}</span>
+                <span>{signedZones[zone.id] ? '✓ 완료' : '미서명'}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {}
+      <div ref={scrollAreaRef} onScroll={handleReviewScroll}
+        className="flex-1 min-h-0 overflow-auto bg-gray-100 relative p-4 pb-36 lg:pb-4">
+        <div ref={containerRef} className="relative bg-white shadow-lg mx-auto"
+          style={{
+            maxWidth: 900, minWidth: 320,
+            transform: zoomActive ? `scale(${MOBILE_ZONE_ZOOM})` : undefined,
+            transformOrigin: zoomActive && currentZonePx ? `${currentZonePx.x + currentZonePx.width / 2}px ${currentZonePx.y + currentZonePx.height / 2}px` : undefined,
+            transition: 'transform 0.3s ease',
+          }}>
           <canvas ref={canvasRef} className="block" />
           {pdfError && (
             <p className="p-4 text-sm text-red-500">PDF를 불러오지 못했습니다: {pdfError}</p>
           )}
 
           {}
-          {hasZones && renderedWidth && renderedHeight && (
+          {hasZones && renderedWidth && renderedHeight && !(isMobile && mobileStep === 'review') && (
             <div className="absolute inset-0 pointer-events-none">
               {zones.map((zone, i) => {
                 const px = ratioToPixel(zone, renderedWidth, renderedHeight)
+                const isCurrent = isMobileSignStep && i === currentZoneIndex
+                const hideWhileZooming = isMobileSignStep && !isCurrent && !signedZones[zone.id]
+                if (hideWhileZooming) return null
+                const clickable = mobileStep !== 'complete' && (!isMobile || !isMobileSignStep || isCurrent)
                 return (
                   <div key={zone.id}
-                    style={{ position: 'absolute', left: px.x, top: px.y, width: px.width, height: px.height, pointerEvents: 'auto' }}
-                    className={`border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${signedZones[zone.id] ? 'border-green-400 bg-green-50/60' : 'border-blue-400 bg-blue-50/40 hover:bg-blue-100/60'}`}
-                    onClick={() => { if (!signedZones[zone.id]) { setActiveZoneId(zone.id); setShowPad(true) } }}>
+                    style={{ position: 'absolute', left: px.x, top: px.y, width: px.width, height: px.height, pointerEvents: clickable ? 'auto' : 'none' }}
+                    className={`border-2 border-dashed flex items-center justify-center transition-colors ${
+                      signedZones[zone.id] ? 'border-green-400 bg-green-50/60' :
+                      isCurrent ? 'border-blue-500 bg-blue-50/70 ring-4 ring-blue-300/50 cursor-pointer' :
+                      'border-blue-400 bg-blue-50/40 hover:bg-blue-100/60 cursor-pointer'
+                    }`}
+                    onClick={() => { if (clickable && !signedZones[zone.id]) { setActiveZoneId(zone.id); setShowPad(true) } }}>
                     {signedZones[zone.id] ? (
                       <img src={signedZones[zone.id]} alt="서명" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     ) : (
@@ -416,7 +564,7 @@ export default function SignClient({ contract }: Props) {
           )}
 
           {}
-          {!hasZones && renderedWidth && renderedHeight && (
+          {!hasZones && renderedWidth && renderedHeight && !(isMobile && mobileStep !== 'sign') && (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <div className="absolute inset-0 pointer-events-none">
                 <div style={{ pointerEvents: 'auto', position: 'relative', width: '100%', height: '100%' }}>
@@ -429,6 +577,73 @@ export default function SignClient({ contract }: Props) {
             </DndContext>
           )}
         </div>
+      </div>
+
+      {}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-gray-50 border-t border-gray-100 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        {mobileStep === 'review' && (
+          <button onClick={() => setMobileStep('sign')} disabled={!reviewedToEnd}
+            className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 transition">
+            {reviewedToEnd ? '동의하고 계속하기' : '계약서를 끝까지 확인해주세요'}
+          </button>
+        )}
+
+        {mobileStep === 'sign' && hasZones && currentZone && (
+          <div className="flex gap-2">
+            <button onClick={goToPrevZone} disabled={currentZoneIndex === 0}
+              className="px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 disabled:opacity-30 transition">
+              이전
+            </button>
+            {signedZones[currentZone.id] ? (
+              <button onClick={goToNextZone}
+                className="flex-1 py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition">
+                {currentZoneIndex < zones.length - 1 ? '다음 서명란' : '완료 확인하기'}
+              </button>
+            ) : (
+              <>
+                <button onClick={() => { setActiveZoneId(currentZone.id); setShowPad(true) }}
+                  className="flex-1 py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition">
+                  여기에 서명하기
+                </button>
+                {!currentZone.required && (
+                  <button onClick={goToNextZone} className="px-3 text-xs text-gray-400 underline flex-shrink-0">건너뛰기</button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {mobileStep === 'sign' && !hasZones && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <button onClick={() => setShowPad(true)}
+                className="flex-1 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition">
+                서명 그리기
+              </button>
+              <button onClick={() => stampRef.current?.click()}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-white transition">
+                도장 업로드
+              </button>
+              <input ref={stampRef} type="file" accept="image/png,image/jpeg" onChange={handleStampFile} className="hidden" />
+            </div>
+            <button onClick={() => setMobileStep('complete')} disabled={items.length === 0}
+              className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 transition">
+              다음
+            </button>
+          </div>
+        )}
+
+        {mobileStep === 'complete' && (
+          <>
+            <button onClick={handleSubmit} disabled={submitting || (hasZones ? requiredZones.some(z => !signedZones[z.id]) : items.length === 0)}
+              className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 transition">
+              {submitting ? '처리 중...' : '서명 완료'}
+            </button>
+            <button onClick={() => setMobileStep('sign')} className="w-full text-xs text-gray-400 text-center mt-2 underline">
+              서명 내용 다시 확인하기
+            </button>
+          </>
+        )}
       </div>
 
       {showPad && <SignaturePadModal onComplete={handleSignatureComplete} onClose={() => setShowPad(false)} />}

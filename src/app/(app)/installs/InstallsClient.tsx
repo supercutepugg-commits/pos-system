@@ -41,6 +41,7 @@ function statusOrderFor(deliveryType?: string) {
 function statusLabel(status: string, deliveryType?: string) {
   if (status === 'in_transit' && deliveryType === 'delivery') return '택배발송'
   if (status === 'completed' && deliveryType === 'as') return 'AS완료'
+  if (status === 'completed' && deliveryType === 'delivery') return '완료'
   return STATUS_LABELS[status] ?? status
 }
 const STATUS_COLORS: Record<string, string> = {
@@ -478,6 +479,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if (!inst?.customer_phone) return
 
     if (inst.delivery_type === 'delivery' && status === 'preparing') return
+    if (inst.delivery_type === 'delivery' && status === 'completed') return
 
     if (inst.delivery_type === 'as' && status !== 'in_transit') return
     const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status

@@ -36,6 +36,7 @@ interface Contract {
   token_expires_at: string
   created_at: string
   creator?: { name: string } | null
+  signature_zones?: unknown[] | null
 }
 
 interface Props {
@@ -123,8 +124,12 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
     setContracts(prev => prev.filter(c => c.id !== id))
   }
 
-  function copySignLink(token: string) {
-    const url = `${window.location.origin}/sign/${token}`
+  function copySignLink(contract: Contract) {
+    if (!contract.signature_zones || contract.signature_zones.length === 0) {
+      toast.error('서명 위치를 1개 이상 지정한 뒤 링크를 공유할 수 있습니다.')
+      return
+    }
+    const url = `${window.location.origin}/sign/${contract.sign_token}`
     navigator.clipboard.writeText(url)
     toast.success('서명 링크가 복사됐습니다.')
   }
@@ -228,9 +233,16 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
                     <span>만료 {format(new Date(c.token_expires_at), 'M/d', { locale: ko })}</span>
                   </div>
                 </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${STATUS_COLORS[c.status]}`}>
-                  {STATUS_LABELS[c.status] ?? c.status}
-                </span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${STATUS_COLORS[c.status]}`}>
+                    {STATUS_LABELS[c.status] ?? c.status}
+                  </span>
+                  {c.status === 'pending' && (!c.signature_zones || c.signature_zones.length === 0) && (
+                    <span className="text-xs px-2.5 py-1 rounded-full font-semibold border bg-orange-50 text-orange-600 border-orange-200">
+                      위치 미지정
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2 flex-shrink-0">
                   {canEdit && (
                     <a href={`/contracts/${c.id}`}
@@ -238,8 +250,10 @@ export default function ContractsClient({ profile, initialContracts }: Props) {
                       <PenLine size={12} />위치 지정
                     </a>
                   )}
-                  <button onClick={() => copySignLink(c.sign_token)}
-                    className="flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-2.5 py-1.5 rounded-lg hover:bg-slate-50">
+                  <button onClick={() => copySignLink(c)}
+                    disabled={!c.signature_zones || c.signature_zones.length === 0}
+                    title={!c.signature_zones || c.signature_zones.length === 0 ? '서명 위치를 먼저 지정해주세요' : undefined}
+                    className="flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed">
                     <Copy size={12} />서명 링크
                   </button>
                   <a href={c.pdf_url} target="_blank" rel="noopener noreferrer"

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import SignClient from './SignClient'
+import { renderPdfPageToPng } from '@/lib/pdf/renderPdfPageToImage'
 
 interface Props {
   params: Promise<{ token: string }>
@@ -36,5 +37,19 @@ export default async function SignPage({ params }: Props) {
     </div>
   )
 
-  return <SignClient contract={contract} />
+  let previewImageDataUrl: string | null = null
+  const pdfPath = contract.pdf_url ? contract.pdf_url.split('/contracts/')[1] : null
+  if (pdfPath) {
+    try {
+      const { data: pdfBlob, error: dlErr } = await supabase.storage.from('contracts').download(pdfPath)
+      if (dlErr || !pdfBlob) throw new Error(dlErr?.message ?? '원본 PDF 다운로드 실패')
+      const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer())
+      const png = await renderPdfPageToPng(pdfBytes)
+      previewImageDataUrl = `data:image/png;base64,${png.toString('base64')}`
+    } catch (renderErr) {
+      console.error('계약서 미리보기 이미지 생성 실패:', renderErr)
+    }
+  }
+
+  return <SignClient contract={contract} previewImageDataUrl={previewImageDataUrl} />
 }

@@ -15,6 +15,7 @@ import {
   PenLine,
   RefreshCw,
   Store,
+  Truck,
   Users,
   Wifi,
   type LucideIcon,
@@ -62,6 +63,7 @@ export const ROLE_FOLDERS: NavGroup[] = [
     icon: HardHat,
     items: [
       { href: '/installs', label: '설치 관리', icon: Package },
+      { href: '/installs/delivery', label: '택배 발송', icon: Truck },
       { href: '/installs/mine', label: '기사 페이지', icon: HardHat },
       { href: '/installs/photos', label: '완료사진', icon: Images },
       { href: '/external-techs', label: '외부 기사 관리', icon: Users },

@@ -44,6 +44,32 @@ function statusLabel(status: string, deliveryType?: string) {
   if (status === 'completed' && deliveryType === 'delivery') return '완료'
   return STATUS_LABELS[status] ?? status
 }
+
+type DeliveryType = 'install' | 'delivery' | 'as' | 'name_change' | 'transfer'
+const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
+  install: '설치',
+  delivery: '택배발송',
+  as: 'AS',
+  name_change: '명변',
+  transfer: '전환',
+}
+const DELIVERY_TYPE_BADGE_COLORS: Record<DeliveryType, string> = {
+  install: 'bg-blue-50 text-blue-600 border-blue-200',
+  delivery: 'bg-orange-50 text-orange-600 border-orange-200',
+  as: 'bg-purple-50 text-purple-600 border-purple-200',
+  name_change: 'bg-teal-50 text-teal-600 border-teal-200',
+  transfer: 'bg-pink-50 text-pink-600 border-pink-200',
+}
+const DELIVERY_TYPE_SOLID_COLORS: Record<DeliveryType, string> = {
+  install: 'bg-blue-600 text-white border-blue-600',
+  delivery: 'bg-orange-500 text-white border-orange-500',
+  as: 'bg-purple-500 text-white border-purple-500',
+  name_change: 'bg-teal-500 text-white border-teal-500',
+  transfer: 'bg-pink-500 text-white border-pink-500',
+}
+function deliveryTypeOf(value?: string): DeliveryType {
+  return value === 'delivery' || value === 'as' || value === 'name_change' || value === 'transfer' ? value : 'install'
+}
 const STATUS_COLORS: Record<string, string> = {
   received: 'bg-gray-100 text-gray-600 border-gray-200',
   preparing: 'bg-blue-50 text-blue-600 border-blue-200',
@@ -93,6 +119,7 @@ interface Props {
   techUsers: { id: string; name: string }[]
   initialInstalls: Installation[]
   mineOnly?: boolean
+  deliveryOnly?: boolean
   initialHighlightId?: string
 }
 
@@ -149,15 +176,16 @@ interface CreateFormProps {
     assignedTo: string
     notes: string
     items: { name: string; quantity: number }[]
-    deliveryType: 'install' | 'delivery' | 'as'
+    deliveryType: DeliveryType
   }) => Promise<void>
   submitting: boolean
   onCancel: () => void
   onClose: () => void
+  deliveryOnly?: boolean
 }
-const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel, onClose }: CreateFormProps) {
+const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel, onClose, deliveryOnly }: CreateFormProps) {
   const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
-  const [deliveryType, setDeliveryType] = useState<'install' | 'delivery' | 'as'>('install')
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>(deliveryOnly ? 'delivery' : 'install')
   const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
   const [cartCustomName, setCartCustomName] = useState('')
   const [cartQty, setCartQty] = useState(1)
@@ -186,22 +214,23 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
       deliveryType,
     })
     setForm({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
-    setDeliveryType('install')
+    setDeliveryType(deliveryOnly ? 'delivery' : 'install')
     setCartItems([])
   }
 
   return (
-    <FormModal title="새 설치건 등록" onClose={onClose} maxWidthClassName="max-w-3xl">
+    <FormModal title={deliveryOnly ? '새 택배발송건 등록' : '새 설치건 등록'} onClose={onClose} maxWidthClassName="max-w-3xl">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {}
-        <div className="flex gap-2">
-          {(['install', 'delivery', 'as'] as const).map(t => (
-            <button key={t} type="button" onClick={() => setDeliveryType(t)}
-              className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? (t === 'install' ? 'bg-blue-600 text-white border-blue-600' : t === 'delivery' ? 'bg-orange-500 text-white border-orange-500' : 'bg-purple-500 text-white border-purple-500') : 'bg-white text-slate-500 border-slate-200'}`}>
-              {t === 'install' ? '설치' : t === 'delivery' ? '택배발송' : 'AS'}
-            </button>
-          ))}
-        </div>
+        {!deliveryOnly && (
+          <div className="flex gap-2">
+            {(['install', 'name_change', 'transfer', 'as'] as const).map(t => (
+              <button key={t} type="button" onClick={() => setDeliveryType(t)}
+                className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? DELIVERY_TYPE_SOLID_COLORS[t] : 'bg-white text-slate-500 border-slate-200'}`}>
+                {DELIVERY_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-slate-500 mb-1">고객명 *</label>
@@ -329,7 +358,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
   )
 })
 
-export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, initialHighlightId }: Props) {
+export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, deliveryOnly, initialHighlightId }: Props) {
   const canEdit = ['tech', 'cs', 'admin', 'master'].includes(profile.role)
   const canDelete = profile.role === 'admin' || profile.role === 'master' || !!profile.can_delete
   const toast = useToast()
@@ -393,7 +422,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [showCompleted, setShowCompleted] = useState(false)
   const [franchiseDetail, setFranchiseDetail] = useState<Record<string, unknown> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [deliveryTab, setDeliveryTab] = useState<'all' | 'install' | 'delivery' | 'as'>('all')
+  const [deliveryTab, setDeliveryTab] = useState<'all' | DeliveryType>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [checklistItems, setChecklistItems] = useState<{ label: string; checked: boolean }[]>([])
@@ -424,6 +453,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       .from('installations')
       .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
     if (mineOnly) query = query.neq('delivery_type', 'delivery')
+    if (deliveryOnly) query = query.eq('delivery_type', 'delivery')
     const { data } = await query
       .order('sort_order', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
@@ -451,7 +481,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     assignedTo: string
     notes: string
     items: { name: string; quantity: number }[]
-    deliveryType: 'install' | 'delivery' | 'as'
+    deliveryType: DeliveryType
   }) {
     if (!newInstall.customerName) return
     setSubmitting(true)
@@ -930,9 +960,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const q = search.trim().toLowerCase()
     return installs.filter(i => {
       if (mineOnly && (i as any).delivery_type === 'delivery') return false
-      if (deliveryTab === 'install' && (i as any).delivery_type !== 'install') return false
-      if (deliveryTab === 'delivery' && (i as any).delivery_type !== 'delivery') return false
-      if (deliveryTab === 'as' && (i as any).delivery_type !== 'as') return false
+      if (!deliveryOnly && deliveryTab !== 'all' && deliveryTypeOf((i as any).delivery_type) !== deliveryTab) return false
       if (!showRejected && i.status === 'rejected') return false
       if (!showCompleted && i.status === 'completed' && statusFilter !== 'completed') return false
       if (statusFilter && i.status !== statusFilter) return false
@@ -946,11 +974,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       )) return false
       return true
     })
-  }, [installs, search, statusFilter, techFilter, showRejected, showCompleted, deliveryTab, dateFrom, dateTo, mineOnly])
+  }, [installs, search, statusFilter, techFilter, showRejected, showCompleted, deliveryTab, dateFrom, dateTo, mineOnly, deliveryOnly])
 
   const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected && !showCompleted
 
-  const columns = MAIN_COLUMNS
+  const columns = deliveryOnly ? MAIN_COLUMNS.filter(col => col.key !== 'delivery_type') : MAIN_COLUMNS
 
   const reorderInstalls = useCallback((dragId: string, dropId: string) => {
     if (dragId === dropId) return
@@ -1177,7 +1205,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       )}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{mineOnly ? '기사 페이지' : '설치 관리'}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{mineOnly ? '기사 페이지' : deliveryOnly ? '택배 발송' : '설치 관리'}</h1>
           <p className="text-slate-500 text-sm mt-1">
             {mineOnly ? `내 담당 건 ${installs.length}건` : `이번달 ${thisMonth}건 / 전체 ${installs.length}건`}
           </p>
@@ -1213,19 +1241,21 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
       {}
       {canEdit && !mineOnly && showForm && (
-        <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} onClose={() => setShowForm(false)} />
+        <CreateForm techUsers={techUsers} onSubmit={handleCreate} submitting={submitting} onCancel={() => setShowForm(false)} onClose={() => setShowForm(false)} deliveryOnly={deliveryOnly} />
       )}
 
       {}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-          {(([['all', '전체'], ['install', '설치'], ['delivery', '택배발송'], ['as', 'AS']] as const).filter(([tab]) => !(mineOnly && tab === 'delivery'))).map(([tab, label]) => (
-            <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${deliveryTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        {!deliveryOnly && (
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit mr-auto">
+            {(([['all', '전체'], ['install', '설치'], ['name_change', '명변'], ['transfer', '전환'], ['as', 'AS']] as const)).map(([tab, label]) => (
+              <button key={tab} onClick={() => { setDeliveryTab(tab); setPage(1) }}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${deliveryTab === tab ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <button onClick={() => setShowMonthlyStats(v => !v)}
           className="text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50">
           {showMonthlyStats ? '실적 숨기기' : '기사별 월간 실적'}
@@ -1531,22 +1561,24 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         )}
                       </div>
                     </td>
-                    <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      {canEdit ? (
-                        <select
-                          value={inst.delivery_type === 'delivery' ? 'delivery' : inst.delivery_type === 'as' ? 'as' : 'install'}
-                          onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
-                          className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : inst.delivery_type === 'as' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
-                          <option value="install">설치</option>
-                          <option value="delivery">택배발송</option>
-                          <option value="as">AS</option>
-                        </select>
-                      ) : (
-                        <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${inst.delivery_type === 'delivery' ? 'bg-orange-50 text-orange-600 border-orange-200' : inst.delivery_type === 'as' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
-                          {inst.delivery_type === 'delivery' ? '택배발송' : inst.delivery_type === 'as' ? 'AS' : '설치'}
-                        </span>
-                      )}
-                    </td>
+                    {!deliveryOnly && (
+                      <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        {canEdit ? (
+                          <select
+                            value={deliveryTypeOf(inst.delivery_type)}
+                            onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
+                            className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${DELIVERY_TYPE_BADGE_COLORS[deliveryTypeOf(inst.delivery_type)]}`}>
+                            {(['install', 'name_change', 'transfer', 'as'] as const).map(t => (
+                              <option key={t} value={t}>{DELIVERY_TYPE_LABELS[t]}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${DELIVERY_TYPE_BADGE_COLORS[deliveryTypeOf(inst.delivery_type)]}`}>
+                            {DELIVERY_TYPE_LABELS[deliveryTypeOf(inst.delivery_type)]}
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" title={inst.customer_phone || undefined}>{inst.customer_phone || '-'}</td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                       {mineOnly ? (

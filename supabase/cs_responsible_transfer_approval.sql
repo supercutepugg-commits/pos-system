@@ -12,6 +12,7 @@ ALTER TABLE franchise_transfer_approvals
 
 DROP POLICY IF EXISTS "authenticated insert transfer approvals" ON franchise_transfer_approvals;
 DROP POLICY IF EXISTS "cs manager requests transfer approvals" ON franchise_transfer_approvals;
+DROP POLICY IF EXISTS "cs manager or responsible requests transfer approvals" ON franchise_transfer_approvals;
 CREATE POLICY "cs manager or responsible requests transfer approvals"
   ON franchise_transfer_approvals FOR INSERT TO authenticated
   WITH CHECK (

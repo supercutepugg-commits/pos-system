@@ -16,7 +16,40 @@ const BACKUP_TABLES: { label: string; table: string }[] = [
   { label: '우국상 관리', table: 'woo_customers' },
   { label: 'AS티켓', table: 'tickets' },
   { label: '가맹점', table: 'merchants' },
+  { label: '직원정보', table: 'profiles' },
+  { label: '작업이력', table: 'ticket_logs' },
+  { label: '고객연락이력', table: 'contact_logs' },
+  { label: '알림', table: 'notifications' },
+  { label: '첨부파일', table: 'attachments' },
+  { label: '변경관리', table: 'change_requests' },
+  { label: '캘린더일정', table: 'calendar_events' },
+  { label: '계약서', table: 'contracts' },
+  { label: '채팅읽음상태', table: 'chat_room_reads' },
+  { label: '가맹접수이력', table: 'franchise_application_logs' },
+  { label: '전체채팅', table: 'messages' },
+  { label: 'DM방', table: 'dm_rooms' },
+  { label: 'DM메시지', table: 'dm_messages' },
+  { label: '고객인입(CRM)', table: 'crm_inbound' },
+  { label: '설계도', table: 'install_blueprints' },
+  { label: '재고품목', table: 'inventory_items' },
+  { label: '재고이력', table: 'inventory_logs' },
+  { label: '알림톡발송이력', table: 'notification_logs' },
 ]
+
+// handleDownload 안에서 별도로 컬럼을 가공하는 7개 테이블을 제외한 나머지는
+// 원본 컬럼 그대로 시트로 붙인다.
+const CURATED_TABLES = new Set(['franchise_applications', 'installations', 'tickets', 'merchants', 'internet_management', 'paper_orders', 'woo_customers'])
+const RAW_SHEET_TABLES = BACKUP_TABLES.filter(t => !CURATED_TABLES.has(t.table))
+
+function sanitizeForSheet(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return rows.map(row => {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(row)) {
+      out[key] = value !== null && typeof value === 'object' ? JSON.stringify(value) : value
+    }
+    return out
+  })
+}
 
 async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string): Promise<{ rows: Record<string, unknown>[]; failed: boolean }> {
   const pageSize = 1000
@@ -224,6 +257,17 @@ export default function ExcelDownloadButton() {
       }))
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wooData), '우국상 관리')
 
+      const rawFailed: string[] = []
+      for (const { label, table } of RAW_SHEET_TABLES) {
+        const { rows, failed } = await fetchAllRows(supabase, table)
+        if (failed) rawFailed.push(label)
+        if (rows.length === 0) continue
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sanitizeForSheet(rows)), label.slice(0, 31))
+      }
+      if (rawFailed.length > 0) {
+        toast.error(`일부 시트 조회 실패로 데이터가 누락되었습니다: ${rawFailed.join(', ')}`)
+      }
+
       XLSX.writeFile(wb, `전체현황_${format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })}.xlsx`)
     } finally {
       setLoading(false)
@@ -241,7 +285,7 @@ export default function ExcelDownloadButton() {
         const { rows, failed } = await fetchAllRows(supabase, table)
         if (failed) failedTables.push(label)
         if (rows.length === 0) continue
-        downloadCsv(XLSX, rows, `${label}_${table}_${stamp}.csv`)
+        downloadCsv(XLSX, sanitizeForSheet(rows), `${label}_${table}_${stamp}.csv`)
 
         await new Promise(r => setTimeout(r, 300))
       }

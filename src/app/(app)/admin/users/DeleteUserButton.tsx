@@ -19,7 +19,7 @@ export default function DeleteUserButton({ userId, userName }: Props) {
     if (!confirming) { setConfirming(true); return }
     startTransition(async () => {
       const { error } = await deleteUserAccount(userId)
-      if (error) { toast.error('계정 삭제 실패: ' + error); setConfirming(false) }
+      if (error) { toast.error(error); setConfirming(false) }
     })
   }
 

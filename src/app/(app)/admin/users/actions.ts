@@ -68,6 +68,21 @@ export async function deleteUserAccount(userId: string) {
   if (user?.id === userId) return { error: '본인 계정은 삭제할 수 없습니다.' }
 
   const supabase = createAdminClient()
+  const { error: deleteError } = await supabase.rpc('delete_user_account', { p_user_id: userId })
+  if (deleteError) return { error: '계정 삭제 실패: ' + deleteError.message }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+
+  /*
+  const authError = await requireAdmin()
+  if (authError) return { error: authError }
+
+  const sessionClient = await createClient()
+  const { data: { user } } = await sessionClient.auth.getUser()
+  if (user?.id === userId) return { error: '본인 계정은 삭제할 수 없습니다.' }
+
+  const supabase = createAdminClient()
 
   // profiles.id는 다른 여러 테이블에서 FK로 참조되는데 대부분 ON DELETE 액션이 없어
   // 그대로 삭제하면 FK 제약 위반으로 실패하고 계정이 DB에 그대로 남는다.
@@ -118,6 +133,7 @@ export async function deleteUserAccount(userId: string) {
 
   revalidatePath('/admin/users')
   return { error: null }
+  */
 }
 
 export async function setUserRole(userId: string, role: string) {

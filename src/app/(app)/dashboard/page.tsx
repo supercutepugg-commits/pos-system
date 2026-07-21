@@ -7,6 +7,7 @@ import { ko } from 'date-fns/locale'
 import { FileEdit, Clock4, CheckCircle2, Flag, AlertTriangle, UserX, CalendarClock, ArrowRight, ClipboardCheck } from 'lucide-react'
 import ExcelDownloadButton from './ExcelDownloadButton'
 import ApprovalButton from './ApprovalButton'
+import TransferApprovalItem from './TransferApprovalItem'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 
@@ -24,7 +25,7 @@ type TransferApproval = {
   requested_by_name: string
   requested_at: string
   cs_approved_by_name: string | null
-  franchise: { id: string; business_name: string | null; owner_name: string | null } | null
+  franchise: { id: string; business_name: string | null; owner_name: string | null; address: string | null; phone: string | null } | null
 }
 
 export default async function DashboardPage() {
@@ -120,7 +121,7 @@ export default async function DashboardPage() {
   const transferApprovalQuery = p.approval_role === 'cs_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('franchise_transfer_approvals')
-      .select('franchise_application_id, requested_by, requested_by_name, requested_at, cs_approved_by_name, franchise:franchise_applications(id, business_name, owner_name)')
+      .select('franchise_application_id, requested_by, requested_by_name, requested_at, cs_approved_by_name, franchise:franchise_applications(id, business_name, owner_name, address, phone)')
       .eq('status', p.approval_role === 'cs_responsible' ? 'requested' : 'cs_responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
@@ -228,14 +229,16 @@ export default async function DashboardPage() {
               <div className="divide-y divide-slate-100">
                 {transferApprovals.map((approval) => (
                   <div key={approval.franchise_application_id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors">
-                    <Link href={`/franchise?highlight=${approval.franchise_application_id}`} className="flex min-w-0 flex-1 items-center gap-4">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{approval.franchise?.business_name ?? approval.franchise?.owner_name ?? '가맹 접수 건'}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{p.approval_role === 'team_lead' ? (approval.cs_approved_by_name || approval.requested_by_name) + ' · 팀장 최종 승인요청' : approval.requested_by_name + ' · CS책임 승인요청'}</p>
-                      </div>
-                      <ArrowRight size={16} className="text-slate-400" />
-                    </Link>
+                    <TransferApprovalItem
+                      id={approval.franchise_application_id}
+                      businessName={approval.franchise?.business_name ?? null}
+                      ownerName={approval.franchise?.owner_name ?? null}
+                      address={approval.franchise?.address ?? null}
+                      phone={approval.franchise?.phone ?? null}
+                      requesterName={approval.requested_by_name}
+                      csApproverName={approval.cs_approved_by_name}
+                      approvalRole={p.approval_role as 'cs_responsible' | 'team_lead'}
+                    />
                     <ApprovalButton type={p.approval_role === 'cs_responsible' ? 'cs_transfer' : 'transfer'} id={approval.franchise_application_id} />
                   </div>
                 ))}

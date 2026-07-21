@@ -962,8 +962,17 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setDateTo('')
     setTableView('all')
     setActiveKpi(null)
-    toggleExpand(target)
-  }, [initialHighlightId, localRows])
+    setExpandedId(target.id)
+    if (!logsByRow[target.id]) {
+      const supabase = createClient()
+      void supabase
+        .from('franchise_application_logs')
+        .select('*, user:profiles(name)')
+        .eq('franchise_application_id', target.id)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setLogsByRow(prev => ({ ...prev, [target.id]: data ?? [] })))
+    }
+  }, [initialHighlightId, localRows, logsByRow])
 
   useEffect(() => {
     if (!initialHighlightId) return

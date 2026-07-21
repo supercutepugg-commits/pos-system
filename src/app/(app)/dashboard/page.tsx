@@ -4,10 +4,27 @@ import { FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR, type FranchiseStatus, t
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { FileEdit, Clock4, CheckCircle2, Flag, AlertTriangle, UserX, CalendarClock, ArrowRight } from 'lucide-react'
+import { FileEdit, Clock4, CheckCircle2, Flag, AlertTriangle, UserX, CalendarClock, ArrowRight, ClipboardCheck } from 'lucide-react'
 import ExcelDownloadButton from './ExcelDownloadButton'
+import ApprovalButton from './ApprovalButton'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
+
+type CompletionApproval = {
+  installation_id: string
+  requested_by: string
+  requested_by_name: string
+  requested_at: string
+  installation: { id: string; customer_name: string | null; address: string | null } | null
+}
+
+type TransferApproval = {
+  franchise_application_id: string
+  requested_by: string
+  requested_by_name: string
+  requested_at: string
+  franchise: { id: string; business_name: string | null; owner_name: string | null } | null
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -89,6 +106,26 @@ export default async function DashboardPage() {
     .order('updated_at', { ascending: false })
     .limit(30)
 
+  const completionApprovalQuery = p.approval_role === 'tech_responsible'
+    ? supabase
+      .from('installation_completion_approvals')
+      .select('installation_id, requested_by, requested_by_name, requested_at, installation:installations(id, customer_name, address)')
+      .eq('status', 'requested')
+      .neq('requested_by', userId)
+      .order('requested_at', { ascending: true })
+      .limit(5)
+    : null
+
+  const transferApprovalQuery = p.approval_role === 'team_lead'
+    ? supabase
+      .from('franchise_transfer_approvals')
+      .select('franchise_application_id, requested_by, requested_by_name, requested_at, franchise:franchise_applications(id, business_name, owner_name)')
+      .eq('status', 'requested')
+      .neq('requested_by', userId)
+      .order('requested_at', { ascending: true })
+      .limit(5)
+    : null
+
   const [
     { count: unassignedFranchise },
     { count: unassignedInstall },
@@ -97,6 +134,8 @@ export default async function DashboardPage() {
     todayFranchiseResult,
     { data: monthlyFranchise },
     { data: completedInstalls },
+    completionApprovalsResult,
+    transferApprovalsResult,
   ] = await Promise.all([
     (p.role === 'admin' || p.role === 'master') ? unassignedFranchiseQuery : Promise.resolve({ count: 0 }),
     (p.role === 'admin' || p.role === 'master') ? unassignedInstallQuery : Promise.resolve({ count: 0 }),
@@ -105,6 +144,8 @@ export default async function DashboardPage() {
     todayFranchiseQuery ?? Promise.resolve({ data: [] }),
     p.role !== 'tech' ? monthlyFranchiseQuery : Promise.resolve({ data: [] as any[] }),
     avgDaysQuery,
+    completionApprovalQuery ?? Promise.resolve({ data: [] as CompletionApproval[] }),
+    transferApprovalQuery ?? Promise.resolve({ data: [] as TransferApproval[] }),
   ])
 
   const monthlyStats: { label: string; total: number; done: number }[] = []
@@ -135,6 +176,9 @@ export default async function DashboardPage() {
 
   const todayInstalls = (todayInstallsResult.data ?? []) as any[]
   const todayFranchise = (todayFranchiseResult.data ?? []) as any[]
+  const completionApprovals = (completionApprovalsResult.data ?? []) as CompletionApproval[]
+  const transferApprovals = (transferApprovalsResult.data ?? []) as TransferApproval[]
+  const isApprover = ['cs_responsible', 'tech_responsible', 'team_lead'].includes(p.approval_role ?? '')
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -150,6 +194,57 @@ export default async function DashboardPage() {
           <ExcelDownloadButton />
         )}
       </div>
+
+      {isApprover && (
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100">
+            <ClipboardCheck size={18} className="text-blue-600" />
+            <div>
+              <h2 className="font-bold text-slate-900">승인 대기 항목</h2>
+              <p className="text-xs text-slate-500 mt-0.5">내 승인이 필요한 요청입니다.</p>
+            </div>
+          </div>
+          {p.approval_role === 'cs_responsible' ? (
+            <div className="px-6 py-4 text-sm text-slate-500">현재 CS책임에게 배정된 승인 요청이 없습니다.</div>
+          ) : p.approval_role === 'tech_responsible' ? (
+            completionApprovals.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {completionApprovals.map((approval) => (
+                  <div key={approval.installation_id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors">
+                    <Link href={`/installs?id=${approval.installation_id}`} className="flex min-w-0 flex-1 items-center gap-4">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{approval.installation?.customer_name ?? '설치 건'}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{approval.requested_by_name} · 설치완료 승인요청</p>
+                      </div>
+                      <ArrowRight size={16} className="text-slate-400" />
+                    </Link>
+                    <ApprovalButton type="completion" id={approval.installation_id} />
+                  </div>
+                ))}
+              </div>
+            ) : <div className="px-6 py-4 text-sm text-slate-500">승인 대기 중인 설치완료 요청이 없습니다.</div>
+          ) : (
+            transferApprovals.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {transferApprovals.map((approval) => (
+                  <div key={approval.franchise_application_id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors">
+                    <Link href={`/franchise?highlight=${approval.franchise_application_id}`} className="flex min-w-0 flex-1 items-center gap-4">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{approval.franchise?.business_name ?? approval.franchise?.owner_name ?? '가맹 접수 건'}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{approval.requested_by_name} · 기술지원 이관 승인요청</p>
+                      </div>
+                      <ArrowRight size={16} className="text-slate-400" />
+                    </Link>
+                    <ApprovalButton type="transfer" id={approval.franchise_application_id} />
+                  </div>
+                ))}
+              </div>
+            ) : <div className="px-6 py-4 text-sm text-slate-500">승인 대기 중인 기술지원 이관 요청이 없습니다.</div>
+          )}
+        </section>
+      )}
 
       {}
       {(p.role === 'admin' || p.role === 'master') && ((unassignedFranchise ?? 0) > 0 || (unassignedInstall ?? 0) > 0 || (staleCount ?? 0) > 0) && (

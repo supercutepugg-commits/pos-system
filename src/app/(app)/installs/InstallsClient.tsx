@@ -223,7 +223,7 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
       <form onSubmit={handleSubmit} className="space-y-4">
         {!deliveryOnly && (
           <div className="flex gap-2">
-            {(['install', 'name_change', 'transfer', 'as'] as const).map(t => (
+            {(['install', 'delivery', 'name_change', 'transfer', 'as'] as const).map(t => (
               <button key={t} type="button" onClick={() => setDeliveryType(t)}
                 className={`text-xs font-semibold px-4 py-2 rounded-lg border transition-colors ${deliveryType === t ? DELIVERY_TYPE_SOLID_COLORS[t] : 'bg-white text-slate-500 border-slate-200'}`}>
                 {DELIVERY_TYPE_LABELS[t]}
@@ -452,8 +452,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     let query = supabase
       .from('installations')
       .select('*, assignee:profiles!installations_assigned_to_fkey(name), creator:profiles!installations_created_by_fkey(name)')
-    if (mineOnly) query = query.neq('delivery_type', 'delivery')
     if (deliveryOnly) query = query.eq('delivery_type', 'delivery')
+    else query = query.neq('delivery_type', 'delivery')
     const { data } = await query
       .order('sort_order', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
@@ -959,7 +959,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const filteredInstalls = useMemo(() => {
     const q = search.trim().toLowerCase()
     return installs.filter(i => {
-      if (mineOnly && (i as any).delivery_type === 'delivery') return false
+      if (!deliveryOnly && (i as any).delivery_type === 'delivery') return false
+      if (deliveryOnly && (i as any).delivery_type !== 'delivery') return false
       if (!deliveryOnly && deliveryTab !== 'all' && deliveryTypeOf((i as any).delivery_type) !== deliveryTab) return false
       if (!showRejected && i.status === 'rejected') return false
       if (!showCompleted && i.status === 'completed' && statusFilter !== 'completed') return false
@@ -978,7 +979,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   const canReorder = !search.trim() && !statusFilter && !techFilter && !dateFrom && !dateTo && deliveryTab === 'all' && !showRejected && !showCompleted
 
-  const columns = deliveryOnly ? MAIN_COLUMNS.filter(col => col.key !== 'delivery_type') : MAIN_COLUMNS
+  const columns = MAIN_COLUMNS
 
   const reorderInstalls = useCallback((dragId: string, dropId: string) => {
     if (dragId === dropId) return
@@ -1561,24 +1562,22 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         )}
                       </div>
                     </td>
-                    {!deliveryOnly && (
-                      <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                        {canEdit ? (
-                          <select
-                            value={deliveryTypeOf(inst.delivery_type)}
-                            onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
-                            className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${DELIVERY_TYPE_BADGE_COLORS[deliveryTypeOf(inst.delivery_type)]}`}>
-                            {(['install', 'name_change', 'transfer', 'as'] as const).map(t => (
-                              <option key={t} value={t}>{DELIVERY_TYPE_LABELS[t]}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${DELIVERY_TYPE_BADGE_COLORS[deliveryTypeOf(inst.delivery_type)]}`}>
-                            {DELIVERY_TYPE_LABELS[deliveryTypeOf(inst.delivery_type)]}
-                          </span>
-                        )}
-                      </td>
-                    )}
+                    <td className="px-2 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      {canEdit ? (
+                        <select
+                          value={deliveryTypeOf(inst.delivery_type)}
+                          onChange={e => saveInstallField(inst.id, 'delivery_type', e.target.value)}
+                          className={`text-xs font-medium rounded-lg border px-2 py-1 focus:outline-none cursor-pointer ${DELIVERY_TYPE_BADGE_COLORS[deliveryTypeOf(inst.delivery_type)]}`}>
+                          {(['install', 'delivery', 'name_change', 'transfer', 'as'] as const).map(t => (
+                            <option key={t} value={t}>{DELIVERY_TYPE_LABELS[t]}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`text-xs font-medium rounded-lg border px-2 py-1 ${DELIVERY_TYPE_BADGE_COLORS[deliveryTypeOf(inst.delivery_type)]}`}>
+                          {DELIVERY_TYPE_LABELS[deliveryTypeOf(inst.delivery_type)]}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" title={inst.customer_phone || undefined}>{inst.customer_phone || '-'}</td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis" onClick={e => e.stopPropagation()}>
                       {mineOnly ? (

@@ -15,6 +15,9 @@ type TransferApproval = {
   approved_by: string | null;
   approved_by_name: string | null;
   approved_at: string | null;
+  cs_approved_by: string | null;
+  cs_approved_by_name: string | null;
+  cs_approved_at: string | null;
 };
 
 export default async function FranchisePage({ searchParams }: Props) {

@@ -73,6 +73,14 @@ export async function approveCsResponsibleTransfer(franchiseApplicationId: strin
     })
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', 'requested')
+  if (!error) {
+    await admin.from('franchise_application_logs').insert({
+      franchise_application_id: franchiseApplicationId,
+      user_id: approver.user.id,
+      from_status: 'transfer_approval_requested',
+      to_status: 'transfer_cs_responsible_approved',
+    })
+  }
   return { error: error?.message ?? null }
 }
 
@@ -102,6 +110,13 @@ export async function approveFranchiseTransfer(franchiseApplicationId: string) {
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', 'cs_responsible_approved')
   if (approvalError) return { error: approvalError.message }
+
+  await admin.from('franchise_application_logs').insert({
+    franchise_application_id: franchise.id,
+    user_id: approver.user.id,
+    from_status: 'transfer_cs_responsible_approved',
+    to_status: 'transfer_team_lead_approved',
+  })
 
   const installValues = {
     customer_name: franchise.business_name || franchise.owner_name || '미입력',

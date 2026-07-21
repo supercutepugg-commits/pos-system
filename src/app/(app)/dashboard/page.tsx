@@ -23,6 +23,7 @@ type TransferApproval = {
   requested_by: string
   requested_by_name: string
   requested_at: string
+  cs_approved_by_name: string | null
   franchise: { id: string; business_name: string | null; owner_name: string | null } | null
 }
 
@@ -119,7 +120,7 @@ export default async function DashboardPage() {
   const transferApprovalQuery = p.approval_role === 'cs_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('franchise_transfer_approvals')
-      .select('franchise_application_id, requested_by, requested_by_name, requested_at, franchise:franchise_applications(id, business_name, owner_name)')
+      .select('franchise_application_id, requested_by, requested_by_name, requested_at, cs_approved_by_name, franchise:franchise_applications(id, business_name, owner_name)')
       .eq('status', p.approval_role === 'cs_responsible' ? 'requested' : 'cs_responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
@@ -231,7 +232,7 @@ export default async function DashboardPage() {
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-slate-900 truncate">{approval.franchise?.business_name ?? approval.franchise?.owner_name ?? '가맹 접수 건'}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{approval.requested_by_name} · 기술지원 이관 승인요청</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{p.approval_role === 'team_lead' ? (approval.cs_approved_by_name || approval.requested_by_name) + ' · 팀장 최종 승인요청' : approval.requested_by_name + ' · CS책임 승인요청'}</p>
                       </div>
                       <ArrowRight size={16} className="text-slate-400" />
                     </Link>

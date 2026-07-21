@@ -76,6 +76,9 @@ type TransferApproval = {
   approved_by: string | null
   approved_by_name: string | null
   approved_at: string | null
+  cs_approved_by: string | null
+  cs_approved_by_name: string | null
+  cs_approved_at: string | null
 }
 
 type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
@@ -1447,9 +1450,18 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       approved_by: null,
       approved_by_name: null,
       approved_at: null,
+      cs_approved_by: null,
+      cs_approved_by_name: null,
+      cs_approved_at: null,
     }
     const { error } = await supabase.from('franchise_transfer_approvals').insert(approval)
     if (error) { toast.error('승인요청 실패: ' + error.message); return }
+    await supabase.from('franchise_application_logs').insert({
+      franchise_application_id: row.id,
+      user_id: currentUserId,
+      from_status: row.status,
+      to_status: 'transfer_approval_requested',
+    })
     setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
     toast.success('기술지원 이관 승인요청을 등록했습니다.')
   }
@@ -1468,12 +1480,24 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', cs_approved_by: currentUserId, cs_approved_by_name: currentUserName || 'CS책임', cs_approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'requested')
       setTransferringId(null)
       if (error) { toast.error('승인 실패: ' + error.message); return }
-      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved' } }))
+      await supabase.from('franchise_application_logs').insert({
+        franchise_application_id: row.id,
+        user_id: currentUserId,
+        from_status: 'transfer_approval_requested',
+        to_status: 'transfer_cs_responsible_approved',
+      })
+      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임' } }))
       toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
       return
     }
     const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'cs_responsible_approved')
     if (error) { setTransferringId(null); toast.error('승인 실패: ' + error.message); return }
+    await supabase.from('franchise_application_logs').insert({
+      franchise_application_id: row.id,
+      user_id: currentUserId,
+      from_status: 'transfer_cs_responsible_approved',
+      to_status: 'transfer_team_lead_approved',
+    })
     setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
     if (await transferToTech(row, true)) {
       toast.success('승인되어 기술지원 설치건이 자동 이관되었습니다.')
@@ -1912,7 +1936,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase: dc })
             }}
             transferApproval={transferApprovals[row.id]?.status === 'cs_responsible_approved'
-              ? { ...transferApprovals[row.id], status: 'requested' as const }
+              ? { ...transferApprovals[row.id], status: 'requested' as const, requested_by_name: transferApprovals[row.id].cs_approved_by_name || transferApprovals[row.id].requested_by_name }
               : transferApprovals[row.id]}
             canApproveTransfer={((currentUserApprovalRole === 'cs_responsible' && transferApprovals[row.id]?.status === 'requested') || (currentUserApprovalRole === 'team_lead' && transferApprovals[row.id]?.status === 'cs_responsible_approved')) && transferApprovals[row.id]?.requested_by !== currentUserId}
             onRequestTransfer={() => requestTransferApproval(row)}

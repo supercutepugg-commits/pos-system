@@ -57,12 +57,25 @@ interface Props {
   currentUserId: string
   currentUserName: string
   currentUserRole: string
+  currentUserApprovalRole: string
   initialStatusFilter?: string
   initialHighlightId?: string
   linkedInstalls?: Record<string, { id: string; status: string }>
   linkedInternets?: Record<string, { id: string; status: string | null; category: string | null }>
   todayDate: string
   todayCompletedIds: string[]
+  initialTransferApprovals: Record<string, TransferApproval>
+}
+
+type TransferApproval = {
+  franchise_application_id: string
+  status: 'requested' | 'approved' | 'rejected'
+  requested_by: string
+  requested_by_name: string
+  requested_at: string
+  approved_by: string | null
+  approved_by_name: string | null
+  approved_at: string | null
 }
 
 type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
@@ -687,7 +700,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: C
   )
 })
 
-export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, initialStatusFilter = '', initialHighlightId, linkedInstalls = {}, linkedInternets = {}, todayDate, todayCompletedIds }: Props) {
+export default function FranchiseClient({ rows, salesProfiles, csProfiles, currentUserId, currentUserName, currentUserRole, currentUserApprovalRole, initialStatusFilter = '', initialHighlightId, linkedInstalls = {}, linkedInternets = {}, todayDate, todayCompletedIds, initialTransferApprovals }: Props) {
   const router = useRouter()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
@@ -738,6 +751,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkAssigning, setBulkAssigning] = useState(false)
   const [bulkTransferConfirmOpen, setBulkTransferConfirmOpen] = useState(false)
   const [bulkTransferring, setBulkTransferring] = useState(false)
+  const [transferApprovals, setTransferApprovals] = useState(initialTransferApprovals)
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
   })
@@ -1213,7 +1227,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
     const { linkedInstall } = await applyFranchiseStatusSideEffects({
       row, status, sendNotify, docCase, currentUserId, toast,
-      existingLinkedInstall: localLinkedInstalls[row.id],
     })
     if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
     setBusyId(null)
@@ -1357,12 +1370,12 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setSelected(new Set())
   }
 
-  async function transferToTech(row: FranchiseApplication) {
+  async function transferToTech(row: FranchiseApplication, automatic = false): Promise<boolean> {
     const existing = localLinkedInstalls[row.id]
     const isRetransfer = existing?.status === 'rejected'
-    if (existing && !isRetransfer) { toast.warning('이미 기술지원으로 이관된 접수입니다.'); return }
+    if (existing && !isRetransfer) { toast.warning('이미 기술지원으로 이관된 접수입니다.'); return false }
     const label = isRetransfer ? '재이관' : '이관'
-    if (!confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 ${label}하시겠습니까?${isRetransfer ? '\n반려된 설치건이 다시 접수 상태로 변경됩니다.' : '\n설치관리 탭에 새 설치건이 생성됩니다.'}`)) return
+    if (!automatic && !confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 ${label}하시겠습니까?${isRetransfer ? '\n반려된 설치건이 다시 접수 상태로 변경됩니다.' : '\n설치관리 탭에 새 설치건이 생성됩니다.'}`)) return false
     setTransferringId(row.id)
     const supabase = createClient()
 
@@ -1374,7 +1387,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         sort_order: Date.now(),
         updated_at: new Date().toISOString(),
       }).eq('id', existing.id)
-      if (error) { toast.error('재이관 실패: ' + error.message); setTransferringId(null); return }
+      if (error) { toast.error('재이관 실패: ' + error.message); setTransferringId(null); return false }
       installId = existing.id
     } else {
       const { data, error } = await supabase.from('installations').insert({
@@ -1389,7 +1402,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         created_by: currentUserId,
         sort_order: Date.now(),
       }).select('id').single()
-      if (error) { toast.error('이관 실패: ' + error.message); setTransferringId(null); return }
+      if (error) { toast.error('이관 실패: ' + error.message); setTransferringId(null); return false }
       installId = data.id
     }
 
@@ -1417,6 +1430,47 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
     setTransferringId(null)
     setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
+    return true
+  }
+
+  async function requestTransferApproval(row: FranchiseApplication) {
+    const existing = transferApprovals[row.id]
+    if (existing) { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
+    const supabase = createClient()
+    const approval = {
+      franchise_application_id: row.id,
+      status: 'requested' as const,
+      requested_by: currentUserId,
+      requested_by_name: currentUserName || '사용자',
+      requested_at: new Date().toISOString(),
+      approved_by: null,
+      approved_by_name: null,
+      approved_at: null,
+    }
+    const { error } = await supabase.from('franchise_transfer_approvals').insert(approval)
+    if (error) { toast.error('승인요청 실패: ' + error.message); return }
+    setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
+    toast.success('기술지원 이관 승인요청을 등록했습니다.')
+  }
+
+  async function approveTransfer(row: FranchiseApplication) {
+    const approval = transferApprovals[row.id]
+    if (!approval || approval.status !== 'requested') return
+    if (currentUserApprovalRole !== 'team_lead') { toast.warning('팀장만 이관 승인할 수 있습니다.'); return }
+    if (approval.requested_by === currentUserId) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
+    setTransferringId(row.id)
+    const supabase = createClient()
+    const approvedAt = new Date().toISOString()
+    const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'requested')
+    if (error) { setTransferringId(null); toast.error('승인 실패: ' + error.message); return }
+    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
+    if (await transferToTech(row, true)) {
+      toast.success('승인되어 기술지원 설치건이 자동 이관되었습니다.')
+    } else {
+      await supabase.from('franchise_transfer_approvals').update({ status: 'requested', approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', row.id)
+      setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
+      toast.error('자동 이관에 실패해 승인요청 상태로 되돌렸습니다. 다시 승인할 수 있습니다.')
+    }
   }
 
   function classifyTransfer(row: FranchiseApplication): 'insert' | 'update' | 'skip' {
@@ -1814,7 +1868,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         onBulkStatus={() => setBulkStatusModal(true)}
         onBulkAssign={() => setBulkAssignModal(true)}
         onBulkDelete={handleDelete}
-        onBulkTransfer={() => setBulkTransferConfirmOpen(true)}
+        onBulkTransfer={() => toast.warning('기술지원 이관은 각 접수의 승인요청 후 진행됩니다.')}
       />
 
       {showForm && <FranchiseCreateDialog onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} csProfiles={csProfiles} />}
@@ -1846,7 +1900,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               const dc = docCaseOf(row.owner_name, row.business_name)
               notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase: dc })
             }}
-            onTransfer={() => transferToTech(row)}
+            transferApproval={transferApprovals[row.id]}
+            canApproveTransfer={currentUserApprovalRole === 'team_lead' && transferApprovals[row.id]?.requested_by !== currentUserId}
+            onRequestTransfer={() => requestTransferApproval(row)}
+            onApproveTransfer={() => approveTransfer(row)}
             onOpenInstalls={() => router.push('/installs')}
             onLinkInternet={() => linkToInternet(row)}
             onOpenInternet={() => router.push('/internet')}

@@ -17,6 +17,7 @@ export default async function InstallsPage({ searchParams }: Props) {
     { data: profile },
     { data: installs },
     { data: techUsers },
+    { data: completionApprovals },
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
@@ -27,6 +28,7 @@ export default async function InstallsPage({ searchParams }: Props) {
       .order('created_at', { ascending: false })
       .limit(300),
     supabase.from('profiles').select('id, name').eq('role', 'tech'),
+    supabase.from('installation_completion_approvals').select('installation_id,status,requested_by,requested_by_name,approved_by,approved_by_name'),
   ])
 
   if (!profile) redirect('/dashboard')
@@ -37,6 +39,7 @@ export default async function InstallsPage({ searchParams }: Props) {
       techUsers={techUsers ?? []}
       initialInstalls={(installs as any) ?? []}
       initialHighlightId={id}
+      initialCompletionApprovals={Object.fromEntries((completionApprovals ?? []).map(approval => [approval.installation_id, approval]))}
     />
   )
 }

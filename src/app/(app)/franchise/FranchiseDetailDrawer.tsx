@@ -32,7 +32,10 @@ interface Props {
   onStatusChange: (value: FranchiseStatus) => void
   onCopyLink: () => void
   onResendDocuments: () => void
-  onTransfer: () => void
+  transferApproval?: { status: 'requested' | 'approved' | 'rejected'; requested_by_name: string; approved_by_name: string | null }
+  canApproveTransfer: boolean
+  onRequestTransfer: () => void
+  onApproveTransfer: () => void
   onOpenInstalls: () => void
   onLinkInternet: () => void
   onOpenInternet: () => void
@@ -73,7 +76,7 @@ function EditableInput({ value, placeholder, formatter, onSave }: { value?: stri
   return <input value={draft} placeholder={placeholder} onChange={event => setDraft(formatter ? formatter(event.target.value) : event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} className={inputClass} />
 }
 
-export default function FranchiseDetailDrawer({ row, csProfiles, linkedInstall, linkedInternet, busy, transferring, linkingInternet, onClose, onSave, onEquipmentChange, onApplicantTypeChange, onCsChange, onStatusChange, onCopyLink, onResendDocuments, onTransfer, onOpenInstalls, onLinkInternet, onOpenInternet }: Props) {
+export default function FranchiseDetailDrawer({ row, csProfiles, linkedInstall, linkedInternet, busy, transferring, linkingInternet, onClose, onSave, onEquipmentChange, onApplicantTypeChange, onCsChange, onStatusChange, onCopyLink, onResendDocuments, transferApproval, canApproveTransfer, onRequestTransfer, onApproveTransfer, onOpenInstalls, onLinkInternet, onOpenInternet }: Props) {
   const [productSelect, setProductSelect] = useState(EQUIPMENT_CATALOG[0])
   const [productQty, setProductQty] = useState(1)
   const products = row.equipment_items ?? []
@@ -118,7 +121,7 @@ export default function FranchiseDetailDrawer({ row, csProfiles, linkedInstall, 
           <div><div className="text-foreground mb-2.5 text-[13px] font-bold">VAN사 (중복선택 가능)</div><div className="flex flex-wrap gap-2">{VAN_COMPANIES.map(company => { const active = vans.includes(company); return <button key={company} type="button" onClick={() => toggleVan(company)} className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${active ? 'border-primary bg-primary-muted text-primary' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>{company}</button> })}</div></div>
         </div></div>
 
-        <div className="border-border flex flex-shrink-0 flex-wrap gap-2 border-t px-6 py-3.5"><button type="button" onClick={onCopyLink} className={secondaryButton}>링크 복사</button><button type="button" onClick={onResendDocuments} disabled={!row.phone} className={secondaryButton}>서류안내 재발송</button><div className="flex-1" />{linkedInstall && linkedInstall.status !== 'rejected' ? <button type="button" onClick={onOpenInstalls} className={secondaryButton}>{linkedInstall.status === 'completed' ? '설치완료' : '기술지원 이관됨'}</button> : <button type="button" onClick={onTransfer} disabled={transferring} className={secondaryButton}>{transferring ? '처리 중...' : linkedInstall?.status === 'rejected' ? '기술지원 재이관' : '기술지원 이관'}</button>}{linkedInternet ? <button type="button" onClick={onOpenInternet} className={primaryButton}>인터넷 {linkedInternet.status || '등록됨'}</button> : <button type="button" onClick={onLinkInternet} disabled={linkingInternet} className={primaryButton}>{linkingInternet ? '처리 중...' : '인터넷 등록'}</button>}</div>
+        <div className="border-border flex flex-shrink-0 flex-wrap gap-2 border-t px-6 py-3.5"><button type="button" onClick={onCopyLink} className={secondaryButton}>링크 복사</button><button type="button" onClick={onResendDocuments} disabled={!row.phone} className={secondaryButton}>서류안내 재발송</button><div className="flex-1" />{linkedInstall && linkedInstall.status !== 'rejected' ? <button type="button" onClick={onOpenInstalls} className={secondaryButton}>{linkedInstall.status === 'completed' ? '설치완료' : '기술지원 이관됨'}</button> : transferApproval?.status === 'requested' ? <><span className="self-center text-xs font-medium text-amber-600">{transferApproval.requested_by_name} 승인요청</span>{canApproveTransfer && <button type="button" onClick={onApproveTransfer} disabled={transferring} className={primaryButton}>{transferring ? '이관 중...' : '승인 후 자동 이관'}</button>}</> : transferApproval?.status === 'approved' ? <span className="self-center text-xs font-medium text-emerald-600">승인 완료 · 자동 이관 처리 중</span> : <button type="button" onClick={onRequestTransfer} disabled={transferring} className={secondaryButton}>기술지원 이관 승인요청</button>}{linkedInternet ? <button type="button" onClick={onOpenInternet} className={primaryButton}>인터넷 {linkedInternet.status || '등록됨'}</button> : <button type="button" onClick={onLinkInternet} disabled={linkingInternet} className={primaryButton}>{linkingInternet ? '처리 중...' : '인터넷 등록'}</button>}</div>
       </aside>
     </div>
   )

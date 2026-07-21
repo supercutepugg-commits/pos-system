@@ -441,7 +441,6 @@ export default function TransfersClient({ rows, techProfiles, currentUserId, lin
     const docCase = status === 'doc_waiting' ? docCaseOf(row.owner_name, row.business_name) : undefined
     const { linkedInstall } = await applyFranchiseStatusSideEffects({
       row, status, sendNotify: canNotify, docCase, currentUserId, toast,
-      existingLinkedInstall: localLinkedInstalls[row.id],
     })
     if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
 

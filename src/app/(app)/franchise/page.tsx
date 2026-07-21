@@ -6,6 +6,17 @@ interface Props {
   searchParams: Promise<{ status?: string; highlight?: string }>;
 }
 
+type TransferApproval = {
+  franchise_application_id: string;
+  status: 'requested' | 'approved' | 'rejected';
+  requested_by: string;
+  requested_by_name: string;
+  requested_at: string;
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+};
+
 export default async function FranchisePage({ searchParams }: Props) {
   const { status, highlight } = await searchParams;
   const supabase = await createClient();
@@ -26,6 +37,7 @@ export default async function FranchisePage({ searchParams }: Props) {
     { data: csProfiles },
     { data: currentProfile },
     { data: todayCompletionLogs },
+    { data: transferApprovals },
   ] = await Promise.all([
     supabase
       .from("franchise_applications")
@@ -43,13 +55,14 @@ export default async function FranchisePage({ searchParams }: Props) {
       .select("id,name,role")
       .in("role", ["cs", "admin", "master"])
       .order("name"),
-    supabase.from("profiles").select("name,role").eq("id", user.id).single(),
+    supabase.from("profiles").select("name,role,approval_role").eq("id", user.id).single(),
     supabase
       .from("franchise_application_logs")
       .select("franchise_application_id")
       .in("to_status", ["card_done", "toss_review_done"])
       .gte("created_at", kstDayStart.toISOString())
       .lt("created_at", kstNextDayStart.toISOString()),
+    supabase.from("franchise_transfer_approvals").select("franchise_application_id,status,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at"),
   ]);
 
   const todayCompletedIds = [
@@ -150,12 +163,14 @@ export default async function FranchisePage({ searchParams }: Props) {
           currentUserId={user.id}
           currentUserName={currentProfile?.name ?? ""}
           currentUserRole={currentProfile?.role ?? ""}
+          currentUserApprovalRole={currentProfile?.approval_role ?? ""}
           initialStatusFilter={status ?? ""}
           initialHighlightId={highlight}
           linkedInstalls={linkedInstalls}
           linkedInternets={linkedInternets}
           todayDate={kstToday}
           todayCompletedIds={todayCompletedIds}
+          initialTransferApprovals={Object.fromEntries((transferApprovals ?? []).map((approval) => [approval.franchise_application_id, approval])) as Record<string, TransferApproval>}
         />
       )}
     </div>

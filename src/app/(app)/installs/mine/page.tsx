@@ -30,6 +30,7 @@ export default async function MyInstallsPage() {
       techUsers={(techUsers as Profile[]) ?? []}
       initialInstalls={(installs as any) ?? []}
       mineOnly
+      initialCompletionApprovals={{}}
     />
   )
 }

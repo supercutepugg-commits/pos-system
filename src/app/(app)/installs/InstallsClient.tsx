@@ -121,6 +121,16 @@ interface Props {
   mineOnly?: boolean
   deliveryOnly?: boolean
   initialHighlightId?: string
+  initialCompletionApprovals: Record<string, CompletionApproval>
+}
+
+type CompletionApproval = {
+  installation_id: string
+  status: 'requested' | 'approved'
+  requested_by: string
+  requested_by_name: string
+  approved_by: string | null
+  approved_by_name: string | null
 }
 
 const PAGE_SIZE = 50
@@ -358,7 +368,7 @@ const InstallItemsEditor = memo(function InstallItemsEditor({ items, onChange }:
   )
 })
 
-export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, deliveryOnly, initialHighlightId }: Props) {
+export default function InstallsClient({ profile, techUsers, initialInstalls, mineOnly, deliveryOnly, initialHighlightId, initialCompletionApprovals }: Props) {
   const canEdit = ['tech', 'cs', 'admin', 'master'].includes(profile.role)
   const canDelete = profile.role === 'admin' || profile.role === 'master' || !!profile.can_delete
   const toast = useToast()
@@ -386,6 +396,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [completeModal, setCompleteModal] = useState<{ id: string; notes: string } | null>(null)
   const [completePhotos, setCompletePhotos] = useState<File[]>([])
   const [completing, setCompleting] = useState(false)
+  const [completionApprovals, setCompletionApprovals] = useState(initialCompletionApprovals)
   const completingRef = useRef(false)
   const [rejectModal, setRejectModal] = useState<{ id: string; reason: string } | null>(null)
   const [rejecting, setRejecting] = useState(false)
@@ -505,7 +516,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }
 
   async function sendInstallNotify(id: string, status: string, extra?: { eta?: string; scheduledDate?: string; scheduledTime?: string }) {
-    const inst = installs.find(i => i.id === id)
+    const inst = installs.find(i => i.id === id) as Installation
     if (!inst?.customer_phone) return
 
     if (inst.delivery_type === 'delivery' && status === 'preparing') return
@@ -656,6 +667,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function submitCompletion(skipCompleteSend?: boolean) {
     if (!completeModal) return
+    if (profile.approval_role !== 'tech_manager') {
+      toast.warning('설치완료 승인요청은 기술지원매니저만 등록할 수 있습니다.')
+      return
+    }
 
 
     if (completingRef.current) return
@@ -678,20 +693,33 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     }
 
     const { error } = await supabase.from('installations').update({
-      status: 'completed',
       notes: saveValue,
       completion_photo_urls: photoUrls,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
-    if (error) { toast.error('완료 처리 실패: ' + error.message); setCompleting(false); completingRef.current = false; return }
+    if (error) { toast.error('완료정보 저장 실패: ' + error.message); setCompleting(false); completingRef.current = false; return }
 
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'completed', notes: saveValue ?? undefined, completion_photo_urls: photoUrls } : i))
+    const approval = {
+      installation_id: id,
+      status: 'requested' as const,
+      requested_by: profile.id,
+      requested_by_name: profile.name,
+      approved_by: null,
+      approved_by_name: null,
+    }
+    const { error: approvalError } = await supabase.from('installation_completion_approvals').insert(approval)
+    if (approvalError) { toast.error('설치완료 승인요청 실패: ' + approvalError.message); setCompleting(false); completingRef.current = false; return }
+
+    setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined, completion_photo_urls: photoUrls } : i))
+    setCompletionApprovals(prev => ({ ...prev, [id]: approval }))
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
     completingRef.current = false
-    if (!skipNotify && !skipCompleteSend) await sendInstallNotify(id, 'completed')
-
+    toast.success('설치완료 승인요청을 등록했습니다. 기술지원책임 승인 후 완료 처리됩니다.')
+    return
+    /* Legacy direct-completion side effects are intentionally deferred until approval. */
+    /*
     const inst = installs.find(i => i.id === id)
 
     if (inst && inst.status !== 'completed' && inst.items?.length) {
@@ -730,6 +758,25 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         if (notifyError) console.error('완료 알림 발송 실패:', notifyError.message)
       }
     }
+    */
+  }
+
+  async function approveCompletion(id: string) {
+    const approval = completionApprovals[id]
+    if (!approval || approval.status !== 'requested') return
+    if (profile.approval_role !== 'tech_responsible') { toast.warning('기술지원책임만 설치완료 승인할 수 있습니다.'); return }
+    if (approval.requested_by === profile.id) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
+    setCompleting(true)
+    const approvedAt = new Date().toISOString()
+    const { error: approvalError } = await supabase.from('installation_completion_approvals').update({ status: 'approved', approved_by: profile.id, approved_by_name: profile.name, approved_at: approvedAt }).eq('installation_id', id).eq('status', 'requested')
+    if (approvalError) { setCompleting(false); toast.error('승인 실패: ' + approvalError.message); return }
+    const { error } = await supabase.from('installations').update({ status: 'completed', updated_at: approvedAt }).eq('id', id)
+    if (error) { setCompleting(false); toast.error('설치완료 처리 실패: ' + error.message); return }
+    setCompletionApprovals(prev => ({ ...prev, [id]: { ...approval, status: 'approved', approved_by: profile.id, approved_by_name: profile.name } }))
+    setInstalls(prev => prev.map(item => item.id === id ? { ...item, status: 'completed' } : item))
+    setCompleting(false)
+    if (!skipNotify) await sendInstallNotify(id, 'completed')
+    toast.success('기술지원책임 승인으로 설치완료 처리되었습니다.')
   }
 
   function computeStampedNotes(prevNotes: string, notes: string): string | null {
@@ -1649,6 +1696,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         )}
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
+                        {completionApprovals[inst.id]?.status === 'requested' && (
+                          profile.approval_role === 'tech_responsible' && completionApprovals[inst.id]!.requested_by !== profile.id ? (
+                            <button onClick={() => approveCompletion(inst.id)} disabled={completing}
+                              className="text-xs text-white bg-green-600 border border-green-600 px-2 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50">완료 승인</button>
+                          ) : <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 px-2 py-1 rounded-lg">완료 승인대기</span>
+                        )}
                         {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
                           <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
                             className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">반려</button>

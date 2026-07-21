@@ -28,6 +28,7 @@ export default async function InstallsDeliveryPage() {
       techUsers={techUsers ?? []}
       initialInstalls={(installs as any) ?? []}
       deliveryOnly
+      initialCompletionApprovals={{}}
     />
   )
 }

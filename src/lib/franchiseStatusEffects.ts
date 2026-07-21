@@ -175,11 +175,10 @@ interface ApplyStatusSideEffectsParams {
   docCase?: DocCase
   currentUserId: string
   toast: StatusEffectsToast
-  existingLinkedInstall?: { id: string; status: string }
 }
 
 export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEffectsParams): Promise<{ linkedInstall?: { id: string; status: string } }> {
-  const { row, status, sendNotify, docCase, currentUserId, toast, existingLinkedInstall } = params
+  const { row, status, sendNotify, docCase, currentUserId, toast } = params
 
   if (sendNotify) {
     if (status === 'doc_waiting') {
@@ -196,8 +195,6 @@ export async function applyFranchiseStatusSideEffects(params: ApplyStatusSideEff
 
   if (status === 'card_done') {
     await autoRegisterMerchant(row, toast)
-    const linked = await autoTransferToTech(row, currentUserId, existingLinkedInstall)
-    if (linked) return { linkedInstall: linked }
   }
 
   return {}

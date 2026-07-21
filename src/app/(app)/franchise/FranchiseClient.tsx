@@ -1434,6 +1434,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }
 
   async function requestTransferApproval(row: FranchiseApplication) {
+    if (currentUserApprovalRole !== 'cs_manager') { toast.warning('이관 승인요청은 CS매니저만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
     if (existing) { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
     const supabase = createClient()

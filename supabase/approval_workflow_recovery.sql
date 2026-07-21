@@ -1,5 +1,25 @@
 -- SQL Editor에서 이전 전체본 실행이 approval_role 오류로 중단된 경우 이 파일을 실행하세요.
 -- profiles.approval_role을 먼저 만든 뒤, 승인 정책을 생성합니다.
+CREATE TABLE IF NOT EXISTS franchise_transfer_approvals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  franchise_application_id UUID NOT NULL UNIQUE REFERENCES franchise_applications(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'approved', 'rejected')),
+  requested_by UUID NOT NULL REFERENCES profiles(id),
+  requested_by_name TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  approved_by UUID REFERENCES profiles(id),
+  approved_by_name TEXT,
+  approved_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS franchise_transfer_approvals_status_idx ON franchise_transfer_approvals (status, requested_at DESC);
+ALTER TABLE franchise_transfer_approvals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated read transfer approvals" ON franchise_transfer_approvals;
+CREATE POLICY "authenticated read transfer approvals" ON franchise_transfer_approvals FOR SELECT TO authenticated USING (TRUE);
+DROP TRIGGER IF EXISTS franchise_transfer_approvals_updated_at ON franchise_transfer_approvals;
+CREATE TRIGGER franchise_transfer_approvals_updated_at BEFORE UPDATE ON franchise_transfer_approvals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS approval_role TEXT;
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_approval_role_check;
 ALTER TABLE profiles ADD CONSTRAINT profiles_approval_role_check

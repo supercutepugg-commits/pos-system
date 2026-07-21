@@ -7,7 +7,7 @@ create table if not exists dev_requests (
   content text,
   requester_id uuid references profiles(id),
   requester_name text,
-  status text not null default '확인중' check (status in ('확인중', '미승인', '승인')),
+  status text not null default '확인중' check (status in ('확인중', '미승인', '승인', '처리완료')),
   approver_id uuid references profiles(id),
   approver_name text,
   approved_at timestamptz,

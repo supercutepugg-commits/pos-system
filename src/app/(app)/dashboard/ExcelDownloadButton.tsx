@@ -57,7 +57,12 @@ async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: st
   const all: Record<string, unknown>[] = []
   while (true) {
     const { data, error } = await supabase.from(table).select('*').range(from, from + pageSize - 1)
-    if (error) return { rows: all, failed: true }
+    if (error) {
+      // PostgREST가 결과 0건일 때 던지는 "Requested range not satisfiable" (PGRST103)은
+      // 실제 조회 실패가 아니라 빈 테이블/빈 결과이므로 실패로 취급하지 않는다.
+      if (error.code === 'PGRST103') break
+      return { rows: all, failed: true }
+    }
     if (!data) break
     all.push(...data)
     if (data.length < pageSize) break

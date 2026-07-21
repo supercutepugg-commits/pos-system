@@ -8,7 +8,7 @@ import { FRANCHISE_STATUS_LABEL, APPLICANT_TYPE_LABEL, type FranchiseStatus, typ
 import { useState } from 'react'
 import { useToast } from '@/components/ui/Toast'
 
-const BACKUP_TABLES: { label: string; table: string }[] = [
+const BACKUP_TABLES: { label: string; table: string; optional?: boolean }[] = [
   { label: '가맹접수', table: 'franchise_applications' },
   { label: '설치관리', table: 'installations' },
   { label: '인터넷관리', table: 'internet_management' },
@@ -22,9 +22,9 @@ const BACKUP_TABLES: { label: string; table: string }[] = [
   { label: '알림', table: 'notifications' },
   { label: '첨부파일', table: 'attachments' },
   { label: '변경관리', table: 'change_requests' },
-  { label: '캘린더일정', table: 'calendar_events' },
+  { label: '캘린더일정', table: 'calendar_events', optional: true },
   { label: '계약서', table: 'contracts' },
-  { label: '채팅읽음상태', table: 'chat_room_reads' },
+  { label: '채팅읽음상태', table: 'chat_room_reads', optional: true },
   { label: '가맹접수이력', table: 'franchise_application_logs' },
   { label: '전체채팅', table: 'messages' },
   { label: 'DM방', table: 'dm_rooms' },
@@ -51,7 +51,7 @@ function sanitizeForSheet(rows: Record<string, unknown>[]): Record<string, unkno
   })
 }
 
-async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string): Promise<{ rows: Record<string, unknown>[]; failed: boolean }> {
+async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: string): Promise<{ rows: Record<string, unknown>[]; failed: boolean; missing: boolean }> {
   const pageSize = 1000
   let from = 0
   const all: Record<string, unknown>[] = []
@@ -61,14 +61,17 @@ async function fetchAllRows(supabase: ReturnType<typeof createClient>, table: st
       // PostgREST가 결과 0건일 때 던지는 "Requested range not satisfiable" (PGRST103)은
       // 실제 조회 실패가 아니라 빈 테이블/빈 결과이므로 실패로 취급하지 않는다.
       if (error.code === 'PGRST103') break
-      return { rows: all, failed: true }
+      // 선택 기능용 테이블이 아직 생성되지 않은 경우(PGRST205/42P01)는
+      // 다운로드 자체를 실패로 처리하지 않고 빈 시트로 건너뜁니다.
+      const missing = error.code === 'PGRST205' || error.code === '42P01'
+      return { rows: all, failed: true, missing }
     }
     if (!data) break
     all.push(...data)
     if (data.length < pageSize) break
     from += pageSize
   }
-  return { rows: all, failed: false }
+  return { rows: all, failed: false, missing: false }
 }
 
 function downloadCsv(XLSX: typeof import('xlsx'), rows: Record<string, unknown>[], filename: string) {
@@ -263,9 +266,9 @@ export default function ExcelDownloadButton() {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(wooData), '우국상 관리')
 
       const rawFailed: string[] = []
-      for (const { label, table } of RAW_SHEET_TABLES) {
-        const { rows, failed } = await fetchAllRows(supabase, table)
-        if (failed) rawFailed.push(label)
+      for (const { label, table, optional } of RAW_SHEET_TABLES) {
+        const { rows, failed, missing } = await fetchAllRows(supabase, table)
+        if (failed && !(optional && missing)) rawFailed.push(label)
         if (rows.length === 0) continue
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sanitizeForSheet(rows)), label.slice(0, 31))
       }
@@ -286,9 +289,9 @@ export default function ExcelDownloadButton() {
       const XLSX = await import('xlsx')
       const stamp = format(new Date(), 'yyyyMMdd_HHmm', { locale: ko })
       const failedTables: string[] = []
-      for (const { label, table } of BACKUP_TABLES) {
-        const { rows, failed } = await fetchAllRows(supabase, table)
-        if (failed) failedTables.push(label)
+      for (const { label, table, optional } of BACKUP_TABLES) {
+        const { rows, failed, missing } = await fetchAllRows(supabase, table)
+        if (failed && !(optional && missing)) failedTables.push(label)
         if (rows.length === 0) continue
         downloadCsv(XLSX, sanitizeForSheet(rows), `${label}_${table}_${stamp}.csv`)
 

@@ -45,7 +45,13 @@ export default async function NotificationsPage({ searchParams }: Props) {
           <NotificationRow
             key={n.id}
             id={n.id}
-            href={n.ticket_id ? `/tickets/${n.ticket_id}` : n.franchise_application_id ? '/franchise' : '/notifications'}
+            href={n.ticket_id
+              ? `/tickets/${n.ticket_id}`
+              : n.installation_id
+                ? `/installs?id=${n.installation_id}`
+                : n.franchise_application_id
+                  ? `/franchise?id=${n.franchise_application_id}`
+                  : '/notifications'}
             title={n.title}
             body={n.body}
             createdAtLabel={format(new Date(n.created_at), 'M월 d일 HH:mm', { locale: ko })}

@@ -213,6 +213,7 @@ export interface FranchiseApplicationLog {
   id: string
   franchise_application_id: string
   user_id?: string
+  user_name?: string
   from_status?: string
   to_status?: string
   created_at: string

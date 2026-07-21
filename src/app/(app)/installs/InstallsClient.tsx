@@ -13,11 +13,21 @@ import { FRANCHISE_STATUS_LABEL } from '@/types'
 import { useToast } from '@/components/ui/Toast'
 import { autoRegisterMerchant } from '@/lib/franchiseStatusEffects'
 import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
-import { NotificationHistory, logNotification } from '@/components/ui/NotificationHistory'
+import { NotificationHistory } from '@/components/ui/NotificationHistory'
 import FormModal from '@/components/ui/FormModal'
 import HistoryButton from '@/components/ui/HistoryButton'
 import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
-import { deleteInstallations } from './actions'
+import InstallationActivityHistory from '@/components/ui/InstallationActivityHistory'
+import {
+  approveInstallationCompletion,
+  approveInstallationStatusByTeamLead,
+  changeInstallationAssignment,
+  changeInstallationStatus,
+  createInstallation,
+  deleteInstallations,
+  requestInstallationCompletion,
+  requestInstallationStatusApproval,
+} from './actions'
 
 const STATUS_LABELS: Record<string, string> = {
   received: '접수',
@@ -32,6 +42,7 @@ const STATUS_ORDER_INSTALL = ['received', 'preparing', 'scheduled', 'in_transit'
 const STATUS_ORDER_DELIVERY = ['received', 'preparing', 'delivery_sent', 'completed']
 
 const STATUS_ORDER_AS = ['received', 'scheduled', 'in_transit', 'completed']
+const APPROVAL_TARGETS = new Set(['preparing', 'scheduled', 'in_transit', 'delivery_sent'])
 function statusOrderFor(deliveryType?: string) {
   if (deliveryType === 'delivery') return STATUS_ORDER_DELIVERY
   if (deliveryType === 'as') return STATUS_ORDER_AS
@@ -126,9 +137,12 @@ interface Props {
 
 type CompletionApproval = {
   installation_id: string
-  status: 'requested' | 'approved'
+  status: 'requested' | 'responsible_approved' | 'approved'
+  target_status: string
+  request_payload?: { scheduled_date?: string; scheduled_time?: string; eta?: string; skip_notify?: boolean }
   requested_by: string
   requested_by_name: string
+  responsible_approved_by_name?: string | null
   approved_by: string | null
   approved_by_name: string | null
 }
@@ -496,64 +510,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   }) {
     if (!newInstall.customerName) return
     setSubmitting(true)
-    const { data, error } = await supabase.from('installations').insert({
-      customer_name: newInstall.customerName,
-      customer_phone: newInstall.customerPhone ? formatPhone(newInstall.customerPhone) : null,
+    const result = await createInstallation({
+      customerName: newInstall.customerName,
+      customerPhone: newInstall.customerPhone ? formatPhone(newInstall.customerPhone) : null,
       items: newInstall.items,
-      assigned_to: newInstall.assignedTo || null,
+      assignedTo: newInstall.assignedTo || null,
       notes: newInstall.notes || null,
-      created_by: profile.id,
-      status: 'received',
-      delivery_type: newInstall.deliveryType,
-      sort_order: Date.now(),
-    }).select().single()
+      deliveryType: newInstall.deliveryType,
+    })
     setSubmitting(false)
-    if (error) { toast.error('등록 실패: ' + error.message); return }
+    if (result.error || !result.installation) { toast.error('등록 실패: ' + (result.error ?? '알 수 없는 오류')); return }
     setShowForm(false)
     setPage(1)
     const assignee = newInstall.assignedTo ? techUsers.find(t => t.id === newInstall.assignedTo) ?? null : null
-    setInstalls(prev => [{ ...data, assignee, creator: { name: profile.name } }, ...prev])
-  }
-
-  async function sendInstallNotify(id: string, status: string, extra?: { eta?: string; scheduledDate?: string; scheduledTime?: string }) {
-    const inst = installs.find(i => i.id === id) as Installation
-    if (!inst?.customer_phone) return
-
-    if (inst.delivery_type === 'delivery' && status === 'preparing') return
-    if (inst.delivery_type === 'delivery' && status === 'completed') return
-
-    if (inst.delivery_type === 'as' && status !== 'in_transit') return
-    const notifyStatus = inst.delivery_type === 'delivery' && status === 'in_transit' ? 'delivery_sent' : status
-    if (!['preparing', 'scheduled', 'in_transit', 'completed', 'delivery_sent'].includes(notifyStatus)) return
-    try {
-      const res = await fetch('/api/installs/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: inst.customer_phone,
-          customerName: inst.customer_name,
-          status: notifyStatus,
-          eta: extra?.eta,
-          scheduledDate: extra?.scheduledDate,
-          scheduledTime: extra?.scheduledTime,
-          statusToken: inst.status_token,
-          trackingNumber: inst.tracking_number,
-        }),
-      })
-      const data = await res.json()
-      if (!data.ok) {
-        toast.error('알림톡 발송 실패: ' + data.error)
-        await logNotification({ entityType: 'install', entityId: id, templateKey: notifyStatus, status: 'failed', error: data.error })
-        return
-      }
-      const sentAt = new Date().toISOString()
-      await supabase.from('installations').update({ last_notify_status: notifyStatus, last_notify_at: sentAt }).eq('id', id)
-      setInstalls(prev => prev.map(i => i.id === id ? { ...i, last_notify_status: notifyStatus, last_notify_at: sentAt } : i))
-      await logNotification({ entityType: 'install', entityId: id, templateKey: notifyStatus, status: 'sent' })
-    } catch (e: any) {
-      toast.error('알림톡 발송 실패: ' + (e?.message ?? '알 수 없는 오류'))
-      await logNotification({ entityType: 'install', entityId: id, templateKey: notifyStatus, status: 'failed', error: e?.message })
-    }
+    setInstalls(prev => [{ ...result.installation, assignee, creator: { name: profile.name } } as Installation, ...prev])
   }
 
   async function handleStatusChange(id: string, status: string) {
@@ -579,21 +549,54 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       setScheduleModal({ id, date: inst?.scheduled_date ?? '', time: inst?.scheduled_time ?? '' })
       return
     }
-    await supabase.from('installations').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    if (APPROVAL_TARGETS.has(status)) {
+      await requestStepApproval(id, status)
+      return
+    }
+    const result = await changeInstallationStatus({ installationId: id, status, skipNotify })
+    if (result.error) { toast.error('상태 변경 실패: ' + result.error); return }
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
-    if (!skipNotify) await sendInstallNotify(id, status)
+  }
+
+  function pendingApproval(installationId: string, targetStatus: string, requestPayload: CompletionApproval['request_payload'] = {}): CompletionApproval {
+    return {
+      installation_id: installationId,
+      status: 'requested',
+      target_status: targetStatus,
+      request_payload: requestPayload,
+      requested_by: profile.id,
+      requested_by_name: profile.name,
+      approved_by: null,
+      approved_by_name: null,
+    }
+  }
+
+  async function requestStepApproval(id: string, targetStatus: string) {
+    const result = await requestInstallationStatusApproval({ installationId: id, targetStatus, skipNotify })
+    if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
+    setCompletionApprovals(prev => ({ ...prev, [id]: pendingApproval(id, targetStatus) }))
+    if (result.notificationError) toast.warning('승인요청은 등록됐지만 팝업 알림에 실패했습니다: ' + result.notificationError)
+    toast.success(`${statusLabel(targetStatus)} 1차 승인을 요청했습니다.`)
+    return true
   }
 
   async function submitTransit(skipEta?: boolean, skipSend?: boolean) {
     if (!transitModal) return
     setSendingTransit(true)
     const { id, eta } = transitModal
-    await supabase.from('installations').update({ status: 'in_transit', updated_at: new Date().toISOString() }).eq('id', id)
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'in_transit' } : i))
     const sendEta = skipEta ? undefined : (eta.trim() || undefined)
+    const result = await requestInstallationStatusApproval({
+      installationId: id,
+      targetStatus: 'in_transit',
+      eta: sendEta,
+      skipNotify: skipNotify || !!skipSend,
+    })
+    if (result.error) { setSendingTransit(false); toast.error('출발 승인요청 실패: ' + result.error); return }
+    setCompletionApprovals(prev => ({ ...prev, [id]: pendingApproval(id, 'in_transit', { eta: sendEta, skip_notify: skipNotify || !!skipSend }) }))
     setTransitModal(null)
     setSendingTransit(false)
-    if (!skipNotify && !skipSend) await sendInstallNotify(id, 'in_transit', { eta: sendEta })
+    if (result.notificationError) toast.warning('승인요청은 등록됐지만 팝업 알림에 실패했습니다: ' + result.notificationError)
+    toast.success('출발 1차 승인을 요청했습니다.')
   }
 
   async function submitSchedule() {
@@ -601,27 +604,27 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const { id, date, time } = scheduleModal
     if (!date.trim() || !time.trim()) return
     setSendingSchedule(true)
-    await supabase.from('installations').update({
-      status: 'scheduled',
-      scheduled_date: date,
-      scheduled_time: time,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
-    setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'scheduled', scheduled_date: date, scheduled_time: time } : i))
+    const result = await requestInstallationStatusApproval({
+      installationId: id,
+      targetStatus: 'scheduled',
+      scheduledDate: date,
+      scheduledTime: time,
+      skipNotify,
+    })
+    if (result.error) { setSendingSchedule(false); toast.error('일정 승인요청 실패: ' + result.error); return }
+    setCompletionApprovals(prev => ({ ...prev, [id]: pendingApproval(id, 'scheduled', { scheduled_date: date, scheduled_time: time, skip_notify: skipNotify }) }))
     setScheduleModal(null)
     setSendingSchedule(false)
-    if (!skipNotify) await sendInstallNotify(id, 'scheduled', { scheduledDate: date, scheduledTime: time })
+    if (result.notificationError) toast.warning('승인요청은 등록됐지만 팝업 알림에 실패했습니다: ' + result.notificationError)
+    toast.success('일정확정 1차 승인을 요청했습니다.')
   }
 
   async function submitReject() {
     if (!rejectModal) return
     setRejecting(true)
     const { id, reason } = rejectModal
-    await supabase.from('installations').update({
-      status: 'rejected',
-      notes: reason || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
+    const result = await changeInstallationStatus({ installationId: id, status: 'rejected', notes: reason, skipNotify: true })
+    if (result.error) { setRejecting(false); toast.error('반려 처리 실패: ' + result.error); return }
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status: 'rejected', notes: reason || i.notes } : i))
     setRejectModal(null)
     setRejecting(false)
@@ -699,24 +702,28 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     }).eq('id', id)
     if (error) { toast.error('완료정보 저장 실패: ' + error.message); setCompleting(false); completingRef.current = false; return }
 
+    const approvalResult = await requestInstallationCompletion(id, skipNotify || !!skipCompleteSend)
+    if (approvalResult.error) { toast.error('설치완료 승인요청 실패: ' + approvalResult.error); setCompleting(false); completingRef.current = false; return }
+    if ('notificationError' in approvalResult && approvalResult.notificationError) {
+      toast.warning('승인요청은 등록됐지만 승인자 팝업 알림에 실패했습니다: ' + approvalResult.notificationError)
+    }
     const approval = {
       installation_id: id,
       status: 'requested' as const,
+      target_status: 'completed',
+      request_payload: { skip_notify: skipNotify || !!skipCompleteSend },
       requested_by: profile.id,
       requested_by_name: profile.name,
       approved_by: null,
       approved_by_name: null,
     }
-    const { error: approvalError } = await supabase.from('installation_completion_approvals').insert(approval)
-    if (approvalError) { toast.error('설치완료 승인요청 실패: ' + approvalError.message); setCompleting(false); completingRef.current = false; return }
-
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined, completion_photo_urls: photoUrls } : i))
     setCompletionApprovals(prev => ({ ...prev, [id]: approval }))
     setCompleteModal(null)
     setCompletePhotos([])
     setCompleting(false)
     completingRef.current = false
-    toast.success('설치완료 승인요청을 등록했습니다. 기술지원책임 승인 후 완료 처리됩니다.')
+    toast.success('설치완료 승인을 요청했습니다. 기술지원책임 1차 승인과 팀장 최종 승인이 필요합니다.')
     return
     /* Legacy direct-completion side effects are intentionally deferred until approval. */
     /*
@@ -763,20 +770,34 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function approveCompletion(id: string) {
     const approval = completionApprovals[id]
-    if (!approval || approval.status !== 'requested') return
-    if (profile.approval_role !== 'tech_responsible') { toast.warning('기술지원책임만 설치완료 승인할 수 있습니다.'); return }
+    if (!approval || !['requested', 'responsible_approved'].includes(approval.status)) return
+    const isResponsible = profile.approval_role === 'tech_responsible' && approval.status === 'requested'
+    const isTeamLead = profile.approval_role === 'team_lead' && approval.status === 'responsible_approved'
+    if (!isResponsible && !isTeamLead) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
     if (approval.requested_by === profile.id) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
     setCompleting(true)
-    const approvedAt = new Date().toISOString()
-    const { error: approvalError } = await supabase.from('installation_completion_approvals').update({ status: 'approved', approved_by: profile.id, approved_by_name: profile.name, approved_at: approvedAt }).eq('installation_id', id).eq('status', 'requested')
-    if (approvalError) { setCompleting(false); toast.error('승인 실패: ' + approvalError.message); return }
-    const { error } = await supabase.from('installations').update({ status: 'completed', updated_at: approvedAt }).eq('id', id)
-    if (error) { setCompleting(false); toast.error('설치완료 처리 실패: ' + error.message); return }
-    setCompletionApprovals(prev => ({ ...prev, [id]: { ...approval, status: 'approved', approved_by: profile.id, approved_by_name: profile.name } }))
-    setInstalls(prev => prev.map(item => item.id === id ? { ...item, status: 'completed' } : item))
+    const result = isResponsible
+      ? await approveInstallationCompletion(id)
+      : await approveInstallationStatusByTeamLead(id)
+    if (result.error) { setCompleting(false); toast.error('승인 실패: ' + result.error); return }
+    if (isResponsible) {
+      setCompletionApprovals(prev => ({ ...prev, [id]: { ...approval, status: 'responsible_approved', responsible_approved_by_name: profile.name } }))
+    } else {
+      setCompletionApprovals(prev => {
+        const next = { ...prev }; delete next[id]; return next
+      })
+      setInstalls(prev => prev.map(item => item.id === id ? {
+        ...item,
+        status: approval.target_status,
+        ...(approval.target_status === 'scheduled' ? {
+          scheduled_date: approval.request_payload?.scheduled_date,
+          scheduled_time: approval.request_payload?.scheduled_time,
+        } : {}),
+      } : item))
+    }
     setCompleting(false)
-    if (!skipNotify) await sendInstallNotify(id, 'completed')
-    toast.success('기술지원책임 승인으로 설치완료 처리되었습니다.')
+    if (result.notificationError) toast.warning(`${isResponsible ? '팀장 팝업 알림' : '알림톡'} 처리에 실패했습니다: ` + result.notificationError)
+    toast.success(isResponsible ? '기술지원책임 1차 승인 완료. 팀장 최종 승인을 기다립니다.' : `${statusLabel(approval.target_status)} 최종 승인 및 상태 반영이 완료됐습니다.`)
   }
 
   function computeStampedNotes(prevNotes: string, notes: string): string | null {
@@ -849,8 +870,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function handleAssign(id: string, assignedTo: string) {
     const prev = installs.find(i => i.id === id)
-    const { error } = await supabase.from('installations').update({ assigned_to: assignedTo || null }).eq('id', id)
-    if (error) { toast.error('배정 실패: ' + error.message); return }
+    const result = await changeInstallationAssignment(id, assignedTo || null)
+    if (result.error) { toast.error('배정 실패: ' + result.error); return }
     const assignee = assignedTo ? techUsers.find(t => t.id === assignedTo) ?? null : null
     setInstalls(prevList => prevList.map(i => i.id === id ? { ...i, assigned_to: assignedTo || undefined, assignee } : i))
     if (assignedTo && assignedTo !== prev?.assigned_to) {
@@ -1465,6 +1486,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     )}
                     <p className="mt-2 text-xs text-slate-400">등록 {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}</p>
                     <div className="mt-2">
+                      <InstallationActivityHistory installationId={inst.id} statusLabels={STATUS_LABELS} />
+                    </div>
+                    <div className="mt-2">
                       <NotificationHistory entityType="install" entityId={inst.id} labelMap={STATUS_LABELS} />
                     </div>
                     {inst.completion_photo_urls && inst.completion_photo_urls.length > 0 && (
@@ -1490,7 +1514,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <option value="">미배정</option>
                           {techUsers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
-                        <select value={inst.status} onChange={e => handleStatusChange(inst.id, e.target.value)}
+                        <select value={inst.status} disabled={!!completionApprovals[inst.id]} onChange={e => handleStatusChange(inst.id, e.target.value)}
                           className={`w-full text-sm font-medium rounded-lg border px-2 py-2 focus:outline-none cursor-pointer ${STATUS_COLORS[inst.status]}`}>
                           {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
                         </select>
@@ -1696,11 +1720,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         )}
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
-                        {completionApprovals[inst.id]?.status === 'requested' && (
-                          profile.approval_role === 'tech_responsible' && completionApprovals[inst.id]!.requested_by !== profile.id ? (
+                        {completionApprovals[inst.id] && (
+                          ((profile.approval_role === 'tech_responsible' && completionApprovals[inst.id]!.status === 'requested') ||
+                            (profile.approval_role === 'team_lead' && completionApprovals[inst.id]!.status === 'responsible_approved')) &&
+                            completionApprovals[inst.id]!.requested_by !== profile.id ? (
                             <button onClick={() => approveCompletion(inst.id)} disabled={completing}
-                              className="text-xs text-white bg-green-600 border border-green-600 px-2 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50">완료 승인</button>
-                          ) : <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 px-2 py-1 rounded-lg">완료 승인대기</span>
+                              className="text-xs text-white bg-green-600 border border-green-600 px-2 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                              {statusLabel(completionApprovals[inst.id]!.target_status, inst.delivery_type)} {completionApprovals[inst.id]!.status === 'requested' ? '1차 승인' : '최종 승인'}
+                            </button>
+                          ) : <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 px-2 py-1 rounded-lg">
+                            {statusLabel(completionApprovals[inst.id]!.target_status, inst.delivery_type)} {completionApprovals[inst.id]!.status === 'requested' ? '1차 승인대기' : '최종 승인대기'}
+                          </span>
                         )}
                         {profile.role === 'tech' && inst.franchise_application_id && inst.status !== 'rejected' && inst.status !== 'completed' && (
                           <button onClick={() => setRejectModal({ id: inst.id, reason: '' })}
@@ -1791,6 +1821,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           <div>
                             <p className="text-xs font-semibold text-slate-400">등록일</p>
                             <p className="text-slate-800">{format(new Date(inst.created_at), 'yyyy-M-d HH:mm', { locale: ko })}</p>
+                          </div>
+                          <div className="col-span-4">
+                            <InstallationActivityHistory installationId={inst.id} statusLabels={STATUS_LABELS} />
                           </div>
                           <div className="col-span-4">
                             <NotificationHistory entityType="install" entityId={inst.id} labelMap={STATUS_LABELS} />

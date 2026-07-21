@@ -10,6 +10,7 @@ import { formatPhone, formatBusinessNumber, formatDateText } from '@/lib/format'
 import { useColumnWidths } from '@/hooks/useColumnWidths'
 import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
 import { deleteFranchiseRows } from './actions'
+import { approveCsResponsibleTransfer, approveFranchiseTransfer, requestFranchiseTransfer } from '../dashboard/actions'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseApplicationLog, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL, FRANCHISE_STATUS_COLOR } from '@/types'
 import type { DocCase } from '@/lib/solapi'
@@ -400,7 +401,7 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
         const key = log.to_status!.replace('alimtalk:', '')
         return { at: log.created_at, pinned: false, pinnedAt: null, node: (
           <li key={log.id} className="text-[15pt] text-blue-400">
-            <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
+            <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user_name ?? log.user?.name ?? '알수없음'}</div>
             <div>알림톡 발송 ({ALIMTALK_LOG_LABEL[key] ?? key})</div>
           </li>
         ) }
@@ -408,14 +409,14 @@ const HistoryPanel = memo(function HistoryPanel({ row, logs, onSave, onDeleteMem
       if (isInstallEvent) {
         return { at: log.created_at, pinned: false, pinnedAt: null, node: (
           <li key={log.id} className="text-[15pt] text-purple-400 font-medium">
-            <div className="text-slate-400 font-normal">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
+            <div className="text-slate-400 font-normal">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user_name ?? log.user?.name ?? '알수없음'}</div>
             <div>{INSTALL_LOG_LABEL[log.to_status!]}</div>
           </li>
         ) }
       }
       return { at: log.created_at, pinned: false, pinnedAt: null, node: (
         <li key={log.id} className="text-[15pt] text-slate-300">
-          <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'}</div>
+          <div className="text-slate-400">{new Date(log.created_at).toLocaleString('ko-KR')} · {log.user_name ?? log.user?.name ?? '알수없음'}</div>
           <div>
             {log.from_status ? FRANCHISE_STATUS_LABEL[log.from_status as FranchiseStatus] ?? log.from_status : '-'} →{' '}
             {log.to_status ? FRANCHISE_STATUS_LABEL[log.to_status as FranchiseStatus] ?? log.to_status : '-'}
@@ -1382,74 +1383,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setSelected(new Set())
   }
 
-  async function transferToTech(row: FranchiseApplication, automatic = false): Promise<boolean> {
-    const existing = localLinkedInstalls[row.id]
-    const isRetransfer = existing?.status === 'rejected'
-    if (existing && !isRetransfer) { toast.warning('이미 기술지원으로 이관된 접수입니다.'); return false }
-    const label = isRetransfer ? '재이관' : '이관'
-    if (!automatic && !confirm(`'${row.business_name || row.owner_name || '미입력'}' 접수를 기술지원으로 ${label}하시겠습니까?${isRetransfer ? '\n반려된 설치건이 다시 접수 상태로 변경됩니다.' : '\n설치관리 탭에 새 설치건이 생성됩니다.'}`)) return false
-    setTransferringId(row.id)
-    const supabase = createClient()
-
-    let installId: string
-    if (isRetransfer) {
-      const { error } = await supabase.from('installations').update({
-        status: 'received',
-        notes: row.memo || null,
-        sort_order: Date.now(),
-        updated_at: new Date().toISOString(),
-      }).eq('id', existing.id)
-      if (error) { toast.error('재이관 실패: ' + error.message); setTransferringId(null); return false }
-      installId = existing.id
-    } else {
-      const { data, error } = await supabase.from('installations').insert({
-        customer_name: row.business_name || row.owner_name || '미입력',
-        customer_phone: row.phone || null,
-        items: row.equipment_items ?? [],
-        status: 'received',
-        notes: row.memo || null,
-        franchise_application_id: row.id,
-        address: row.address || null,
-        scheduled_date: row.install_date || null,
-        created_by: currentUserId,
-        sort_order: Date.now(),
-      }).select('id').single()
-      if (error) { toast.error('이관 실패: ' + error.message); setTransferringId(null); return false }
-      installId = data.id
-    }
-
-    
-    const name = row.business_name || row.owner_name || '미입력'
-    const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
-    if (techProfiles?.length) {
-      const { error: notifyError } = await supabase.from('notifications').insert(techProfiles.map(u => ({
-        user_id: u.id,
-        franchise_application_id: row.id,
-        type: 'install_transfer',
-        title: `[${name}] 기술지원 ${label}`,
-        body: `CS팀에서 설치건을 ${label}했습니다. 설치관리를 확인해주세요.`,
-      })))
-      if (notifyError) console.error('기술지원 알림 발송 실패:', notifyError.message)
-    }
-
-    
-    await supabase.from('franchise_application_logs').insert({
-      franchise_application_id: row.id,
-      user_id: currentUserId,
-      from_status: row.status,
-      to_status: isRetransfer ? 'install_retransfer' : 'install_transfer',
-    })
-
-    setTransferringId(null)
-    setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: { id: installId, status: 'received' } }))
-    return true
-  }
-
   async function requestTransferApproval(row: FranchiseApplication) {
     if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
-    if (existing) { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
-    const supabase = createClient()
+    if (existing && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
     const approval = {
       franchise_application_id: row.id,
       status: 'requested' as const,
@@ -1463,14 +1400,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       cs_approved_by_name: null,
       cs_approved_at: null,
     }
-    const { error } = await supabase.from('franchise_transfer_approvals').insert(approval)
-    if (error) { toast.error('승인요청 실패: ' + error.message); return }
-    await supabase.from('franchise_application_logs').insert({
-      franchise_application_id: row.id,
-      user_id: currentUserId,
-      from_status: row.status,
-      to_status: 'transfer_approval_requested',
-    })
+    const result = await requestFranchiseTransfer(row.id)
+    if (result.error) { toast.error('승인요청 실패: ' + result.error); return }
+    if (result.notificationError) {
+      toast.warning('승인요청은 등록됐지만 CS책임 팝업 알림에 실패했습니다: ' + result.notificationError)
+    }
     setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
     toast.success('기술지원 이관 승인요청을 등록했습니다.')
   }
@@ -1483,38 +1417,30 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     const isTeamLeadApproval = currentUserApprovalRole === 'team_lead' && approval.status === 'cs_responsible_approved'
     if (!isCsResponsibleApproval && !isTeamLeadApproval) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
     setTransferringId(row.id)
-    const supabase = createClient()
-    const approvedAt = new Date().toISOString()
     if (isCsResponsibleApproval) {
-      const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', cs_approved_by: currentUserId, cs_approved_by_name: currentUserName || 'CS책임', cs_approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'requested')
+      const result = await approveCsResponsibleTransfer(row.id)
       setTransferringId(null)
-      if (error) { toast.error('승인 실패: ' + error.message); return }
-      await supabase.from('franchise_application_logs').insert({
-        franchise_application_id: row.id,
-        user_id: currentUserId,
-        from_status: 'transfer_approval_requested',
-        to_status: 'transfer_cs_responsible_approved',
-      })
+      if (result.error) { toast.error('승인 실패: ' + result.error); return }
+      if ('notificationError' in result && result.notificationError) {
+        toast.warning('1차 승인은 완료됐지만 팀장 팝업 알림에 실패했습니다: ' + result.notificationError)
+      }
       setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임' } }))
       toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
       return
     }
-    const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'cs_responsible_approved')
-    if (error) { setTransferringId(null); toast.error('승인 실패: ' + error.message); return }
-    await supabase.from('franchise_application_logs').insert({
-      franchise_application_id: row.id,
-      user_id: currentUserId,
-      from_status: 'transfer_cs_responsible_approved',
-      to_status: 'transfer_team_lead_approved',
-    })
-    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
-    if (await transferToTech(row, true)) {
-      toast.success('승인되어 기술지원 설치건이 자동 이관되었습니다.')
-    } else {
-      await supabase.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', row.id)
-      setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
-      toast.error('자동 이관에 실패해 승인요청 상태로 되돌렸습니다. 다시 승인할 수 있습니다.')
+    const result = await approveFranchiseTransfer(row.id)
+    setTransferringId(null)
+    if (result.error) { toast.error('승인 실패: ' + result.error); return }
+    if ('notificationError' in result && result.notificationError) {
+      toast.warning('이관은 완료됐지만 기술지원 내부 알림에 실패했습니다: ' + result.notificationError)
     }
+    const approvedAt = new Date().toISOString()
+    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
+    const supabase = createClient()
+    const { data: linkedInstall } = await supabase.from('installations').select('id,status').eq('franchise_application_id', row.id).maybeSingle()
+    if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
+    toast.success('승인되어 기술지원 설치건이 자동 이관되었습니다.')
+    router.refresh()
   }
 
   function classifyTransfer(row: FranchiseApplication): 'insert' | 'update' | 'skip' {
@@ -1538,92 +1464,38 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       return
     }
     setBulkTransferring(true)
-    const supabase = createClient()
-
-    let insertedByFranchiseId = new Map<string, string>()
-    let insertError: string | null = null
-    if (toInsert.length > 0) {
-      const insertBase = Date.now()
-      const { data, error } = await supabase.from('installations').insert(toInsert.map((row, i) => ({
-        customer_name: row.business_name || row.owner_name || '미입력',
-        customer_phone: row.phone || null,
-        items: row.equipment_items ?? [],
-        status: 'received',
-        notes: row.memo || null,
-        franchise_application_id: row.id,
-        address: row.address || null,
-        scheduled_date: row.install_date || null,
-        created_by: currentUserId,
-        sort_order: insertBase + i,
-      }))).select('id, franchise_application_id')
-      if (error) insertError = error.message
-      else insertedByFranchiseId = new Map((data ?? []).map(d => [d.franchise_application_id as string, d.id as string]))
-    }
-
-    let updateError: string | null = null
-    if (toUpdate.length > 0) {
-      const updateIds = toUpdate.map(row => localLinkedInstalls[row.id]!.id)
-      const { error } = await supabase.from('installations').update({
-        status: 'received',
-        sort_order: Date.now(),
-        updated_at: new Date().toISOString(),
-      }).in('id', updateIds)
-      if (error) updateError = error.message
-    }
-
-    // 그룹 쿼리 하나가 실패해도 다른 그룹은 그대로 반영한다 — 알림/로그/로컬 상태는 실제로 성공한 건만 대상으로 한다
-    const insertedRows = insertError ? [] : toInsert
-    const updatedRows = updateError ? [] : toUpdate
-
-    if (insertedRows.length > 0 || updatedRows.length > 0) {
-      const { data: techProfiles } = await supabase.from('profiles').select('id').eq('role', 'tech')
-      if (techProfiles?.length) {
-        const notifyRows = [
-          ...insertedRows.map(row => ({ row, label: '이관' })),
-          ...updatedRows.map(row => ({ row, label: '재이관' })),
-        ].flatMap(({ row, label }) => techProfiles.map(t => ({
-          user_id: t.id,
+    const rows = [...toInsert, ...toUpdate]
+    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id) })))
+    const succeeded = results.filter(item => !item.result.error).map(item => item.row)
+    const failed = results.filter(item => item.result.error)
+    const notificationFailed = results.filter(item => !item.result.error && item.result.notificationError)
+    const requestedAt = new Date().toISOString()
+    setTransferApprovals(prev => {
+      const next = { ...prev }
+      for (const row of succeeded) {
+        next[row.id] = {
           franchise_application_id: row.id,
-          type: 'install_transfer',
-          title: `[${row.business_name || row.owner_name || '미입력'}] 기술지원 ${label}`,
-          body: `CS팀에서 설치건을 ${label}했습니다. 설치관리를 확인해주세요.`,
-        })))
-        const { error: notifyError } = await supabase.from('notifications').insert(notifyRows)
-        if (notifyError) console.error('기술지원 알림 발송 실패:', notifyError.message)
+          status: 'requested',
+          requested_by: currentUserId,
+          requested_by_name: currentUserName || '사용자',
+          requested_at: requestedAt,
+          approved_by: null,
+          approved_by_name: null,
+          approved_at: null,
+          cs_approved_by: null,
+          cs_approved_by_name: null,
+          cs_approved_at: null,
+        }
       }
-
-      const logRows = [
-        ...insertedRows.map(row => ({ franchise_application_id: row.id, user_id: currentUserId, from_status: row.status, to_status: 'install_transfer' })),
-        ...updatedRows.map(row => ({ franchise_application_id: row.id, user_id: currentUserId, from_status: row.status, to_status: 'install_retransfer' })),
-      ]
-      const { error: logError } = await supabase.from('franchise_application_logs').insert(logRows)
-      if (logError) console.error('가맹접수 이력 기록 실패:', logError.message)
-
-      setLocalLinkedInstalls(prev => {
-        const next = { ...prev }
-        for (const row of insertedRows) {
-          const id = insertedByFranchiseId.get(row.id)
-          if (id) next[row.id] = { id, status: 'received' }
-        }
-        for (const row of updatedRows) {
-          next[row.id] = { id: prev[row.id]!.id, status: 'received' }
-        }
-        return next
-      })
-    }
+      return next
+    })
 
     setBulkTransferring(false)
     setSelected(new Set())
 
-    if (!insertError && !updateError) {
-      toast.success(`${toInsert.length}건 이관, ${toUpdate.length}건 재이관 완료`)
-    } else if (insertError && !updateError) {
-      toast.error(`${toUpdate.length}건 재이관 완료 (이관 ${toInsert.length}건 실패: ${insertError})`)
-    } else if (!insertError && updateError) {
-      toast.error(`${toInsert.length}건 이관 완료 (재이관 ${toUpdate.length}건 실패: ${updateError})`)
-    } else {
-      toast.error(`일괄 이관 실패 — 이관: ${insertError} / 재이관: ${updateError}`)
-    }
+    if (succeeded.length) toast.success(`${succeeded.length}건 기술지원 이관 승인요청 완료`)
+    if (failed.length) toast.error(`${failed.length}건 승인요청 실패: ${failed[0].result.error}`)
+    if (notificationFailed.length) toast.warning(`${notificationFailed.length}건의 CS책임 팝업 알림 발송에 실패했습니다.`)
   }
 
   async function linkToInternet(row: FranchiseApplication) {
@@ -1800,11 +1672,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         return (
           <BulkConfirmDialog
             open={bulkTransferConfirmOpen}
-            title="일괄 기술지원 이관"
+            title="일괄 기술지원 이관 승인요청"
             busy={bulkTransferring}
-            confirmText="이관"
-            subtitle={`총 ${toInsert.length + toUpdate.length}건 이관을 진행합니다.`}
-            confirmQuestion="이관하시겠습니까?"
+            confirmText="승인요청"
+            subtitle={`총 ${toInsert.length + toUpdate.length}건의 이관 승인을 요청합니다.`}
+            confirmQuestion="승인요청하시겠습니까?"
             items={groups.map(g => ({ id: g.key, label: g.label, detail: summarizeRows(g.rows) }))}
             onCancel={() => setBulkTransferConfirmOpen(false)}
             onConfirm={async () => { setBulkTransferConfirmOpen(false); await handleBulkTransfer() }}

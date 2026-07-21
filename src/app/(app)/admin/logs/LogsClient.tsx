@@ -12,6 +12,7 @@ interface Log {
   from_status: string | null
   to_status: string | null
   created_at: string
+  user_name: string | null
   user: { name: string } | null
   franchise_application: { id: string; business_name: string; owner_name: string } | null
 }
@@ -115,7 +116,7 @@ export default function LogsClient({ logs, selectedDate }: { logs: Log[]; select
           {filtered.map(log => (
             <div key={log.id} className="px-5 py-3.5">
               <div className="flex items-center gap-1.5 text-xs text-slate-600 flex-wrap">
-                <span className="font-semibold text-slate-900">{log.user?.name ?? '알 수 없음'}</span>
+                <span className="font-semibold text-slate-900">{log.user_name ?? log.user?.name ?? '알 수 없음'}</span>
                 <span className="text-slate-400">·</span>
                 <span>{log.franchise_application?.business_name || log.franchise_application?.owner_name || '삭제된 가맹접수'}</span>
               </div>

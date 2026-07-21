@@ -65,7 +65,7 @@ export default async function FranchisePage({ searchParams }: Props) {
       .in("to_status", ["card_done", "toss_review_done"])
       .gte("created_at", kstDayStart.toISOString())
       .lt("created_at", kstNextDayStart.toISOString()),
-    supabase.from("franchise_transfer_approvals").select("franchise_application_id,status,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at"),
+    supabase.from("franchise_transfer_approvals").select("franchise_application_id,status,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at"),
   ]);
 
   const todayCompletedIds = [

@@ -9,6 +9,9 @@ type NotificationLog = {
   status: string
   error: string | null
   created_at: string
+  user_name: string | null
+  recipient_masked: string | null
+  provider_message_id: string | null
   user: { name: string } | null
 }
 
@@ -25,11 +28,10 @@ export function NotificationHistory({
 
   useEffect(() => {
     let cancelled = false
-    setLogs(null)
     const supabase = createClient()
     supabase
       .from('notification_logs')
-      .select('id, template_key, status, error, created_at, user:profiles(name)')
+      .select('id, template_key, status, error, created_at, user_name, recipient_masked, provider_message_id, user:profiles(name)')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
@@ -53,8 +55,10 @@ export function NotificationHistory({
               key={log.id}
               className={`text-xs ${log.status === 'failed' ? 'text-red-500' : 'text-blue-500'}`}
             >
-              {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user?.name ?? '알수없음'} ·{' '}
+              {new Date(log.created_at).toLocaleString('ko-KR')} · {log.user_name ?? log.user?.name ?? '알수없음'} ·{' '}
               {labelMap?.[log.template_key] ?? log.template_key}
+              {log.recipient_masked ? ` · ${log.recipient_masked}` : ''}
+              {log.provider_message_id ? ` · Solapi ${log.provider_message_id}` : ''}
               {log.status === 'failed' ? ` (실패${log.error ? `: ${log.error}` : ''})` : ''}
             </li>
           ))}

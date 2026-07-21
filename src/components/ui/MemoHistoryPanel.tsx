@@ -11,6 +11,7 @@ type NotificationLog = {
   status: string
   error: string | null
   created_at: string
+  user_name: string | null
   user: { name: string } | null
 }
 
@@ -19,6 +20,7 @@ type FranchiseLog = {
   from_status: string | null
   to_status: string | null
   created_at: string
+  user_name: string | null
   user: { name: string } | null
 }
 
@@ -95,7 +97,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
     const supabase = createClient()
     supabase
       .from('notification_logs')
-      .select('id, template_key, status, error, created_at, user:profiles(name)')
+      .select('id, template_key, status, error, created_at, user_name, user:profiles(name)')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
@@ -111,7 +113,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
     const supabase = createClient()
     supabase
       .from('franchise_application_logs')
-      .select('id, from_status, to_status, created_at, user:profiles(name)')
+      .select('id, from_status, to_status, created_at, user_name, user:profiles(name)')
       .eq('franchise_application_id', franchiseApplicationId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -150,7 +152,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
         <div className="text-slate-400">
           {new Date(log.created_at).toLocaleString('ko-KR')}
           {' · '}
-          <span className="font-semibold text-blue-300">{log.user?.name ?? '알수없음'}</span>
+          <span className="font-semibold text-blue-300">{log.user_name ?? log.user?.name ?? '알수없음'}</span>
         </div>
         <div>
           알림톡 발송 ({labelMap?.[log.template_key] ?? log.template_key})
@@ -163,7 +165,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
         <div className="text-slate-400">
           {new Date(log.created_at).toLocaleString('ko-KR')}
           {' · '}
-          <span className="font-semibold text-blue-300">{log.user?.name ?? '알수없음'}</span>
+          <span className="font-semibold text-blue-300">{log.user_name ?? log.user?.name ?? '알수없음'}</span>
           {' · 가맹접수'}
         </div>
         <div>

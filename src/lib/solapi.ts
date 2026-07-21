@@ -1,4 +1,4 @@
-import { SolapiMessageService } from 'solapi'
+import { SolapiMessageService, type KakaoButton } from 'solapi'
 import type { ApplicantType } from '@/types'
 
 const service = new SolapiMessageService(
@@ -6,7 +6,7 @@ const service = new SolapiMessageService(
   process.env.SOLAPI_API_SECRET!
 )
 
-function kakaoOptions(templateEnvKey: string, variables: Record<string, string>, buttons?: object[]) {
+function kakaoOptions(templateEnvKey: string, variables: Record<string, string>, buttons?: KakaoButton[]) {
   const pfId = process.env.SOLAPI_KAKAO_PFID
   const templateId = process.env[templateEnvKey]
   if (!pfId || !templateId) {
@@ -18,21 +18,25 @@ function kakaoOptions(templateEnvKey: string, variables: Record<string, string>,
   return { pfId, templateId, variables, disableSms: true, ...(buttons ? { buttons } : {}) }
 }
 
-async function solapiSend(params: { to: string; from: string; text: string; kakaoOptions: object }) {
+async function solapiSend(params: { to: string; from: string; text: string; kakaoOptions: ReturnType<typeof kakaoOptions> }) {
   try {
-    const result = await (service as any).send(params)
-    const failed = result?.failedMessageList ?? result?.failed
+    const result = await service.send(params)
+    const failed = result?.failedMessageList
     if (failed?.length) {
       const firstErr = failed[0]
-      const msg = firstErr?.resultMessage ?? firstErr?.statusMessage ?? firstErr?.reason ?? JSON.stringify(firstErr)
+      const msg = firstErr?.statusMessage ?? JSON.stringify(firstErr)
       console.error('[solapi] failedMessageList:', JSON.stringify(failed))
       throw Object.assign(new Error(msg), { failedMessageList: failed })
     }
-  } catch (e: any) {
-    if (e.failedMessageList) throw e
+    return result
+  } catch (e: unknown) {
+    if (typeof e === 'object' && e !== null && 'failedMessageList' in e) throw e
     try {
-      const dump: Record<string, any> = {}
-      for (const k of Object.getOwnPropertyNames(e)) dump[k] = e[k]
+      const dump: Record<string, unknown> = {}
+      if (typeof e === 'object' && e !== null) {
+        const errorRecord = e as Record<string, unknown>
+        for (const k of Object.getOwnPropertyNames(e)) dump[k] = errorRecord[k]
+      }
       console.error('[solapi] error dump:', JSON.stringify(dump, null, 2))
     } catch { console.error('[solapi] raw error:', String(e)) }
     throw e
@@ -246,7 +250,7 @@ export async function sendInstallStatusUpdate({
   phone: string; customerName: string; status: string; eta?: string; statusToken?: string
   scheduledDate?: string; scheduledTime?: string; trackingNumber?: string
 }) {
-  if (!phone || !INSTALL_STATUS_TEXT[status]) return
+  if (!phone || !INSTALL_STATUS_TEXT[status]) return false
   const etaNote = status === 'in_transit' && eta ? ` (도착 예정 시각: ${eta})` : ''
   const scheduleNote = status === 'scheduled' && (scheduledDate || scheduledTime)
     ? ` (${[scheduledDate, scheduledTime].filter(Boolean).join(' ')})`
@@ -256,11 +260,11 @@ export async function sendInstallStatusUpdate({
   let ko
   if (status === 'in_transit') {
     
-    if (!eta) { console.warn('[solapi] 이동중 알림톡: 예정시각 없이는 발송하지 않음'); return }
+    if (!eta) { console.warn('[solapi] 이동중 알림톡: 예정시각 없이는 발송하지 않음'); return false }
     ko = kakaoOptions(INSTALL_IN_TRANSIT_ETA_TEMPLATE_ENV, { '#{고객명}': customerName, '#{예정시각}': eta })
   } else if (status === 'preparing') {
     
-    if (!statusToken) { console.warn('[solapi] 제품준비 알림톡: statusToken 없이는 발송하지 않음'); return }
+    if (!statusToken) { console.warn('[solapi] 제품준비 알림톡: statusToken 없이는 발송하지 않음'); return false }
     
     const linkNoProtocol = `${origin().replace(/^https?:\/\//, '')}/install-status/${statusToken}`
     ko = kakaoOptions(INSTALL_PREPARING_SCHEDULE_TEMPLATE_ENV, { '#{고객명}': customerName, '#{링크}': linkNoProtocol })
@@ -268,7 +272,7 @@ export async function sendInstallStatusUpdate({
     
     if (!process.env[INSTALL_STATUS_TEMPLATE.scheduled]) {
       console.warn('[solapi] 설치 일정확정 알림톡 템플릿 미설정 — 발송 스킵 (상태 변경은 정상 반영됨)')
-      return
+      return false
     }
     
     
@@ -283,13 +287,14 @@ export async function sendInstallStatusUpdate({
   } else {
     ko = kakaoOptions(INSTALL_STATUS_TEMPLATE[status], { '#{고객명}': customerName })
   }
-  if (!ko) return
-  await solapiSend({
+  if (!ko) return false
+  const result = await solapiSend({
     to: phone,
     from: process.env.SOLAPI_SENDER!,
     text,
     kakaoOptions: ko,
   })
+  return result.groupInfo.groupId
 }
 
 export async function sendSignComplete({

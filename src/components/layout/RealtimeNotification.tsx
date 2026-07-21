@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import { Bell, X, MessageCircle } from 'lucide-react'
@@ -20,17 +20,19 @@ interface Toast {
 
 let toastId = 0
 
-export default function RealtimeNotification({ userId, initialCount }: Props) {
-  const [count, setCount] = useState(initialCount)
-  const [modal, setModal] = useState<{ title: string; body?: string } | null>(null)
+export default function RealtimeNotification({ userId }: Props) {
+  const [modal, setModal] = useState<{ title: string; body?: string; href?: string } | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   function playSound() {
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const audioWindow = window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+      const AudioContextConstructor = window.AudioContext || audioWindow.webkitAudioContext
+      if (!AudioContextConstructor) return
+      const ctx = new AudioContextConstructor()
       const times = [0, 0.15, 0.3]
       times.forEach((t) => {
         const osc = ctx.createOscillator()
@@ -64,18 +66,23 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
       .channel('notifications-' + userId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
-          setCount(c => c + 1)
-          
           const isScheduleNotice = (payload.new.type as string)?.startsWith('schedule_')
           if (!isScheduleNotice) {
-            setModal({ title: payload.new.title, body: payload.new.body })
+            const href = payload.new.installation_id
+              ? `/installs?id=${payload.new.installation_id}`
+              : payload.new.franchise_application_id
+                ? `/franchise?id=${payload.new.franchise_application_id}`
+                : payload.new.ticket_id
+                  ? `/tickets/${payload.new.ticket_id}`
+                  : '/notifications'
+            setModal({ title: payload.new.title, body: payload.new.body, href })
             playSound()
           }
           router.refresh()
         }
       ).subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [userId])
+  }, [router, supabase, userId])
 
   
   useEffect(() => {
@@ -116,7 +123,7 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
         }
       ).subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [userId, pathname])
+  }, [pathname, supabase, userId])
 
   return (
     <>
@@ -139,9 +146,13 @@ export default function RealtimeNotification({ userId, initialCount }: Props) {
               {modal.body && <p className="text-slate-500 text-sm">{modal.body}</p>}
             </div>
             <div className="px-5 pb-5">
-              <button onClick={() => setModal(null)}
+              <button onClick={() => {
+                const href = modal.href
+                setModal(null)
+                if (href) router.push(href)
+              }}
                 className="w-full bg-blue-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors">
-                확인
+                {modal.href ? '승인요청 보기' : '확인'}
               </button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import EmptyState from '@/components/ui/EmptyState'
 
 type CompletionApproval = {
   installation_id: string
+  target_status: string
   requested_by: string
   requested_by_name: string
   requested_at: string
@@ -26,6 +27,10 @@ type TransferApproval = {
   requested_at: string
   cs_approved_by_name: string | null
   franchise: { id: string; business_name: string | null; owner_name: string | null; address: string | null; phone: string | null } | null
+}
+
+const INSTALL_STEP_LABEL: Record<string, string> = {
+  preparing: '제품준비', scheduled: '일정확정', in_transit: '출발', delivery_sent: '택배발송', completed: '완료',
 }
 
 export default async function DashboardPage() {
@@ -108,11 +113,11 @@ export default async function DashboardPage() {
     .order('updated_at', { ascending: false })
     .limit(30)
 
-  const completionApprovalQuery = p.approval_role === 'tech_responsible'
+  const completionApprovalQuery = p.approval_role === 'tech_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('installation_completion_approvals')
-      .select('installation_id, requested_by, requested_by_name, requested_at, installation:installations(id, customer_name, address)')
-      .eq('status', 'requested')
+      .select('installation_id, target_status, requested_by, requested_by_name, requested_at, installation:installations(id, customer_name, address)')
+      .eq('status', p.approval_role === 'tech_responsible' ? 'requested' : 'responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
       .limit(5)
@@ -206,8 +211,9 @@ export default async function DashboardPage() {
               <p className="text-xs text-slate-500 mt-0.5">내 승인이 필요한 요청입니다.</p>
             </div>
           </div>
-          {p.approval_role === 'tech_responsible' ? (
-            completionApprovals.length > 0 ? (
+          {completionApprovals.length > 0 || transferApprovals.length > 0 ? (
+            <>
+              {completionApprovals.length > 0 && (
               <div className="divide-y divide-slate-100">
                 {completionApprovals.map((approval) => (
                   <div key={approval.installation_id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors">
@@ -215,17 +221,16 @@ export default async function DashboardPage() {
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-slate-900 truncate">{approval.installation?.customer_name ?? '설치 건'}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{approval.requested_by_name} · 설치완료 승인요청</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{approval.requested_by_name} · {INSTALL_STEP_LABEL[approval.target_status] ?? approval.target_status} {p.approval_role === 'team_lead' ? '최종 ' : '1차 '}승인요청</p>
                       </div>
                       <ArrowRight size={16} className="text-slate-400" />
                     </Link>
-                    <ApprovalButton type="completion" id={approval.installation_id} />
+                    <ApprovalButton type={p.approval_role === 'team_lead' ? 'tech_final' : 'completion'} id={approval.installation_id} />
                   </div>
                 ))}
               </div>
-            ) : <div className="px-6 py-4 text-sm text-slate-500">승인 대기 중인 설치완료 요청이 없습니다.</div>
-          ) : (
-            transferApprovals.length > 0 ? (
+              )}
+              {transferApprovals.length > 0 && (
               <div className="divide-y divide-slate-100">
                 {transferApprovals.map((approval) => (
                   <div key={approval.franchise_application_id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors">
@@ -243,8 +248,9 @@ export default async function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : <div className="px-6 py-4 text-sm text-slate-500">승인 대기 중인 기술지원 이관 요청이 없습니다.</div>
-          )}
+              )}
+            </>
+          ) : <div className="px-6 py-4 text-sm text-slate-500">승인 대기 중인 요청이 없습니다.</div>}
         </section>
       )}
 

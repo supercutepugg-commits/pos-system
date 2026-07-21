@@ -28,7 +28,9 @@ export default async function InstallsPage({ searchParams }: Props) {
       .order('created_at', { ascending: false })
       .limit(300),
     supabase.from('profiles').select('id, name').eq('role', 'tech'),
-    supabase.from('installation_completion_approvals').select('installation_id,status,requested_by,requested_by_name,approved_by,approved_by_name'),
+    supabase.from('installation_completion_approvals')
+      .select('installation_id,status,target_status,request_payload,requested_by,requested_by_name,responsible_approved_by_name,approved_by,approved_by_name')
+      .in('status', ['requested', 'responsible_approved']),
   ])
 
   if (!profile) redirect('/dashboard')

@@ -4,9 +4,9 @@ import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
-import { approveFranchiseTransfer, approveInstallationCompletion } from './actions'
+import { approveCsResponsibleTransfer, approveFranchiseTransfer, approveInstallationCompletion } from './actions'
 
-export default function ApprovalButton({ type, id }: { type: 'completion' | 'transfer'; id: string }) {
+export default function ApprovalButton({ type, id }: { type: 'completion' | 'cs_transfer' | 'transfer'; id: string }) {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const toast = useToast()
@@ -15,12 +15,14 @@ export default function ApprovalButton({ type, id }: { type: 'completion' | 'tra
     startTransition(async () => {
       const result = type === 'completion'
         ? await approveInstallationCompletion(id)
-        : await approveFranchiseTransfer(id)
+        : type === 'cs_transfer'
+          ? await approveCsResponsibleTransfer(id)
+          : await approveFranchiseTransfer(id)
       if (result.error) {
         toast.error(`승인 실패: ${result.error}`)
         return
       }
-      toast.success(type === 'completion' ? '설치완료 승인 처리되었습니다.' : '승인되어 기술지원으로 이관되었습니다.')
+      toast.success(type === 'completion' ? '설치완료 승인 처리되었습니다.' : type === 'cs_transfer' ? 'CS책임 승인 완료. 팀장 최종 승인을 기다립니다.' : '승인되어 기술지원으로 이관되었습니다.')
       router.refresh()
     })
   }

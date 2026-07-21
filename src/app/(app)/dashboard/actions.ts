@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-async function getApprover(requiredRole: 'tech_responsible' | 'team_lead') {
+async function getApprover(requiredRole: 'cs_responsible' | 'tech_responsible' | 'team_lead') {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.' }
@@ -49,13 +49,40 @@ export async function approveInstallationCompletion(installationId: string) {
   return { error: null }
 }
 
+export async function approveCsResponsibleTransfer(franchiseApplicationId: string) {
+  const approver = await getApprover('cs_responsible')
+  if ('error' in approver) return approver
+
+  const admin = createAdminClient()
+  const { data: approval } = await admin
+    .from('franchise_transfer_approvals')
+    .select('requested_by')
+    .eq('franchise_application_id', franchiseApplicationId)
+    .eq('status', 'requested')
+    .single()
+  if (!approval) return { error: '처리할 승인 요청이 없습니다.' }
+  if (approval.requested_by === approver.user.id) return { error: '요청자는 직접 승인할 수 없습니다.' }
+
+  const { error } = await admin
+    .from('franchise_transfer_approvals')
+    .update({
+      status: 'cs_responsible_approved',
+      cs_approved_by: approver.user.id,
+      cs_approved_by_name: approver.profile.name,
+      cs_approved_at: new Date().toISOString(),
+    })
+    .eq('franchise_application_id', franchiseApplicationId)
+    .eq('status', 'requested')
+  return { error: error?.message ?? null }
+}
+
 export async function approveFranchiseTransfer(franchiseApplicationId: string) {
   const approver = await getApprover('team_lead')
   if ('error' in approver) return approver
 
   const admin = createAdminClient()
   const [{ data: approval }, { data: franchise }] = await Promise.all([
-    admin.from('franchise_transfer_approvals').select('requested_by').eq('franchise_application_id', franchiseApplicationId).eq('status', 'requested').single(),
+    admin.from('franchise_transfer_approvals').select('requested_by').eq('franchise_application_id', franchiseApplicationId).eq('status', 'cs_responsible_approved').single(),
     admin.from('franchise_applications').select('id, business_name, owner_name, phone, equipment_items, memo, address, install_date, status').eq('id', franchiseApplicationId).single(),
   ])
   if (!approval || !franchise) return { error: '처리할 승인 요청이 없습니다.' }
@@ -73,7 +100,7 @@ export async function approveFranchiseTransfer(franchiseApplicationId: string) {
     .from('franchise_transfer_approvals')
     .update({ status: 'approved', approved_by: approver.user.id, approved_by_name: approver.profile.name, approved_at: approvedAt })
     .eq('franchise_application_id', franchiseApplicationId)
-    .eq('status', 'requested')
+    .eq('status', 'cs_responsible_approved')
   if (approvalError) return { error: approvalError.message }
 
   const installValues = {
@@ -93,7 +120,7 @@ export async function approveFranchiseTransfer(franchiseApplicationId: string) {
     ? await admin.from('installations').update(installValues).eq('id', existingInstall.id)
     : await admin.from('installations').insert(installValues)
   if (installError) {
-    await admin.from('franchise_transfer_approvals').update({ status: 'requested', approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', franchiseApplicationId)
+    await admin.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', franchiseApplicationId)
     return { error: installError.message }
   }
 

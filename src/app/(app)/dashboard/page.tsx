@@ -116,11 +116,11 @@ export default async function DashboardPage() {
       .limit(5)
     : null
 
-  const transferApprovalQuery = p.approval_role === 'team_lead'
+  const transferApprovalQuery = p.approval_role === 'cs_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('franchise_transfer_approvals')
       .select('franchise_application_id, requested_by, requested_by_name, requested_at, franchise:franchise_applications(id, business_name, owner_name)')
-      .eq('status', 'requested')
+      .eq('status', p.approval_role === 'cs_responsible' ? 'requested' : 'cs_responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
       .limit(5)
@@ -204,9 +204,7 @@ export default async function DashboardPage() {
               <p className="text-xs text-slate-500 mt-0.5">내 승인이 필요한 요청입니다.</p>
             </div>
           </div>
-          {p.approval_role === 'cs_responsible' ? (
-            <div className="px-6 py-4 text-sm text-slate-500">현재 CS책임에게 배정된 승인 요청이 없습니다.</div>
-          ) : p.approval_role === 'tech_responsible' ? (
+          {p.approval_role === 'tech_responsible' ? (
             completionApprovals.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {completionApprovals.map((approval) => (
@@ -237,7 +235,7 @@ export default async function DashboardPage() {
                       </div>
                       <ArrowRight size={16} className="text-slate-400" />
                     </Link>
-                    <ApprovalButton type="transfer" id={approval.franchise_application_id} />
+                    <ApprovalButton type={p.approval_role === 'cs_responsible' ? 'cs_transfer' : 'transfer'} id={approval.franchise_application_id} />
                   </div>
                 ))}
               </div>

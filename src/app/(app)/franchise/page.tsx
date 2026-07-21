@@ -8,7 +8,7 @@ interface Props {
 
 type TransferApproval = {
   franchise_application_id: string;
-  status: 'requested' | 'approved' | 'rejected';
+  status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected';
   requested_by: string;
   requested_by_name: string;
   requested_at: string;

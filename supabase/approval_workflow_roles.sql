@@ -39,12 +39,17 @@ CREATE TRIGGER installation_completion_approvals_updated_at BEFORE UPDATE ON ins
 
 -- 기존 가맹 이관 승인 정책은 팀장 승인으로 교체합니다.
 DROP POLICY IF EXISTS "authenticated insert transfer approvals" ON franchise_transfer_approvals;
-CREATE POLICY "cs manager requests transfer approvals" ON franchise_transfer_approvals FOR INSERT TO authenticated WITH CHECK (
-  requested_by = auth.uid() AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approval_role = 'cs_manager')
+CREATE POLICY "cs manager or responsible requests transfer approvals" ON franchise_transfer_approvals FOR INSERT TO authenticated WITH CHECK (
+  requested_by = auth.uid() AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approval_role IN ('cs_manager', 'cs_responsible'))
 );
 DROP POLICY IF EXISTS "admin approves transfer approvals" ON franchise_transfer_approvals;
 CREATE POLICY "team lead approves transfer approvals" ON franchise_transfer_approvals FOR UPDATE TO authenticated USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approval_role = 'team_lead')
 ) WITH CHECK (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approval_role = 'team_lead')
+);
+CREATE POLICY "cs responsible approves transfer approvals" ON franchise_transfer_approvals FOR UPDATE TO authenticated USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approval_role = 'cs_responsible')
+) WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approval_role = 'cs_responsible')
 );

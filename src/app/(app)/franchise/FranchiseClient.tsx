@@ -69,7 +69,7 @@ interface Props {
 
 type TransferApproval = {
   franchise_application_id: string
-  status: 'requested' | 'approved' | 'rejected'
+  status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected'
   requested_by: string
   requested_by_name: string
   requested_at: string
@@ -1434,7 +1434,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   }
 
   async function requestTransferApproval(row: FranchiseApplication) {
-    if (currentUserApprovalRole !== 'cs_manager') { toast.warning('이관 승인요청은 CS매니저만 등록할 수 있습니다.'); return }
+    if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
     if (existing) { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
     const supabase = createClient()
@@ -1456,19 +1456,29 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
   async function approveTransfer(row: FranchiseApplication) {
     const approval = transferApprovals[row.id]
-    if (!approval || approval.status !== 'requested') return
-    if (currentUserApprovalRole !== 'team_lead') { toast.warning('팀장만 이관 승인할 수 있습니다.'); return }
+    if (!approval) return
     if (approval.requested_by === currentUserId) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
+    const isCsResponsibleApproval = currentUserApprovalRole === 'cs_responsible' && approval.status === 'requested'
+    const isTeamLeadApproval = currentUserApprovalRole === 'team_lead' && approval.status === 'cs_responsible_approved'
+    if (!isCsResponsibleApproval && !isTeamLeadApproval) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
     setTransferringId(row.id)
     const supabase = createClient()
     const approvedAt = new Date().toISOString()
-    const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'requested')
+    if (isCsResponsibleApproval) {
+      const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', cs_approved_by: currentUserId, cs_approved_by_name: currentUserName || 'CS책임', cs_approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'requested')
+      setTransferringId(null)
+      if (error) { toast.error('승인 실패: ' + error.message); return }
+      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved' } }))
+      toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
+      return
+    }
+    const { error } = await supabase.from('franchise_transfer_approvals').update({ status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt }).eq('franchise_application_id', row.id).eq('status', 'cs_responsible_approved')
     if (error) { setTransferringId(null); toast.error('승인 실패: ' + error.message); return }
     setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
     if (await transferToTech(row, true)) {
       toast.success('승인되어 기술지원 설치건이 자동 이관되었습니다.')
     } else {
-      await supabase.from('franchise_transfer_approvals').update({ status: 'requested', approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', row.id)
+      await supabase.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', row.id)
       setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
       toast.error('자동 이관에 실패해 승인요청 상태로 되돌렸습니다. 다시 승인할 수 있습니다.')
     }
@@ -1901,8 +1911,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               const dc = docCaseOf(row.owner_name, row.business_name)
               notifyAndLog(row.id, 'doc_request', { type: 'doc_request', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, applicantType: row.applicant_type, docCase: dc })
             }}
-            transferApproval={transferApprovals[row.id]}
-            canApproveTransfer={currentUserApprovalRole === 'team_lead' && transferApprovals[row.id]?.requested_by !== currentUserId}
+            transferApproval={transferApprovals[row.id]?.status === 'cs_responsible_approved'
+              ? { ...transferApprovals[row.id], status: 'requested' as const }
+              : transferApprovals[row.id]}
+            canApproveTransfer={((currentUserApprovalRole === 'cs_responsible' && transferApprovals[row.id]?.status === 'requested') || (currentUserApprovalRole === 'team_lead' && transferApprovals[row.id]?.status === 'cs_responsible_approved')) && transferApprovals[row.id]?.requested_by !== currentUserId}
             onRequestTransfer={() => requestTransferApproval(row)}
             onApproveTransfer={() => approveTransfer(row)}
             onOpenInstalls={() => router.push('/installs')}

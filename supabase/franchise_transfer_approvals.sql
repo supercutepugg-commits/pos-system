@@ -3,13 +3,16 @@
 CREATE TABLE IF NOT EXISTS franchise_transfer_approvals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   franchise_application_id UUID NOT NULL UNIQUE REFERENCES franchise_applications(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'approved', 'rejected')),
+  status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'cs_responsible_approved', 'approved', 'rejected')),
   requested_by UUID NOT NULL REFERENCES profiles(id),
   requested_by_name TEXT NOT NULL,
   requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   approved_by UUID REFERENCES profiles(id),
   approved_by_name TEXT,
   approved_at TIMESTAMPTZ,
+  cs_approved_by UUID REFERENCES profiles(id),
+  cs_approved_by_name TEXT,
+  cs_approved_at TIMESTAMPTZ,
   rejection_reason TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

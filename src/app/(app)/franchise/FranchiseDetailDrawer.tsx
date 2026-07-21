@@ -32,7 +32,7 @@ interface Props {
   onStatusChange: (value: FranchiseStatus) => void
   onCopyLink: () => void
   onResendDocuments: () => void
-  transferApproval?: { status: 'requested' | 'approved' | 'rejected'; requested_by_name: string; approved_by_name: string | null }
+  transferApproval?: { status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected'; requested_by_name: string; approved_by_name: string | null }
   canApproveTransfer: boolean
   onRequestTransfer: () => void
   onApproveTransfer: () => void

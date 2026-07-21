@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { ArrowRight, X } from 'lucide-react'
 import ApprovalButton from './ApprovalButton'
+import { rejectFranchiseTransfer } from './actions'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/ui/Toast'
 
 type Props = {
   id: string
@@ -18,11 +21,29 @@ type Props = {
 
 export default function TransferApprovalItem({ id, businessName, ownerName, address, phone, requesterName, csApproverName, approvalRole }: Props) {
   const [open, setOpen] = useState(false)
+  const [showReject, setShowReject] = useState(false)
+  const [reason, setReason] = useState('')
+  const [isRejecting, startRejectTransition] = useTransition()
+  const router = useRouter()
+  const toast = useToast()
   const title = businessName || ownerName || '가맹 접수 건'
   const isTeamLead = approvalRole === 'team_lead'
   const approvalName = isTeamLead ? csApproverName || requesterName : requesterName
   const approvalText = isTeamLead ? '팀장 최종 승인요청' : 'CS책임 승인요청'
   const approvalType = isTeamLead ? 'transfer' : 'cs_transfer'
+
+  function reject() {
+    startRejectTransition(async () => {
+      const result = await rejectFranchiseTransfer(id, reason)
+      if (result.error) {
+        toast.error(`반려 실패: ${result.error}`)
+        return
+      }
+      toast.success('승인 요청을 반려했습니다.')
+      setOpen(false)
+      router.refresh()
+    })
+  }
 
   return (
     <>
@@ -53,9 +74,14 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
               <dt className="text-slate-500">연락처</dt><dd className="text-slate-900">{phone || '-'}</dd>
               <dt className="text-slate-500">주소</dt><dd className="break-words text-slate-900">{address || '-'}</dd>
             </dl>
+            {showReject && <div className="border-t border-slate-100 px-6 py-4">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">반려 사유</label>
+              <textarea value={reason} onChange={event => setReason(event.target.value)} rows={3} placeholder="반려 사유를 입력하세요." className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100" />
+              <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setShowReject(false)} className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">취소</button><button type="button" onClick={reject} disabled={isRejecting} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{isRejecting ? '처리 중' : '반려 처리'}</button></div>
+            </div>}
             <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
               <Link href={`/franchise?highlight=${id}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">가맹접수로 이동</Link>
-              <ApprovalButton type={approvalType} id={id} />
+              <div className="flex gap-2"><button type="button" onClick={() => setShowReject(value => !value)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">반려</button><ApprovalButton type={approvalType} id={id} /></div>
             </footer>
           </section>
         </div>

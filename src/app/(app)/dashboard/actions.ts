@@ -84,6 +84,49 @@ export async function approveCsResponsibleTransfer(franchiseApplicationId: strin
   return { error: error?.message ?? null }
 }
 
+export async function rejectFranchiseTransfer(franchiseApplicationId: string, reason: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '로그인이 필요합니다.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('approval_role')
+    .eq('id', user.id)
+    .single()
+  const expectedStatus = profile?.approval_role === 'cs_responsible'
+    ? 'requested'
+    : profile?.approval_role === 'team_lead'
+      ? 'cs_responsible_approved'
+      : null
+  if (!expectedStatus) return { error: '반려 권한이 없습니다.' }
+
+  const admin = createAdminClient()
+  const { data: approval } = await admin
+    .from('franchise_transfer_approvals')
+    .select('requested_by')
+    .eq('franchise_application_id', franchiseApplicationId)
+    .eq('status', expectedStatus)
+    .single()
+  if (!approval) return { error: '처리할 승인 요청이 없습니다.' }
+  if (approval.requested_by === user.id) return { error: '요청자는 직접 반려할 수 없습니다.' }
+
+  const { error } = await admin
+    .from('franchise_transfer_approvals')
+    .update({ status: 'rejected', rejection_reason: reason.trim() || null })
+    .eq('franchise_application_id', franchiseApplicationId)
+    .eq('status', expectedStatus)
+  if (error) return { error: error.message }
+
+  await admin.from('franchise_application_logs').insert({
+    franchise_application_id: franchiseApplicationId,
+    user_id: user.id,
+    from_status: expectedStatus === 'requested' ? 'transfer_approval_requested' : 'transfer_cs_responsible_approved',
+    to_status: expectedStatus === 'requested' ? 'transfer_cs_responsible_rejected' : 'transfer_team_lead_rejected',
+  })
+  return { error: null }
+}
+
 export async function approveFranchiseTransfer(franchiseApplicationId: string) {
   const approver = await getApprover('team_lead')
   if ('error' in approver) return approver

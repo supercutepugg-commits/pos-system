@@ -73,6 +73,68 @@ export async function deleteUserAccount(userId: string) {
 
   const supabase = createAdminClient()
   const { error: deleteError } = await supabase.rpc('delete_user_account', { p_user_id: userId })
+
+  if (deleteError?.code === 'PGRST202') {
+    const nullifyTargets: [string, string][] = [
+      ['merchants', 'sales_id'],
+      ['tickets', 'sales_id'],
+      ['tickets', 'cs_id'],
+      ['tickets', 'tech_id'],
+      ['tickets', 'deleted_by'],
+      ['ticket_logs', 'user_id'],
+      ['contact_logs', 'user_id'],
+      ['attachments', 'user_id'],
+      ['franchise_applications', 'sales_id'],
+      ['franchise_applications', 'cs_id'],
+      ['franchise_applications', 'tech_id'],
+      ['franchise_applications', 'created_by'],
+      ['franchise_application_logs', 'user_id'],
+      ['change_requests', 'sales_id'],
+      ['change_requests', 'cs_id'],
+      ['change_requests', 'created_by'],
+      ['calendar_events', 'created_by'],
+      ['contracts', 'created_by'],
+      ['install_blueprints', 'created_by'],
+      ['install_blueprints', 'updated_by'],
+      ['inventory_items', 'user_id'],
+      ['inventory_logs', 'user_id'],
+      ['notification_logs', 'user_id'],
+      ['installation_activity_logs', 'user_id'],
+      ['installation_activity_logs', 'from_assigned_to'],
+      ['installation_activity_logs', 'to_assigned_to'],
+      ['franchise_transfer_approvals', 'approved_by'],
+      ['franchise_transfer_approvals', 'cs_approved_by'],
+      ['installation_completion_approvals', 'approved_by'],
+      ['installation_completion_approvals', 'responsible_approved_by'],
+    ]
+
+    for (const [table, column] of nullifyTargets) {
+      await supabase.from(table).update({ [column]: null }).eq(column, userId)
+    }
+
+    for (const [table, column] of [
+      ['franchise_transfer_approvals', 'requested_by'],
+      ['installation_completion_approvals', 'requested_by'],
+    ] as [string, string][]) {
+      await supabase.from(table).delete().eq(column, userId)
+    }
+
+    const { data: rooms } = await supabase.from('dm_rooms').select('id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+    const roomIds = (rooms ?? []).map(room => room.id)
+    if (roomIds.length) {
+      await supabase.from('dm_messages').delete().in('room_id', roomIds)
+      await supabase.from('dm_rooms').delete().in('id', roomIds)
+    }
+
+    await supabase.from('dm_messages').delete().eq('user_id', userId)
+    await supabase.from('messages').delete().eq('user_id', userId)
+
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
+    if (authDeleteError) return { error: '계정 삭제 실패(인증): ' + authDeleteError.message }
+
+    revalidatePath('/admin/users')
+    return { error: null }
+  }
   if (deleteError) return { error: '계정 삭제 실패: ' + deleteError.message }
 
   revalidatePath('/admin/users')

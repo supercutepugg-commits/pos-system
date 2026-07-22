@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { ArrowRight, Search, X } from 'lucide-react'
 import { FRANCHISE_STATUS_LABEL, type FranchiseStatus } from '@/types'
+import { INSTALLATION_DELIVERY_TYPE_LABEL, isInstallationDeliveryType } from '@/lib/installationDeliveryType'
 
 interface Log {
   id: string
@@ -13,6 +14,7 @@ interface Log {
   to_status: string | null
   created_at: string
   user_name: string | null
+  details: { delivery_type?: string } | null
   user: { name: string } | null
   franchise_application: { id: string; business_name: string; owner_name: string } | null
 }
@@ -124,6 +126,9 @@ export default function LogsClient({ logs, selectedDate }: { logs: Log[]; select
                 <span>{label(log.from_status)}</span>
                 <ArrowRight size={11} />
                 <span className="font-medium text-slate-700">{label(log.to_status)}</span>
+                {log.details?.delivery_type && isInstallationDeliveryType(log.details.delivery_type) && (
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">구분: {INSTALLATION_DELIVERY_TYPE_LABEL[log.details.delivery_type]}</span>
+                )}
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 {format(new Date(log.created_at), 'yyyy-MM-dd HH:mm', { locale: ko })}

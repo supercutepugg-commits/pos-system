@@ -216,6 +216,7 @@ export interface FranchiseApplicationLog {
   user_name?: string
   from_status?: string
   to_status?: string
+  details?: Record<string, unknown>
   created_at: string
   user?: Profile
 }

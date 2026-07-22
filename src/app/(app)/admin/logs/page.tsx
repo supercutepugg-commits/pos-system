@@ -18,7 +18,7 @@ export default async function AdminLogsPage({
   const supabase = await createClient()
   let query = supabase
     .from('franchise_application_logs')
-    .select('id, from_status, to_status, created_at, user_name, user:profiles(name), franchise_application:franchise_applications(id, business_name, owner_name)')
+    .select('id, from_status, to_status, details, created_at, user_name, user:profiles(name), franchise_application:franchise_applications(id, business_name, owner_name)')
     .order('created_at', { ascending: false })
 
   if (selectedDate) {

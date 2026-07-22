@@ -24,6 +24,11 @@ import FranchiseDetailDrawer from './FranchiseDetailDrawer'
 import FranchiseMemoDrawer from './FranchiseMemoDrawer'
 import FranchiseReceiptSurface from './FranchiseReceiptSurface'
 import {
+  INSTALLATION_DELIVERY_TYPE_LABEL,
+  INSTALLATION_DELIVERY_TYPE_OPTIONS,
+  type InstallationDeliveryType,
+} from '@/lib/installationDeliveryType'
+import {
   docCaseOf,
   createLinkedInstallTicket as createLinkedInstallTicketShared,
   applyFranchiseStatusSideEffects,
@@ -71,6 +76,7 @@ interface Props {
 type TransferApproval = {
   franchise_application_id: string
   status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected'
+  delivery_type: InstallationDeliveryType
   requested_by: string
   requested_by_name: string
   requested_at: string
@@ -753,8 +759,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkAssignCs, setBulkAssignCs] = useState('')
   const [bulkAssignSales, setBulkAssignSales] = useState('')
   const [bulkAssigning, setBulkAssigning] = useState(false)
-  const [bulkTransferConfirmOpen, setBulkTransferConfirmOpen] = useState(false)
   const [bulkTransferring, setBulkTransferring] = useState(false)
+  const [transferRequestRows, setTransferRequestRows] = useState<FranchiseApplication[] | null>(null)
+  const [transferDeliveryType, setTransferDeliveryType] = useState<InstallationDeliveryType | ''>('')
   const [transferApprovals, setTransferApprovals] = useState(initialTransferApprovals)
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
@@ -1383,13 +1390,19 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setSelected(new Set())
   }
 
-  async function requestTransferApproval(row: FranchiseApplication) {
+  function openTransferRequest(rowsToTransfer: FranchiseApplication[]) {
     if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
+    setTransferDeliveryType('')
+    setTransferRequestRows(rowsToTransfer)
+  }
+
+  async function requestTransferApproval(row: FranchiseApplication, deliveryType: InstallationDeliveryType) {
     const existing = transferApprovals[row.id]
-    if (existing && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
+    if (existing && existing.status !== 'rejected' && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
     const approval = {
       franchise_application_id: row.id,
       status: 'requested' as const,
+      delivery_type: deliveryType,
       requested_by: currentUserId,
       requested_by_name: currentUserName || '사용자',
       requested_at: new Date().toISOString(),
@@ -1400,13 +1413,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       cs_approved_by_name: null,
       cs_approved_at: null,
     }
-    const result = await requestFranchiseTransfer(row.id)
-    if (result.error) { toast.error('승인요청 실패: ' + result.error); return }
+    setTransferringId(row.id)
+    const result = await requestFranchiseTransfer(row.id, deliveryType)
+    setTransferringId(null)
+    if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
     if (result.notificationError) {
       toast.warning('승인요청은 등록됐지만 CS책임 팝업 알림에 실패했습니다: ' + result.notificationError)
     }
     setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
-    toast.success('기술지원 이관 승인요청을 등록했습니다.')
+    toast.success(`${INSTALLATION_DELIVERY_TYPE_LABEL[deliveryType]} 구분으로 기술지원 이관 승인을 요청했습니다.`)
+    return true
   }
 
   async function approveTransfer(row: FranchiseApplication) {
@@ -1450,13 +1466,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return 'skip'
   }
 
-  function summarizeRows(rows: FranchiseApplication[]): string {
-    const first = rows[0]?.business_name || rows[0]?.owner_name || '미입력'
-    return rows.length > 1 ? `${first} 외 ${rows.length - 1}건` : first
-  }
-
-  async function handleBulkTransfer() {
-    const targetRows = localRows.filter(r => selected.has(r.id))
+  async function handleBulkTransfer(targetRows: FranchiseApplication[], deliveryType: InstallationDeliveryType) {
     const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
     const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
     if (toInsert.length === 0 && toUpdate.length === 0) {
@@ -1465,7 +1475,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     }
     setBulkTransferring(true)
     const rows = [...toInsert, ...toUpdate]
-    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id) })))
+    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id, deliveryType) })))
     const succeeded = results.filter(item => !item.result.error).map(item => item.row)
     const failed = results.filter(item => item.result.error)
     const notificationFailed = results.filter(item => !item.result.error && item.result.notificationError)
@@ -1476,6 +1486,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         next[row.id] = {
           franchise_application_id: row.id,
           status: 'requested',
+          delivery_type: deliveryType,
           requested_by: currentUserId,
           requested_by_name: currentUserName || '사용자',
           requested_at: requestedAt,
@@ -1493,9 +1504,24 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setBulkTransferring(false)
     setSelected(new Set())
 
-    if (succeeded.length) toast.success(`${succeeded.length}건 기술지원 이관 승인요청 완료`)
+    if (succeeded.length) toast.success(`${succeeded.length}건을 ${INSTALLATION_DELIVERY_TYPE_LABEL[deliveryType]} 구분으로 승인요청했습니다.`)
     if (failed.length) toast.error(`${failed.length}건 승인요청 실패: ${failed[0].result.error}`)
     if (notificationFailed.length) toast.warning(`${notificationFailed.length}건의 CS책임 팝업 알림 발송에 실패했습니다.`)
+  }
+
+  async function submitTransferRequest() {
+    if (!transferRequestRows || transferRequestRows.length === 0) return
+    if (!transferDeliveryType) {
+      toast.warning('기술지원 이관 구분을 선택해주세요.')
+      return
+    }
+    if (transferRequestRows.length === 1) {
+      const succeeded = await requestTransferApproval(transferRequestRows[0], transferDeliveryType)
+      if (succeeded) setTransferRequestRows(null)
+      return
+    }
+    await handleBulkTransfer(transferRequestRows, transferDeliveryType)
+    setTransferRequestRows(null)
   }
 
   async function linkToInternet(row: FranchiseApplication) {
@@ -1659,30 +1685,34 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         onConfirm={confirmDelete}
       />
 
-      {(() => {
-        const targetRows = localRows.filter(r => selected.has(r.id))
-        const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
-        const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
-        const toSkip = targetRows.filter(r => classifyTransfer(r) === 'skip')
-        const groups = [
-          { key: 'insert', label: `이관 ${toInsert.length}건`, rows: toInsert },
-          { key: 'update', label: `재이관 ${toUpdate.length}건`, rows: toUpdate },
-          { key: 'skip', label: `이미 이관됨 ${toSkip.length}건`, rows: toSkip },
-        ].filter(g => g.rows.length > 0)
-        return (
-          <BulkConfirmDialog
-            open={bulkTransferConfirmOpen}
-            title="일괄 기술지원 이관 승인요청"
-            busy={bulkTransferring}
-            confirmText="승인요청"
-            subtitle={`총 ${toInsert.length + toUpdate.length}건의 이관 승인을 요청합니다.`}
-            confirmQuestion="승인요청하시겠습니까?"
-            items={groups.map(g => ({ id: g.key, label: g.label, detail: summarizeRows(g.rows) }))}
-            onCancel={() => setBulkTransferConfirmOpen(false)}
-            onConfirm={async () => { setBulkTransferConfirmOpen(false); await handleBulkTransfer() }}
-          />
-        )
-      })()}
+      {transferRequestRows && (
+        <FormModal
+          title={transferRequestRows.length === 1 ? '기술지원 이관 승인요청' : `일괄 기술지원 이관 승인요청 (${transferRequestRows.length}건)`}
+          onClose={() => !bulkTransferring && !transferringId && setTransferRequestRows(null)}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">이관 구분 <span className="text-red-500">*</span></label>
+              <select
+                value={transferDeliveryType}
+                onChange={event => setTransferDeliveryType(event.target.value as InstallationDeliveryType | '')}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">구분을 선택해주세요</option>
+                {INSTALLATION_DELIVERY_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <p className="mt-2 text-xs text-slate-500">선택한 구분은 팀장 승인 후 기술지원 설치 건에 그대로 적용됩니다.</p>
+            </div>
+            <div className="max-h-40 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              {transferRequestRows.map(row => <div key={row.id} className="truncate py-1">{row.business_name || row.owner_name || row.id}</div>)}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setTransferRequestRows(null)} disabled={bulkTransferring || !!transferringId} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+              <button type="button" onClick={submitTransferRequest} disabled={!transferDeliveryType || bulkTransferring || !!transferringId} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{bulkTransferring || transferringId ? '요청 중...' : '승인요청'}</button>
+            </div>
+          </div>
+        </FormModal>
+      )}
 
       {statusConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -1784,7 +1814,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         onBulkStatus={() => setBulkStatusModal(true)}
         onBulkAssign={() => setBulkAssignModal(true)}
         onBulkDelete={handleDelete}
-        onBulkTransfer={() => toast.warning('기술지원 이관은 각 접수의 승인요청 후 진행됩니다.')}
+        onBulkTransfer={() => openTransferRequest(localRows.filter(row => selected.has(row.id)))}
       />
 
       {showForm && <FranchiseCreateDialog onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} csProfiles={csProfiles} />}
@@ -1820,7 +1850,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
               ? { ...transferApprovals[row.id], status: 'requested' as const, requested_by_name: transferApprovals[row.id].cs_approved_by_name || transferApprovals[row.id].requested_by_name }
               : transferApprovals[row.id]}
             canApproveTransfer={((currentUserApprovalRole === 'cs_responsible' && transferApprovals[row.id]?.status === 'requested') || (currentUserApprovalRole === 'team_lead' && transferApprovals[row.id]?.status === 'cs_responsible_approved')) && transferApprovals[row.id]?.requested_by !== currentUserId}
-            onRequestTransfer={() => requestTransferApproval(row)}
+            onRequestTransfer={() => openTransferRequest([row])}
             onApproveTransfer={() => approveTransfer(row)}
             onOpenInstalls={() => router.push('/installs')}
             onLinkInternet={() => linkToInternet(row)}

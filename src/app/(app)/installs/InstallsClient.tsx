@@ -563,30 +563,35 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, status } : i))
   }
 
-  function pendingApproval(installationId: string, targetStatus: string, note: string, requestPayload: CompletionApproval['request_payload'] = {}): CompletionApproval {
+  function pendingApproval(installationId: string, targetStatus: string, note: string, status: 'requested' | 'responsible_approved', requestPayload: CompletionApproval['request_payload'] = {}): CompletionApproval {
     return {
       installation_id: installationId,
-      status: 'requested',
+      status,
       target_status: targetStatus,
       request_payload: requestPayload,
       requested_by: profile.id,
       requested_by_name: profile.name,
+      responsible_approved_by_name: status === 'responsible_approved' ? profile.name : null,
       approved_by: null,
       approved_by_name: null,
-      approval_notes: appendApprovalNote([], { id: profile.id, name: profile.name, role: 'tech_manager' }, note, 'request'),
+      approval_notes: appendApprovalNote([], { id: profile.id, name: profile.name, role: profile.approval_role ?? 'tech_manager' }, note, 'request'),
     }
   }
 
+  const approvalRequestPrompt = profile.approval_role === 'tech_responsible'
+    ? '팀장에게 전달할 비고를 입력해주세요.'
+    : '기술지원책임에게 전달할 비고를 입력해주세요.'
+
   async function requestStepApproval(id: string, targetStatus: string) {
-    const note = window.prompt('기술지원책임에게 전달할 비고를 입력해주세요.')?.trim()
+    const note = window.prompt(approvalRequestPrompt)?.trim()
     if (!note) return false
     const result = await requestInstallationStatusApproval({ installationId: id, targetStatus, note, skipNotify })
     if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
-    const nextApproval = pendingApproval(id, targetStatus, note)
+    const nextApproval = pendingApproval(id, targetStatus, note, result.approvalStatus ?? 'requested')
     setCompletionApprovals(prev => ({ ...prev, [id]: nextApproval }))
     setApprovalNoteHistory(prev => ({ ...prev, [id]: [...(prev[id] ?? []), ...nextApproval.approval_notes] }))
     if (result.notificationError) toast.warning('승인요청은 등록됐지만 팝업 알림에 실패했습니다: ' + result.notificationError)
-    toast.success(`${statusLabel(targetStatus)} 1차 승인을 요청했습니다.`)
+    toast.success(`${statusLabel(targetStatus)} ${result.approvalStatus === 'responsible_approved' ? '최종' : '1차'} 승인을 요청했습니다.`)
     return true
   }
 
@@ -595,7 +600,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setSendingTransit(true)
     const { id, eta } = transitModal
     const sendEta = skipEta ? undefined : (eta.trim() || undefined)
-    const note = window.prompt('기술지원책임에게 전달할 비고를 입력해주세요.')?.trim()
+    const note = window.prompt(approvalRequestPrompt)?.trim()
     if (!note) { setSendingTransit(false); return }
     const result = await requestInstallationStatusApproval({
       installationId: id,
@@ -605,13 +610,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       note,
     })
     if (result.error) { setSendingTransit(false); toast.error('출발 승인요청 실패: ' + result.error); return }
-    const nextApproval = pendingApproval(id, 'in_transit', note, { eta: sendEta, skip_notify: skipNotify || !!skipSend })
+    const nextApproval = pendingApproval(id, 'in_transit', note, result.approvalStatus ?? 'requested', { eta: sendEta, skip_notify: skipNotify || !!skipSend })
     setCompletionApprovals(prev => ({ ...prev, [id]: nextApproval }))
     setApprovalNoteHistory(prev => ({ ...prev, [id]: [...(prev[id] ?? []), ...nextApproval.approval_notes] }))
     setTransitModal(null)
     setSendingTransit(false)
     if (result.notificationError) toast.warning('승인요청은 등록됐지만 팝업 알림에 실패했습니다: ' + result.notificationError)
-    toast.success('출발 1차 승인을 요청했습니다.')
+    toast.success(`출발 ${result.approvalStatus === 'responsible_approved' ? '최종' : '1차'} 승인을 요청했습니다.`)
   }
 
   async function submitSchedule() {
@@ -619,7 +624,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const { id, date, time } = scheduleModal
     if (!date.trim() || !time.trim()) return
     setSendingSchedule(true)
-    const note = window.prompt('기술지원책임에게 전달할 비고를 입력해주세요.')?.trim()
+    const note = window.prompt(approvalRequestPrompt)?.trim()
     if (!note) { setSendingSchedule(false); return }
     const result = await requestInstallationStatusApproval({
       installationId: id,
@@ -630,13 +635,13 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       note,
     })
     if (result.error) { setSendingSchedule(false); toast.error('일정 승인요청 실패: ' + result.error); return }
-    const nextApproval = pendingApproval(id, 'scheduled', note, { scheduled_date: date, scheduled_time: time, skip_notify: skipNotify })
+    const nextApproval = pendingApproval(id, 'scheduled', note, result.approvalStatus ?? 'requested', { scheduled_date: date, scheduled_time: time, skip_notify: skipNotify })
     setCompletionApprovals(prev => ({ ...prev, [id]: nextApproval }))
     setApprovalNoteHistory(prev => ({ ...prev, [id]: [...(prev[id] ?? []), ...nextApproval.approval_notes] }))
     setScheduleModal(null)
     setSendingSchedule(false)
     if (result.notificationError) toast.warning('승인요청은 등록됐지만 팝업 알림에 실패했습니다: ' + result.notificationError)
-    toast.success('일정확정 1차 승인을 요청했습니다.')
+    toast.success(`일정확정 ${result.approvalStatus === 'responsible_approved' ? '최종' : '1차'} 승인을 요청했습니다.`)
   }
 
   async function submitReject() {
@@ -690,11 +695,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function submitCompletion(skipCompleteSend?: boolean) {
     if (!completeModal) return
-    if (profile.approval_role !== 'tech_manager') {
-      toast.warning('설치완료 승인요청은 기술지원매니저만 등록할 수 있습니다.')
+    if (!['tech_manager', 'tech_responsible'].includes(profile.approval_role ?? '')) {
+      toast.warning('설치완료 승인요청은 기술지원매니저 또는 기술지원책임만 등록할 수 있습니다.')
       return
     }
-    const approvalNote = window.prompt('기술지원책임에게 전달할 비고를 입력해주세요.')?.trim()
+    const approvalNote = window.prompt(approvalRequestPrompt)?.trim()
     if (!approvalNote) return
 
 
@@ -729,17 +734,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if ('notificationError' in approvalResult && approvalResult.notificationError) {
       toast.warning('승인요청은 등록됐지만 승인자 팝업 알림에 실패했습니다: ' + approvalResult.notificationError)
     }
-    const approval = {
-      installation_id: id,
-      status: 'requested' as const,
-      target_status: 'completed',
-      request_payload: { skip_notify: skipNotify || !!skipCompleteSend },
-      requested_by: profile.id,
-      requested_by_name: profile.name,
-      approved_by: null,
-      approved_by_name: null,
-      approval_notes: appendApprovalNote([], { id: profile.id, name: profile.name, role: 'tech_manager' }, approvalNote, 'request'),
-    }
+    const approval = pendingApproval(id, 'completed', approvalNote, approvalResult.approvalStatus ?? 'requested', {
+      skip_notify: skipNotify || !!skipCompleteSend,
+    })
     setInstalls(prev => prev.map(i => i.id === id ? { ...i, notes: saveValue ?? undefined, completion_photo_urls: photoUrls } : i))
     setCompletionApprovals(prev => ({ ...prev, [id]: approval }))
     setApprovalNoteHistory(prev => ({ ...prev, [id]: [...(prev[id] ?? []), ...approval.approval_notes] }))
@@ -747,7 +744,9 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setCompletePhotos([])
     setCompleting(false)
     completingRef.current = false
-    toast.success('설치완료 승인을 요청했습니다. 기술지원책임 1차 승인과 팀장 최종 승인이 필요합니다.')
+    toast.success(approvalResult.approvalStatus === 'responsible_approved'
+      ? '설치완료 최종 승인을 요청했습니다. 팀장 승인이 필요합니다.'
+      : '설치완료 승인을 요청했습니다. 기술지원책임 1차 승인과 팀장 최종 승인이 필요합니다.')
     return
     /* Legacy direct-completion side effects are intentionally deferred until approval. */
     /*

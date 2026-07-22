@@ -7,6 +7,7 @@ import {
   isInstallationDeliveryType,
   type InstallationDeliveryType,
 } from '@/lib/installationDeliveryType'
+import { appendApprovalNote, validateApprovalNote } from '@/lib/approvalNotes'
 
 async function getApprover(requiredRole: 'cs_responsible' | 'tech_responsible' | 'team_lead') {
   const supabase = await createClient()
@@ -23,7 +24,8 @@ async function getApprover(requiredRole: 'cs_responsible' | 'tech_responsible' |
   return { user, profile }
 }
 
-export async function requestFranchiseTransfer(franchiseApplicationId: string) {
+export async function requestFranchiseTransfer(franchiseApplicationId: string, note: string) {
+  if (!validateApprovalNote(note)) return { error: '다음 승인자에게 전달할 비고를 입력해주세요.' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.' }
@@ -34,7 +36,7 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string) {
   const admin = createAdminClient()
   const [{ data: franchise }, { data: existingApproval }, { data: existingInstall }] = await Promise.all([
     admin.from('franchise_applications').select('status').eq('id', franchiseApplicationId).single(),
-    admin.from('franchise_transfer_approvals').select('id,status,delivery_type,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at,rejection_reason').eq('franchise_application_id', franchiseApplicationId).maybeSingle(),
+    admin.from('franchise_transfer_approvals').select('id,status,delivery_type,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at,rejection_reason,approval_notes').eq('franchise_application_id', franchiseApplicationId).maybeSingle(),
     admin.from('installations').select('status').eq('franchise_application_id', franchiseApplicationId).maybeSingle(),
   ])
   if (!franchise) return { error: '가맹접수를 찾을 수 없습니다.' }
@@ -56,6 +58,9 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string) {
     cs_approved_by_name: null,
     cs_approved_at: null,
     rejection_reason: null,
+    approval_notes: appendApprovalNote(existingApproval?.approval_notes, {
+      id: user.id, name: profile.name, role: profile.approval_role!,
+    }, note, 'request'),
   }
   const approvalResult = existingApproval
     ? await admin.from('franchise_transfer_approvals').update(approvalValues).eq('id', existingApproval.id).select('id').single()
@@ -84,6 +89,7 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string) {
         cs_approved_by_name: existingApproval.cs_approved_by_name,
         cs_approved_at: existingApproval.cs_approved_at,
         rejection_reason: existingApproval.rejection_reason,
+        approval_notes: existingApproval.approval_notes,
       }).eq('id', approval.id)
     } else {
       await admin.from('franchise_transfer_approvals').delete().eq('id', approval.id)
@@ -108,14 +114,15 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string) {
   return { error: null, notificationError: notificationError?.message ?? null }
 }
 
-export async function approveCsResponsibleTransfer(franchiseApplicationId: string) {
+export async function approveCsResponsibleTransfer(franchiseApplicationId: string, note: string) {
+  if (!validateApprovalNote(note)) return { error: '팀장에게 전달할 비고를 입력해주세요.' }
   const approver = await getApprover('cs_responsible')
   if ('error' in approver) return approver
 
   const admin = createAdminClient()
   const { data: approval } = await admin
     .from('franchise_transfer_approvals')
-    .select('requested_by')
+    .select('requested_by, approval_notes')
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', 'requested')
     .single()
@@ -129,6 +136,9 @@ export async function approveCsResponsibleTransfer(franchiseApplicationId: strin
       cs_approved_by: approver.user.id,
       cs_approved_by_name: approver.profile.name,
       cs_approved_at: new Date().toISOString(),
+      approval_notes: appendApprovalNote(approval.approval_notes, {
+        id: approver.user.id, name: approver.profile.name, role: 'cs_responsible',
+      }, note, 'first_approval'),
     })
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', 'requested')
@@ -142,6 +152,7 @@ export async function approveCsResponsibleTransfer(franchiseApplicationId: strin
     if (logError) {
       await admin.from('franchise_transfer_approvals').update({
         status: 'requested', cs_approved_by: null, cs_approved_by_name: null, cs_approved_at: null,
+        approval_notes: approval.approval_notes,
       }).eq('franchise_application_id', franchiseApplicationId).eq('status', 'cs_responsible_approved')
       return { error: '감사 로그 저장에 실패해 승인을 취소했습니다: ' + logError.message }
     }
@@ -168,13 +179,14 @@ export async function approveCsResponsibleTransfer(franchiseApplicationId: strin
 }
 
 export async function rejectFranchiseTransfer(franchiseApplicationId: string, reason: string) {
+  if (!validateApprovalNote(reason)) return { error: '반려 사유를 입력해주세요.' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.' }
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('approval_role')
+    .select('name, approval_role')
     .eq('id', user.id)
     .single()
   const expectedStatus = profile?.approval_role === 'cs_responsible'
@@ -187,7 +199,7 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
   const admin = createAdminClient()
   const { data: approval } = await admin
     .from('franchise_transfer_approvals')
-    .select('requested_by, rejection_reason')
+    .select('requested_by, rejection_reason, approval_notes')
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', expectedStatus)
     .single()
@@ -196,7 +208,13 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
 
   const { error } = await admin
     .from('franchise_transfer_approvals')
-    .update({ status: 'rejected', rejection_reason: reason.trim() || null })
+    .update({
+      status: 'rejected',
+      rejection_reason: reason.trim() || null,
+      approval_notes: appendApprovalNote(approval.approval_notes, {
+        id: user.id, name: profile?.name ?? null, role: expectedStatus === 'requested' ? 'cs_responsible' : 'team_lead',
+      }, reason, 'rejection'),
+    })
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', expectedStatus)
   if (error) return { error: error.message }
@@ -209,7 +227,11 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
     details: { rejection_reason: reason.trim() || null },
   })
   if (logError) {
-    await admin.from('franchise_transfer_approvals').update({ status: expectedStatus, rejection_reason: approval.rejection_reason })
+    await admin.from('franchise_transfer_approvals').update({
+      status: expectedStatus,
+      rejection_reason: approval.rejection_reason,
+      approval_notes: approval.approval_notes,
+    })
       .eq('franchise_application_id', franchiseApplicationId).eq('status', 'rejected')
     return { error: '감사 로그 저장에 실패해 반려를 취소했습니다: ' + logError.message }
   }
@@ -219,7 +241,9 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
 export async function approveFranchiseTransfer(
   franchiseApplicationId: string,
   deliveryType: InstallationDeliveryType,
+  note: string,
 ) {
+  if (!validateApprovalNote(note)) return { error: '기술지원에 전달할 비고를 입력해주세요.' }
   const approver = await getApprover('team_lead')
   if ('error' in approver) return approver
   if (!isInstallationDeliveryType(deliveryType)) {
@@ -228,7 +252,7 @@ export async function approveFranchiseTransfer(
 
   const admin = createAdminClient()
   const [{ data: approval }, { data: franchise }] = await Promise.all([
-    admin.from('franchise_transfer_approvals').select('requested_by').eq('franchise_application_id', franchiseApplicationId).eq('status', 'cs_responsible_approved').single(),
+    admin.from('franchise_transfer_approvals').select('requested_by,approval_notes').eq('franchise_application_id', franchiseApplicationId).eq('status', 'cs_responsible_approved').single(),
     admin.from('franchise_applications').select('id, business_name, owner_name, phone, equipment_items, memo, address, install_date, status').eq('id', franchiseApplicationId).single(),
   ])
   if (!approval || !franchise) return { error: '처리할 승인 요청이 없습니다.' }
@@ -244,7 +268,13 @@ export async function approveFranchiseTransfer(
   const approvedAt = new Date().toISOString()
   const { error: approvalError } = await admin
     .from('franchise_transfer_approvals')
-    .update({ status: 'approved', delivery_type: deliveryType, approved_by: approver.user.id, approved_by_name: approver.profile.name, approved_at: approvedAt })
+    .update({
+      status: 'approved', delivery_type: deliveryType,
+      approved_by: approver.user.id, approved_by_name: approver.profile.name, approved_at: approvedAt,
+      approval_notes: appendApprovalNote(approval.approval_notes, {
+        id: approver.user.id, name: approver.profile.name, role: 'team_lead',
+      }, note, 'final_approval'),
+    })
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', 'cs_responsible_approved')
   if (approvalError) return { error: approvalError.message }
@@ -268,7 +298,7 @@ export async function approveFranchiseTransfer(
     : await admin.from('installations').insert(installValues).select('id').single()
   const { data: savedInstall, error: installError } = installResult
   if (installError) {
-    await admin.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', delivery_type: null, approved_by: null, approved_by_name: null, approved_at: null }).eq('franchise_application_id', franchiseApplicationId)
+    await admin.from('franchise_transfer_approvals').update({ status: 'cs_responsible_approved', delivery_type: null, approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes }).eq('franchise_application_id', franchiseApplicationId)
     return { error: installError.message }
   }
 
@@ -285,7 +315,7 @@ export async function approveFranchiseTransfer(
     if (existingInstall) await admin.from('installations').update({ status: 'rejected' }).eq('id', existingInstall.id)
     else await admin.from('installations').delete().eq('id', savedInstall.id)
     await admin.from('franchise_transfer_approvals').update({
-      status: 'cs_responsible_approved', delivery_type: null, approved_by: null, approved_by_name: null, approved_at: null,
+      status: 'cs_responsible_approved', delivery_type: null, approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes,
     }).eq('franchise_application_id', franchiseApplicationId).eq('status', 'approved')
     return { error: '설치건 감사 로그 저장에 실패해 이관을 취소했습니다: ' + (installActivityError?.message ?? '알 수 없는 오류') }
   }
@@ -314,7 +344,7 @@ export async function approveFranchiseTransfer(
       await admin.from('installations').delete().eq('id', savedInstall.id)
     }
     await admin.from('franchise_transfer_approvals').update({
-      status: 'cs_responsible_approved', delivery_type: null, approved_by: null, approved_by_name: null, approved_at: null,
+      status: 'cs_responsible_approved', delivery_type: null, approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes,
     }).eq('franchise_application_id', franchiseApplicationId).eq('status', 'approved')
     return { error: '감사 로그 저장에 실패해 이관을 취소했습니다: ' + logError.message }
   }

@@ -24,6 +24,7 @@ import FranchiseDetailDrawer from './FranchiseDetailDrawer'
 import FranchiseMemoDrawer from './FranchiseMemoDrawer'
 import FranchiseReceiptSurface from './FranchiseReceiptSurface'
 import { INSTALLATION_DELIVERY_TYPE_OPTIONS, type InstallationDeliveryType } from '@/lib/installationDeliveryType'
+import { appendApprovalNote, type ApprovalNote } from '@/lib/approvalNotes'
 import {
   docCaseOf,
   createLinkedInstallTicket as createLinkedInstallTicketShared,
@@ -82,6 +83,7 @@ type TransferApproval = {
   cs_approved_by: string | null
   cs_approved_by_name: string | null
   cs_approved_at: string | null
+  approval_notes: ApprovalNote[]
 }
 
 type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
@@ -1391,6 +1393,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
     if (existing && existing.status !== 'rejected' && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
+    const note = window.prompt('CS책임에게 전달할 비고를 입력해주세요.')?.trim()
+    if (!note) return false
+    const approvalNotes = appendApprovalNote(existing?.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'request')
     const approval = {
       franchise_application_id: row.id,
       status: 'requested' as const,
@@ -1404,9 +1409,10 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       cs_approved_by: null,
       cs_approved_by_name: null,
       cs_approved_at: null,
+      approval_notes: approvalNotes,
     }
     setTransferringId(row.id)
-    const result = await requestFranchiseTransfer(row.id)
+    const result = await requestFranchiseTransfer(row.id, note)
     setTransferringId(null)
     if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
     if (result.notificationError) {
@@ -1429,26 +1435,28 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       setTeamLeadTransferRow(row)
       return
     }
+    const note = window.prompt(isCsResponsibleApproval ? '팀장에게 전달할 비고를 입력해주세요.' : '기술지원에 전달할 최종 비고를 입력해주세요.')?.trim()
+    if (!note) return
     setTransferringId(row.id)
     if (isCsResponsibleApproval) {
-      const result = await approveCsResponsibleTransfer(row.id)
+      const result = await approveCsResponsibleTransfer(row.id, note)
       setTransferringId(null)
       if (result.error) { toast.error('승인 실패: ' + result.error); return }
       if ('notificationError' in result && result.notificationError) {
         toast.warning('1차 승인은 완료됐지만 팀장 팝업 알림에 실패했습니다: ' + result.notificationError)
       }
-      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임' } }))
+      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임', approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'first_approval') } }))
       toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
       return
     }
-    const result = await approveFranchiseTransfer(row.id, deliveryType as InstallationDeliveryType)
+    const result = await approveFranchiseTransfer(row.id, deliveryType as InstallationDeliveryType, note)
     setTransferringId(null)
     if (result.error) { toast.error('승인 실패: ' + result.error); return }
     if ('notificationError' in result && result.notificationError) {
       toast.warning('이관은 완료됐지만 기술지원 내부 알림에 실패했습니다: ' + result.notificationError)
     }
     const approvedAt = new Date().toISOString()
-    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', delivery_type: deliveryType ?? null, approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
+    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', delivery_type: deliveryType ?? null, approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt, approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'final_approval') } }))
     setTeamLeadTransferRow(null)
     const supabase = createClient()
     const { data: linkedInstall } = await supabase.from('installations').select('id,status').eq('franchise_application_id', row.id).maybeSingle()
@@ -1472,9 +1480,11 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       toast.warning('이관 가능한 건이 없습니다. 이미 모두 이관된 상태입니다.')
       return
     }
+    const note = window.prompt('선택한 모든 이관 건에 적용할 전달 비고를 입력해주세요.')?.trim()
+    if (!note) return
     setBulkTransferring(true)
     const rows = [...toInsert, ...toUpdate]
-    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id) })))
+    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id, note) })))
     const succeeded = results.filter(item => !item.result.error).map(item => item.row)
     const failed = results.filter(item => item.result.error)
     const notificationFailed = results.filter(item => !item.result.error && item.result.notificationError)
@@ -1495,6 +1505,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
           cs_approved_by: null,
           cs_approved_by_name: null,
           cs_approved_at: null,
+          approval_notes: appendApprovalNote(prev[row.id]?.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'request'),
         }
       }
       return next

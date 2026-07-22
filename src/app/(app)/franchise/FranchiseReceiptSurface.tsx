@@ -71,7 +71,7 @@ const iconButton = `${buttonBase} border-border bg-card text-foreground hover:bg
 const selectBase = 'border-border bg-card text-foreground focus-visible:ring-primary/30 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50'
 
 function statusTone(status: FranchiseStatus) {
-  if (status === 'doc_waiting') return { pill: '!bg-amber-500/15 !text-amber-500', solid: 'bg-amber-500', border: 'border-amber-500', stage: 0 }
+  if (status === 'doc_waiting') return { pill: '!bg-[#ff0000] !text-[#ffffff]', solid: 'bg-[#ff0000]', border: 'border-[#ff0000]', stage: 0 }
   if (status === 'doc_incomplete') return { pill: '!bg-red-500/15 !text-red-500', solid: 'bg-red-500', border: 'border-red-500', stage: 0 }
   if (status === 'card_apply_done') return { pill: '!bg-blue-500/15 !text-blue-500', solid: 'bg-blue-500', border: 'border-blue-500', stage: 1 }
   if (status === 'toss_review_apply_done') return { pill: '!bg-violet-500/15 !text-violet-500', solid: 'bg-violet-500', border: 'border-violet-500', stage: 2 }

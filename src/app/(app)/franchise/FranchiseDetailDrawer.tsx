@@ -50,7 +50,7 @@ const secondaryButton = 'focus-visible:ring-primary/30 border-border bg-card tex
 const primaryButton = 'focus-visible:ring-primary/30 border-primary bg-primary text-primary-foreground hover:bg-primary-hover inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50'
 
 function tone(status: FranchiseStatus) {
-  if (status === 'doc_waiting') return { pill: '!bg-amber-500/15 !text-amber-500', solid: 'bg-amber-500', border: 'border-amber-500', stage: 0 }
+  if (status === 'doc_waiting') return { pill: '!bg-[#ff0000] !text-[#ffffff]', solid: 'bg-[#ff0000]', border: 'border-[#ff0000]', stage: 0 }
   if (status === 'doc_incomplete') return { pill: '!bg-red-500/15 !text-red-500', solid: 'bg-red-500', border: 'border-red-500', stage: 0 }
   if (status === 'card_apply_done') return { pill: '!bg-blue-500/15 !text-blue-500', solid: 'bg-blue-500', border: 'border-blue-500', stage: 1 }
   if (status === 'toss_review_apply_done') return { pill: '!bg-violet-500/15 !text-violet-500', solid: 'bg-violet-500', border: 'border-violet-500', stage: 2 }

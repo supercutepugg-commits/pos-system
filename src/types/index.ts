@@ -296,7 +296,7 @@ export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
 
 export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
   info_input: 'bg-slate-100 text-slate-700 border-slate-200',
-  doc_waiting: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  doc_waiting: 'bg-[#ff0000] text-[#ffffff] border-[#ff0000]',
   doc_incomplete: 'bg-red-100 text-red-700 border-red-200',
   card_apply_done: 'bg-sky-100 text-sky-700 border-sky-200',
   internet_apply_done: 'bg-cyan-100 text-cyan-700 border-cyan-200',

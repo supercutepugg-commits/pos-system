@@ -4,6 +4,7 @@ export type KpiProfile = {
   id: string
   name: string
   role: Role
+  team?: string | null
   approval_role?: ApprovalRole | null
 }
 
@@ -54,6 +55,7 @@ const APPROVAL_ROLE_LABEL: Partial<Record<ApprovalRole, string>> = {
   tech_manager: '기술지원매니저',
   tech_responsible: '기술지원책임',
   team_lead: '팀장',
+  developer: '개발자',
 }
 
 export function kpiRoleLabel(profile: KpiProfile) {
@@ -63,7 +65,7 @@ export function kpiRoleLabel(profile: KpiProfile) {
 }
 
 export function isKpiTarget(profile: KpiProfile) {
-  if (profile.role === 'developer') return false
+  if (profile.role === 'developer' || profile.approval_role === 'developer' || profile.team === 'dev') return false
   return (
     profile.role === 'cs' ||
     profile.role === 'tech' ||

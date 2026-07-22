@@ -79,7 +79,7 @@ export default async function KpiPage() {
     { data: staleFranchise },
     { data: trackedInstalls },
   ] = await Promise.all([
-    supabase.from('profiles').select('id,name,role,approval_role'),
+    supabase.from('profiles').select('id,name,role,team,approval_role'),
     supabase
       .from('franchise_transfer_approvals')
       .select(

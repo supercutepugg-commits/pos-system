@@ -22,4 +22,5 @@ export const APPROVAL_ROLE_LABEL_KR: Record<string, string> = {
   tech_manager: '기술지원매니저',
   tech_responsible: '기술지원책임',
   team_lead: '팀장',
+  developer: '개발자',
 }

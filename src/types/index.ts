@@ -1,5 +1,5 @@
 export type Role = 'master' | 'admin' | 'sales' | 'cs' | 'tech' | 'developer'
-export type ApprovalRole = 'cs_manager' | 'cs_responsible' | 'tech_manager' | 'tech_responsible' | 'team_lead'
+export type ApprovalRole = 'cs_manager' | 'cs_responsible' | 'tech_manager' | 'tech_responsible' | 'team_lead' | 'developer'
 export type Team = 'sales' | 'cs' | 'tech' | 'dev'
 
 export type TicketStatus =

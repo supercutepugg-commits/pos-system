@@ -93,7 +93,17 @@ function statusLabel(source: EmployeeActivityLog['source'], status: string | nul
   return status
 }
 
-export default function LogsClient({ logs, selectedDate }: { logs: EmployeeActivityLog[]; selectedDate: string | null }) {
+export default function LogsClient({
+  logs,
+  selectedDate,
+  nextCursor,
+  isOlderPage,
+}: {
+  logs: EmployeeActivityLog[]
+  selectedDate: string | null
+  nextCursor: string | null
+  isOlderPage: boolean
+}) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [source, setSource] = useState<EmployeeActivityLog['source'] | 'all'>('all')
@@ -137,6 +147,11 @@ export default function LogsClient({ logs, selectedDate }: { logs: EmployeeActiv
         {selectedDate && (
           <button onClick={() => router.push('/admin/logs')} className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
             <X size={13} /> 초기화
+          </button>
+        )}
+        {isOlderPage && (
+          <button onClick={() => router.push('/admin/logs')} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+            최신 로그로
           </button>
         )}
       </div>
@@ -211,6 +226,15 @@ export default function LogsClient({ logs, selectedDate }: { logs: EmployeeActiv
           {filtered.length === 0 && <p className="py-8 text-center text-sm text-slate-400">로그가 없습니다.</p>}
         </div>
       </div>
+      {nextCursor && (
+        <button
+          type="button"
+          onClick={() => router.push(`/admin/logs?before=${encodeURIComponent(nextCursor)}`)}
+          className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+        >
+          이전 로그 300건 더 보기
+        </button>
+      )}
     </>
   )
 }

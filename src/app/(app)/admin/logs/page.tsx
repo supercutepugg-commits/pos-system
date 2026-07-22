@@ -63,13 +63,17 @@ function kstDateRange(date: string | null) {
 export default async function AdminLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ date?: string; before?: string }>
 }) {
   const authError = await requireMaster()
   if (authError) redirect('/dashboard')
 
-  const { date } = await searchParams
+  const { date, before } = await searchParams
   const selectedDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null
+  const beforeDate = before ? new Date(before) : null
+  const beforeCursor = !selectedDate && beforeDate && !Number.isNaN(beforeDate.getTime())
+    ? beforeDate.toISOString()
+    : null
   const range = kstDateRange(selectedDate)
   const supabase = await createClient()
 
@@ -96,10 +100,16 @@ export default async function AdminLogsPage({
     ticketQuery = ticketQuery.gte('created_at', range.start).lt('created_at', range.end)
     inventoryQuery = inventoryQuery.gte('created_at', range.start).lt('created_at', range.end)
   } else {
-    franchiseQuery = franchiseQuery.limit(300)
-    installationQuery = installationQuery.limit(300)
-    ticketQuery = ticketQuery.limit(300)
-    inventoryQuery = inventoryQuery.limit(300)
+    if (beforeCursor) {
+      franchiseQuery = franchiseQuery.lt('created_at', beforeCursor)
+      installationQuery = installationQuery.lt('created_at', beforeCursor)
+      ticketQuery = ticketQuery.lt('created_at', beforeCursor)
+      inventoryQuery = inventoryQuery.lt('created_at', beforeCursor)
+    }
+    franchiseQuery = franchiseQuery.limit(301)
+    installationQuery = installationQuery.limit(301)
+    ticketQuery = ticketQuery.limit(301)
+    inventoryQuery = inventoryQuery.limit(301)
   }
 
   const [franchiseResult, installationResult, ticketResult, inventoryResult] = await Promise.all([
@@ -114,7 +124,7 @@ export default async function AdminLogsPage({
   const ticketLogs = (ticketResult.data ?? []) as unknown as TicketLogRow[]
   const inventoryLogs = (inventoryResult.data ?? []) as unknown as InventoryLogRow[]
 
-  const logs: EmployeeActivityLog[] = [
+  const combinedLogs: EmployeeActivityLog[] = [
     ...franchiseLogs.map(log => {
       const subject = one(log.franchise_application)
       return {
@@ -169,20 +179,30 @@ export default async function AdminLogsPage({
       description: `수량 ${log.change > 0 ? '+' : ''}${log.change}${log.reason ? ` · ${log.reason}` : ''}`,
       createdAt: log.created_at,
     })),
-  ]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, selectedDate ? undefined : 300)
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const hasOlderLogs = !selectedDate && combinedLogs.length > 300
+  const logs = selectedDate ? combinedLogs : combinedLogs.slice(0, 300)
+  const nextCursor = hasOlderLogs ? logs.at(-1)?.createdAt ?? null : null
 
   return (
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">직원 활동 로그</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {selectedDate ? `${selectedDate} 업무 처리 이력` : '가맹접수·설치·작업·재고 통합 이력 (최근 300건)'}
+          {selectedDate
+            ? `${selectedDate} 업무 처리 이력`
+            : beforeCursor
+              ? '가맹접수·설치·작업·재고 이전 이력'
+              : '가맹접수·설치·작업·재고 통합 이력 (페이지당 300건)'}
         </p>
       </div>
 
-      <LogsClient logs={logs} selectedDate={selectedDate} />
+      <LogsClient
+        logs={logs}
+        selectedDate={selectedDate}
+        nextCursor={nextCursor}
+        isOlderPage={beforeCursor !== null}
+      />
     </div>
   )
 }

@@ -5,6 +5,7 @@ export const ROLE_LABEL_KR: Record<string, string> = {
   cs: 'CS팀',
   tech: '기술지원팀',
   developer: '개발자',
+  test_account: '테스트계정',
 }
 
 export const TEAM_LABEL_KR: Record<string, string> = {

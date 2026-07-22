@@ -1,7 +1,7 @@
 -- 승인 직책: 기존 role(화면/업무 접근권한)은 유지하고 approval_role로 결재 권한을 분리합니다.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS approval_role TEXT;
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_approval_role_check;
-ALTER TABLE profiles ADD CONSTRAINT profiles_approval_role_check CHECK (approval_role IN ('cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead', 'developer'));
+ALTER TABLE profiles ADD CONSTRAINT profiles_approval_role_check CHECK (approval_role IN ('cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead', 'developer', 'test_account'));
 
 UPDATE profiles SET approval_role = CASE
   WHEN role = 'cs' THEN 'cs_manager'

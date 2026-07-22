@@ -5,7 +5,7 @@ import { setUserApprovalRole } from './actions'
 import { APPROVAL_ROLE_LABEL_KR } from './constants'
 import { useToast } from '@/components/ui/Toast'
 
-const APPROVAL_ROLES = ['cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead', 'developer']
+const APPROVAL_ROLES = ['cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead', 'developer', 'test_account']
 
 export default function ApprovalRoleSelect({ userId, initialRole }: { userId: string; initialRole: string | null }) {
   const [role, setRole] = useState(initialRole ?? '')

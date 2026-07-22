@@ -56,6 +56,7 @@ const APPROVAL_ROLE_LABEL: Partial<Record<ApprovalRole, string>> = {
   tech_responsible: '기술지원책임',
   team_lead: '팀장',
   developer: '개발자',
+  test_account: '테스트계정',
 }
 
 export function kpiRoleLabel(profile: KpiProfile) {
@@ -65,7 +66,12 @@ export function kpiRoleLabel(profile: KpiProfile) {
 }
 
 export function isKpiTarget(profile: KpiProfile) {
-  if (profile.role === 'developer' || profile.approval_role === 'developer' || profile.team === 'dev') return false
+  if (
+    profile.role === 'developer' ||
+    profile.approval_role === 'developer' ||
+    profile.approval_role === 'test_account' ||
+    profile.team === 'dev'
+  ) return false
   return (
     profile.role === 'cs' ||
     profile.role === 'tech' ||

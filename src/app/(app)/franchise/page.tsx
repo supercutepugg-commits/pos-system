@@ -10,7 +10,7 @@ interface Props {
 type TransferApproval = {
   franchise_application_id: string;
   status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected';
-  delivery_type: InstallationDeliveryType;
+  delivery_type: InstallationDeliveryType | null;
   requested_by: string;
   requested_by_name: string;
   requested_at: string;

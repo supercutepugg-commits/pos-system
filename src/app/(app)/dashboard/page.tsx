@@ -22,7 +22,6 @@ type CompletionApproval = {
 
 type TransferApproval = {
   franchise_application_id: string
-  delivery_type: string
   requested_by: string
   requested_by_name: string
   requested_at: string
@@ -127,7 +126,7 @@ export default async function DashboardPage() {
   const transferApprovalQuery = p.approval_role === 'cs_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('franchise_transfer_approvals')
-      .select('franchise_application_id, delivery_type, requested_by, requested_by_name, requested_at, cs_approved_by_name, franchise:franchise_applications(id, business_name, owner_name, address, phone)')
+      .select('franchise_application_id, requested_by, requested_by_name, requested_at, cs_approved_by_name, franchise:franchise_applications(id, business_name, owner_name, address, phone)')
       .eq('status', p.approval_role === 'cs_responsible' ? 'requested' : 'cs_responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
@@ -241,7 +240,6 @@ export default async function DashboardPage() {
                       ownerName={approval.franchise?.owner_name ?? null}
                       address={approval.franchise?.address ?? null}
                       phone={approval.franchise?.phone ?? null}
-                      deliveryType={approval.delivery_type}
                       requesterName={approval.requested_by_name}
                       csApproverName={approval.cs_approved_by_name}
                       approvalRole={p.approval_role as 'cs_responsible' | 'team_lead'}

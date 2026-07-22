@@ -5,7 +5,6 @@ import { XIcon } from 'lucide-react'
 import type { ApplicantType, EquipmentItem, FranchiseApplication, FranchiseStatus, Profile } from '@/types'
 import { APPLICANT_TYPE_LABEL, FRANCHISE_STATUS_LABEL } from '@/types'
 import { formatBusinessNumber, formatPhone } from '@/lib/format'
-import { INSTALLATION_DELIVERY_TYPE_LABEL, isInstallationDeliveryType } from '@/lib/installationDeliveryType'
 
 const RECEPTION_CHANNELS = ['토스 홈페이지', '직접 영업', '전환', '토스리드건', '토스프리미엄', '승계', '명변', '랜탈', '할부']
 const EQUIPMENT_CATALOG = ['토스프론트', '토스단말기', '카드단말기', '포스기', '인터넷', '키오스크', '영수증프린터', '주방프린터기', '키오스크리더기', '무선단말기', '금전함', '태블릿', '테이블오더', '보조배터리', '원격']
@@ -33,7 +32,7 @@ interface Props {
   onStatusChange: (value: FranchiseStatus) => void
   onCopyLink: () => void
   onResendDocuments: () => void
-  transferApproval?: { status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected'; delivery_type: string; requested_by_name: string; approved_by_name: string | null; cs_approved_by_name?: string | null }
+  transferApproval?: { status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected'; delivery_type: string | null; requested_by_name: string; approved_by_name: string | null; cs_approved_by_name?: string | null }
   canApproveTransfer: boolean
   onRequestTransfer: () => void
   onApproveTransfer: () => void
@@ -83,9 +82,6 @@ export default function FranchiseDetailDrawer({ row, csProfiles, linkedInstall, 
   const products = row.equipment_items ?? []
   const vans = row.van_company ? row.van_company.split(',').map(value => value.trim()).filter(Boolean) : []
   const colors = tone(row.status)
-  const transferDeliveryTypeLabel = transferApproval && isInstallationDeliveryType(transferApproval.delivery_type)
-    ? INSTALLATION_DELIVERY_TYPE_LABEL[transferApproval.delivery_type]
-    : transferApproval?.delivery_type
 
   function addProduct() { onEquipmentChange([...products, { name: productSelect, quantity: productQty }]) }
   function removeProduct(index: number) { onEquipmentChange(products.filter((_, itemIndex) => itemIndex !== index)) }
@@ -125,7 +121,7 @@ export default function FranchiseDetailDrawer({ row, csProfiles, linkedInstall, 
           <div><div className="text-foreground mb-2.5 text-[13px] font-bold">VAN사 (중복선택 가능)</div><div className="flex flex-wrap gap-2">{VAN_COMPANIES.map(company => { const active = vans.includes(company); return <button key={company} type="button" onClick={() => toggleVan(company)} className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${active ? 'border-primary bg-primary-muted text-primary' : 'border-border bg-card text-foreground hover:border-primary/50'}`}>{company}</button> })}</div></div>
         </div></div>
 
-        <div className="border-border flex flex-shrink-0 flex-wrap gap-2 border-t px-6 py-3.5"><button type="button" onClick={onCopyLink} className={secondaryButton}>링크 복사</button><button type="button" onClick={onResendDocuments} disabled={!row.phone} className={secondaryButton}>서류안내 재발송</button><div className="flex-1" />{linkedInstall && linkedInstall.status !== 'rejected' ? <button type="button" onClick={onOpenInstalls} className={secondaryButton}>{linkedInstall.status === 'completed' ? '설치완료' : '기술지원 이관됨'}</button> : transferApproval?.status === 'requested' ? <><span className="self-center text-xs font-medium text-amber-600">{transferApproval.requested_by_name} · {transferDeliveryTypeLabel} 승인요청</span>{canApproveTransfer && <button type="button" onClick={onApproveTransfer} disabled={transferring} className={primaryButton}>{transferring ? '이관 중...' : '승인 후 자동 이관'}</button>}</> : transferApproval?.status === 'approved' ? <span className="self-center text-xs font-medium text-emerald-600">{transferDeliveryTypeLabel} 승인 완료 · 자동 이관 처리 중</span> : <button type="button" onClick={onRequestTransfer} disabled={transferring} className={secondaryButton}>기술지원 이관 승인요청</button>}{linkedInternet ? <button type="button" onClick={onOpenInternet} className={primaryButton}>인터넷 {linkedInternet.status || '등록됨'}</button> : <button type="button" onClick={onLinkInternet} disabled={linkingInternet} className={primaryButton}>{linkingInternet ? '처리 중...' : '인터넷 등록'}</button>}</div>
+        <div className="border-border flex flex-shrink-0 flex-wrap gap-2 border-t px-6 py-3.5"><button type="button" onClick={onCopyLink} className={secondaryButton}>링크 복사</button><button type="button" onClick={onResendDocuments} disabled={!row.phone} className={secondaryButton}>서류안내 재발송</button><div className="flex-1" />{linkedInstall && linkedInstall.status !== 'rejected' ? <button type="button" onClick={onOpenInstalls} className={secondaryButton}>{linkedInstall.status === 'completed' ? '설치완료' : '기술지원 이관됨'}</button> : transferApproval?.status === 'requested' ? <><span className="self-center text-xs font-medium text-amber-600">{transferApproval.requested_by_name} 승인요청</span>{canApproveTransfer && <button type="button" onClick={onApproveTransfer} disabled={transferring} className={primaryButton}>{transferring ? '이관 중...' : '승인 후 자동 이관'}</button>}</> : transferApproval?.status === 'approved' ? <span className="self-center text-xs font-medium text-emerald-600">승인 완료 · 자동 이관 처리 중</span> : <button type="button" onClick={onRequestTransfer} disabled={transferring} className={secondaryButton}>기술지원 이관 승인요청</button>}{linkedInternet ? <button type="button" onClick={onOpenInternet} className={primaryButton}>인터넷 {linkedInternet.status || '등록됨'}</button> : <button type="button" onClick={onLinkInternet} disabled={linkingInternet} className={primaryButton}>{linkingInternet ? '처리 중...' : '인터넷 등록'}</button>}</div>
       </aside>
     </div>
   )

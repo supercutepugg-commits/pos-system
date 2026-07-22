@@ -7,7 +7,6 @@ import ApprovalButton from './ApprovalButton'
 import { rejectFranchiseTransfer } from './actions'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
-import { INSTALLATION_DELIVERY_TYPE_LABEL, isInstallationDeliveryType } from '@/lib/installationDeliveryType'
 
 type Props = {
   id: string
@@ -15,13 +14,12 @@ type Props = {
   ownerName: string | null
   address: string | null
   phone: string | null
-  deliveryType: string
   requesterName: string
   csApproverName: string | null
   approvalRole: 'cs_responsible' | 'team_lead'
 }
 
-export default function TransferApprovalItem({ id, businessName, ownerName, address, phone, deliveryType, requesterName, csApproverName, approvalRole }: Props) {
+export default function TransferApprovalItem({ id, businessName, ownerName, address, phone, requesterName, csApproverName, approvalRole }: Props) {
   const [open, setOpen] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [reason, setReason] = useState('')
@@ -33,9 +31,6 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
   const approvalName = isTeamLead ? csApproverName || requesterName : requesterName
   const approvalText = isTeamLead ? '팀장 최종 승인요청' : 'CS책임 승인요청'
   const approvalType = isTeamLead ? 'transfer' : 'cs_transfer'
-  const deliveryTypeLabel = isInstallationDeliveryType(deliveryType)
-    ? INSTALLATION_DELIVERY_TYPE_LABEL[deliveryType]
-    : deliveryType
 
   function reject() {
     startRejectTransition(async () => {
@@ -56,7 +51,7 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
         <span className="w-2 h-2 rounded-full bg-amber-500" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-900 truncate">{title}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{approvalName} · {deliveryTypeLabel} · {approvalText}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{approvalName} · {approvalText}</p>
         </div>
         <ArrowRight size={16} className="text-slate-400" />
       </button>
@@ -74,7 +69,7 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
             <dl className="grid grid-cols-[96px_1fr] gap-x-4 gap-y-3 px-6 py-5 text-sm">
               <dt className="text-slate-500">승인 단계</dt><dd className="font-medium text-slate-900">{approvalText}</dd>
               <dt className="text-slate-500">요청자</dt><dd className="text-slate-900">{requesterName}</dd>
-              <dt className="text-slate-500">이관 구분</dt><dd className="font-semibold text-blue-700">{deliveryTypeLabel}</dd>
+              {isTeamLead && <><dt className="text-slate-500">이관 구분</dt><dd className="font-semibold text-blue-700">최종 승인 시 선택</dd></>}
               {isTeamLead && <><dt className="text-slate-500">CS책임 승인자</dt><dd className="text-slate-900">{csApproverName || '-'}</dd></>}
               <dt className="text-slate-500">대표자</dt><dd className="text-slate-900">{ownerName || '-'}</dd>
               <dt className="text-slate-500">연락처</dt><dd className="text-slate-900">{phone || '-'}</dd>

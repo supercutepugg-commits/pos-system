@@ -15,11 +15,19 @@ const ROLE_COLOR: Record<string, string> = {
   tech: 'bg-orange-100 text-orange-700',
 }
 
-
 const GLOBAL_ROOM_ID = '00000000-0000-0000-0000-000000000000'
+
+type ChatUser = Pick<Profile, 'id' | 'name' | 'role'>
+type DmRoom = { id: string; user1: ChatUser; user2: ChatUser }
+type GroupRoom = { id: string; name: string; description: string | null }
+type RecentMessage = { room_id: string; content: string; created_at: string }
 
 interface Props {
   searchParams: Promise<{ error?: string }>
+}
+
+function isUnread(lastMessageAt: string | undefined, lastReadAt: string | undefined) {
+  return Boolean(lastMessageAt && (!lastReadAt || new Date(lastMessageAt) > new Date(lastReadAt)))
 }
 
 export default async function ChatListPage({ searchParams }: Props) {
@@ -31,137 +39,169 @@ export default async function ChatListPage({ searchParams }: Props) {
   const [
     { data: profile },
     { data: users },
-    { data: dmRooms },
+    { data: dmRoomData },
+    { data: groupRoomData },
     { data: lastGlobalMsg },
     { data: reads },
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
-    
     supabase.from('profiles').select('*').neq('id', user.id).order('name'),
-    
     supabase
       .from('dm_rooms')
       .select('*, user1:profiles!dm_rooms_user1_id_fkey(id,name,role), user2:profiles!dm_rooms_user2_id_fkey(id,name,role)')
       .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
       .order('created_at', { ascending: false }),
-    
-    supabase.from('messages').select('content, created_at').order('created_at', { ascending: false }).limit(1).single(),
-    
+    supabase.from('group_chat_rooms').select('id, name, description').order('created_at'),
+    supabase.from('messages').select('content, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('chat_room_reads').select('room_type, room_id, last_read_at').eq('user_id', user.id),
   ])
 
   if (!profile) redirect('/login')
 
-  
-  const roomIds = dmRooms?.map(r => r.id) ?? []
-  const { data: dmLastMessages } = roomIds.length
-    ? await supabase
-        .from('dm_messages')
-        .select('room_id, created_at')
-        .in('room_id', roomIds)
-        .order('created_at', { ascending: false })
-    : { data: [] as { room_id: string; created_at: string }[] }
+  const dmRooms = (dmRoomData ?? []) as unknown as DmRoom[]
+  const groupRooms = (groupRoomData ?? []) as GroupRoom[]
+  const dmRoomIds = dmRooms.map(room => room.id)
 
-  const lastMsgByRoom = new Map<string, string>()
-  for (const m of dmLastMessages ?? []) {
-    if (!lastMsgByRoom.has(m.room_id)) lastMsgByRoom.set(m.room_id, m.created_at)
+  const [{ data: dmLastMessages }, groupLastMessageResults] = await Promise.all([
+    dmRoomIds.length
+      ? supabase.from('dm_messages').select('room_id, created_at').in('room_id', dmRoomIds).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] as { room_id: string; created_at: string }[] }),
+    Promise.all(groupRooms.map(async room => {
+      const { data } = await supabase
+        .from('group_chat_messages')
+        .select('room_id, content, created_at')
+        .eq('room_id', room.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return data as RecentMessage | null
+    })),
+  ])
+
+  const dmLastMessageAt = new Map<string, string>()
+  for (const message of dmLastMessages ?? []) {
+    if (!dmLastMessageAt.has(message.room_id)) dmLastMessageAt.set(message.room_id, message.created_at)
+  }
+
+  const groupLastMessage = new Map<string, RecentMessage>()
+  for (const message of groupLastMessageResults) {
+    if (message) groupLastMessage.set(message.room_id, message)
   }
 
   const readsMap = new Map<string, string>()
-  for (const r of reads ?? []) readsMap.set(`${r.room_type}:${r.room_id}`, r.last_read_at)
+  for (const read of reads ?? []) readsMap.set(`${read.room_type}:${read.room_id}`, read.last_read_at)
 
-  const globalLastRead = readsMap.get(`global:${GLOBAL_ROOM_ID}`)
-  const globalUnread = !!lastGlobalMsg && (!globalLastRead || new Date(lastGlobalMsg.created_at) > new Date(globalLastRead))
-
+  const globalUnread = isUnread(lastGlobalMsg?.created_at, readsMap.get(`global:${GLOBAL_ROOM_ID}`))
   const errorMessage = errorParam === 'dm_room_create_failed'
     ? '대화방을 생성하지 못했습니다. 다시 시도해주세요.'
     : null
 
   return (
-    <div className="max-w-lg mx-auto">
-      {}
+    <div className="mx-auto max-w-lg">
       <div className="bg-[#3e6d9c] px-5 py-4">
-        <h1 className="text-white font-bold text-lg">채팅</h1>
+        <h1 className="text-lg font-bold text-white">채팅</h1>
       </div>
 
       {errorMessage && (
-        <div className="bg-red-50 text-red-700 text-sm px-5 py-3 border-b border-red-100">
+        <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
           {errorMessage}
         </div>
       )}
 
-      <div className="bg-white divide-y divide-slate-100">
-        {}
-        <Link href="/chat/global" className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-          <div className="relative w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-            <Users size={22} className="text-white" />
-            {globalUnread && (
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className={`text-slate-900 ${globalUnread ? 'font-extrabold' : 'font-bold'}`}>전체 채팅방</p>
-            <p className="text-sm text-slate-500 truncate mt-0.5" title={lastGlobalMsg?.content ?? undefined}>
-              {lastGlobalMsg?.content ?? '메시지가 없습니다'}
-            </p>
-          </div>
-          {lastGlobalMsg && (
-            <p className="text-xs text-slate-400 flex-shrink-0">
-              {format(new Date(lastGlobalMsg.created_at), 'HH:mm', { locale: ko })}
-            </p>
-          )}
-        </Link>
+      <section className="bg-white">
+        <p className="border-b border-slate-100 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+          기본 채팅방
+        </p>
+        <div className="divide-y divide-slate-100">
+          <Link href="/chat/global" className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
+            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600">
+              <Users size={22} className="text-white" />
+              {globalUnread && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-slate-900 ${globalUnread ? 'font-extrabold' : 'font-bold'}`}>전체 채팅방</p>
+              <p className="mt-0.5 truncate text-sm text-slate-500" title={lastGlobalMsg?.content ?? undefined}>
+                {lastGlobalMsg?.content ?? '모든 직원이 참여하는 채팅방입니다.'}
+              </p>
+            </div>
+            {lastGlobalMsg && <p className="shrink-0 text-xs text-slate-400">{format(new Date(lastGlobalMsg.created_at), 'HH:mm', { locale: ko })}</p>}
+          </Link>
 
-        {}
-        {dmRooms?.map(room => {
-          const other = (room.user1 as any).id === user.id ? room.user2 as any : room.user1 as any
-          const lastMsgAt = lastMsgByRoom.get(room.id)
-          const lastRead = readsMap.get(`dm:${room.id}`)
-          const unread = !!lastMsgAt && (!lastRead || new Date(lastMsgAt) > new Date(lastRead))
-          return (
-            <Link key={room.id} href={`/chat/dm/${room.id}`} className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-              <div className="relative w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-slate-700 font-bold text-lg">
-                {other.name[0]}
-                {unread && (
-                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className={`text-slate-900 ${unread ? 'font-extrabold' : 'font-bold'}`}>{other.name}</p>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLOR[other.role]}`}>
-                    {ROLE_LABEL[other.role]}
-                  </span>
+          {groupRooms.map(room => {
+            const lastMessage = groupLastMessage.get(room.id)
+            const unread = isUnread(lastMessage?.created_at, readsMap.get(`group:${room.id}`))
+            return (
+              <Link key={room.id} href={`/chat/group/${room.id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-600">
+                  <Users size={22} className="text-white" />
+                  {unread && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />}
                 </div>
-                <p className="text-sm text-slate-500 mt-0.5">대화하기</p>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-slate-900 ${unread ? 'font-extrabold' : 'font-bold'}`}>{room.name}</p>
+                  <p className="mt-0.5 truncate text-sm text-slate-500" title={lastMessage?.content ?? undefined}>
+                    {lastMessage?.content ?? room.description ?? '팀 단체 채팅방'}
+                  </p>
+                </div>
+                {lastMessage && <p className="shrink-0 text-xs text-slate-400">{format(new Date(lastMessage.created_at), 'HH:mm', { locale: ko })}</p>}
+              </Link>
+            )
+          })}
+        </div>
+      </section>
 
-      {}
-      <div className="mt-4 bg-white">
-        <p className="px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+      {dmRooms.length > 0 && (
+        <section className="mt-4 bg-white">
+          <p className="border-b border-slate-100 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+            최근 1:1 대화
+          </p>
+          <div className="divide-y divide-slate-100">
+            {dmRooms.map(room => {
+              const other = room.user1.id === user.id ? room.user2 : room.user1
+              const lastMessageAt = dmLastMessageAt.get(room.id)
+              const unread = isUnread(lastMessageAt, readsMap.get(`dm:${room.id}`))
+              return (
+                <Link key={room.id} href={`/chat/dm/${room.id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
+                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-200 text-lg font-bold text-slate-700">
+                    {other.name[0]}
+                    {unread && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className={`text-slate-900 ${unread ? 'font-extrabold' : 'font-bold'}`}>{other.name}</p>
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${ROLE_COLOR[other.role] ?? 'bg-slate-100 text-slate-700'}`}>
+                        {ROLE_LABEL[other.role] ?? other.role}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-sm text-slate-500">대화하기</p>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="mt-4 bg-white">
+        <p className="border-b border-slate-100 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-400">
           직원 목록 — 탭하여 1:1 대화
         </p>
         <div className="divide-y divide-slate-50">
-          {users?.map(u => (
-            <Link key={u.id} href={`/chat/new?to=${u.id}`} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors">
-              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-slate-700 font-bold">
-                {u.name[0]}
+          {users?.map(other => (
+            <Link key={other.id} href={`/chat/new?to=${other.id}`} className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-slate-50">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 font-bold text-slate-700">
+                {other.name[0]}
               </div>
               <div>
-                <p className="font-semibold text-slate-900 text-sm">{u.name}</p>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLOR[u.role]}`}>
-                  {ROLE_LABEL[u.role]}
+                <p className="text-sm font-semibold text-slate-900">{other.name}</p>
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${ROLE_COLOR[other.role] ?? 'bg-slate-100 text-slate-700'}`}>
+                  {ROLE_LABEL[other.role] ?? other.role}
                 </span>
               </div>
-              <MessageCircle size={16} className="text-slate-300 ml-auto" />
+              <MessageCircle size={16} className="ml-auto text-slate-300" />
             </Link>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   )
 }

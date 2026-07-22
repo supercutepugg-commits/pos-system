@@ -14,6 +14,7 @@ const ROLE_LABEL: Record<Role, string> = {
   sales: '영업',
   cs: 'CS',
   tech: '기술지원',
+  developer: '개발자',
 }
 
 export default function AppHeader({ profile }: { profile: Profile }) {

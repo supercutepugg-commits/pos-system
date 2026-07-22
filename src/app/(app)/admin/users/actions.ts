@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, requireMaster } from '@/lib/auth/require-admin'
 
-const ROLES = ['master', 'admin', 'sales', 'cs', 'tech']
+const ROLES = ['master', 'admin', 'sales', 'cs', 'tech', 'developer']
 const APPROVAL_ROLES = ['cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead']
 const TEAMS = ['sales', 'cs', 'tech', 'dev']
 

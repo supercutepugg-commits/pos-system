@@ -153,7 +153,7 @@ export default function Sidebar({ profile, unreadDmCount = 0 }: Props) {
       )}
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-        {COMMON_NAV.map((item) => (
+        {COMMON_NAV.filter((item) => profile.role !== 'developer' || item.href !== '/kpi').map((item) => (
           <NavLink key={item.href} item={item} />
         ))}
 

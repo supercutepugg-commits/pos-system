@@ -16,10 +16,11 @@ const ROLE_COLOR: Record<string, string> = {
   sales: 'bg-blue-100 text-blue-700',
   cs: 'bg-emerald-100 text-emerald-700',
   tech: 'bg-orange-100 text-orange-700',
+  developer: 'bg-cyan-100 text-cyan-700',
   기타: 'bg-slate-100 text-slate-600',
 }
 
-const ROLE_ORDER = ['master', 'admin', 'sales', 'cs', 'tech', '기타']
+const ROLE_ORDER = ['master', 'admin', 'sales', 'cs', 'tech', 'developer', '기타']
 
 interface UserRow {
   id: string

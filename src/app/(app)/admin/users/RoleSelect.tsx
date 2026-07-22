@@ -5,7 +5,7 @@ import { setUserRole } from './actions'
 import { ROLE_LABEL_KR } from './constants'
 import { useToast } from '@/components/ui/Toast'
 
-const ROLES = ['master', 'admin', 'sales', 'cs', 'tech']
+const ROLES = ['master', 'admin', 'sales', 'cs', 'tech', 'developer']
 
 interface Props {
   userId: string

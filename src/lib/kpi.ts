@@ -45,6 +45,7 @@ const ROLE_LABEL: Record<Role, string> = {
   tech: '기술지원',
   admin: '관리자',
   master: '마스터',
+  developer: '개발자',
 }
 
 const APPROVAL_ROLE_LABEL: Partial<Record<ApprovalRole, string>> = {
@@ -62,6 +63,7 @@ export function kpiRoleLabel(profile: KpiProfile) {
 }
 
 export function isKpiTarget(profile: KpiProfile) {
+  if (profile.role === 'developer') return false
   return (
     profile.role === 'cs' ||
     profile.role === 'tech' ||

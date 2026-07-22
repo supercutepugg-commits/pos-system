@@ -9,6 +9,7 @@ import {
   Hash,
   Images,
   LayoutDashboard,
+  ChartNoAxesCombined,
   MessageCircle,
   Network,
   Package,
@@ -37,6 +38,7 @@ export interface NavGroup {
 
 export const COMMON_NAV: NavItem[] = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+  { href: '/kpi', label: 'KPI', icon: ChartNoAxesCombined },
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
   { href: '/merchants', label: '가맹점', icon: Store },
   { href: '/chat', label: '채팅', icon: MessageCircle },

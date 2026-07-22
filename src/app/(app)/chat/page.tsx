@@ -5,6 +5,7 @@ import { MessageCircle, Users } from 'lucide-react'
 import type { Profile } from '@/types'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import CreateGroupChatRoomForm from './CreateGroupChatRoomForm'
 
 const ROLE_LABEL: Record<string, string> = { master: '마스터', admin: '관리자', sales: '영업', cs: 'CS', tech: '기술지원' }
 const ROLE_COLOR: Record<string, string> = {
@@ -98,8 +99,11 @@ export default async function ChatListPage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-lg">
-      <div className="bg-[#3e6d9c] px-5 py-4">
+      <div className="flex items-center justify-between bg-[#3e6d9c] px-5 py-4">
         <h1 className="text-lg font-bold text-white">채팅</h1>
+        {(profile.role === 'admin' || profile.role === 'master') && (
+          <CreateGroupChatRoomForm users={(users ?? []).map((item: ChatUser) => ({ id: item.id, name: item.name, role: item.role }))} />
+        )}
       </div>
 
       {errorMessage && (

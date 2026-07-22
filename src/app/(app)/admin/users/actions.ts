@@ -7,8 +7,9 @@ import { requireAdmin, requireMaster } from '@/lib/auth/require-admin'
 
 const ROLES = ['master', 'admin', 'sales', 'cs', 'tech']
 const APPROVAL_ROLES = ['cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead']
+const TEAMS = ['sales', 'cs', 'tech', 'dev']
 
-export async function createUserAccount(form: { name: string; phone: string; password: string; role: string }) {
+export async function createUserAccount(form: { name: string; phone: string; password: string; role: string; team: string }) {
   const authError = await requireAdmin()
   if (authError) return { error: authError }
 
@@ -16,10 +17,12 @@ export async function createUserAccount(form: { name: string; phone: string; pas
   const password = form.password.trim()
   const phone = form.phone.trim()
   const role = form.role
+  const team = form.team
 
   if (!name) return { error: '이름을 입력해주세요.' }
   if (password.length < 4) return { error: '비밀번호는 4자 이상이어야 합니다.' }
   if (!ROLES.includes(role)) return { error: '올바르지 않은 역할입니다.' }
+  if (!TEAMS.includes(team)) return { error: '올바르지 않은 팀입니다.' }
 
   const supabase = createAdminClient()
 
@@ -42,6 +45,7 @@ export async function createUserAccount(form: { name: string; phone: string; pas
     name,
     phone: phone || null,
     role,
+    team,
   })
   if (profileError) {
     const { error: cleanupError } = await supabase.auth.admin.deleteUser(authData.user.id)
@@ -148,6 +152,19 @@ export async function setUserRole(userId: string, role: string) {
 
   const supabase = createAdminClient()
   const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/users')
+  return { error: null }
+}
+
+export async function setUserTeam(userId: string, team: string) {
+  const authError = await requireAdmin()
+  if (authError) return { error: authError }
+  if (!TEAMS.includes(team)) return { error: '올바르지 않은 팀입니다.' }
+
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('profiles').update({ team }).eq('id', userId)
   if (error) return { error: error.message }
 
   revalidatePath('/admin/users')

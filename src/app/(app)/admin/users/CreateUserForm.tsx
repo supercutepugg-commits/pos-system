@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, UserPlus } from 'lucide-react'
 import { createUserAccount } from './actions'
-import { ROLE_LABEL_KR } from './constants'
+import { ROLE_LABEL_KR, TEAM_LABEL_KR, TEAMS } from './constants'
 import { useToast } from '@/components/ui/Toast'
 
 const ROLES = ['sales', 'cs', 'tech', 'admin', 'master']
 
-const EMPTY_FORM = { name: '', phone: '', password: '', role: 'sales' }
+const EMPTY_FORM = { name: '', phone: '', password: '', role: 'sales', team: 'sales' }
 
 export default function CreateUserForm() {
   const router = useRouter()
@@ -61,10 +61,17 @@ export default function CreateUserForm() {
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">역할</label>
+            <label className="text-xs font-medium text-slate-500">권한</label>
             <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
               {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL_KR[r]}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">소속 팀</label>
+            <select value={form.team} onChange={e => setForm({ ...form, team: e.target.value })}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {TEAMS.map(team => <option key={team} value={team}>{TEAM_LABEL_KR[team]}</option>)}
             </select>
           </div>
           <button type="submit" disabled={submitting}

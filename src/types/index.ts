@@ -1,5 +1,6 @@
 export type Role = 'master' | 'admin' | 'sales' | 'cs' | 'tech'
 export type ApprovalRole = 'cs_manager' | 'cs_responsible' | 'tech_manager' | 'tech_responsible' | 'team_lead'
+export type Team = 'sales' | 'cs' | 'tech' | 'dev'
 
 export type TicketStatus =
   | 'sales'
@@ -34,6 +35,7 @@ export interface Profile {
   name: string
   phone?: string
   role: Role
+  team?: Team
   approval_role?: ApprovalRole | null
   can_delete?: boolean
   created_at: string

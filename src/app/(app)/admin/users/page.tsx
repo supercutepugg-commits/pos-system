@@ -31,7 +31,7 @@ export default async function UsersPage() {
   const usersWithEmail = (users ?? []).map(u => ({ ...u, email: emailById[u.id] ?? null }))
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">직원 관리</h1>
         <p className="text-slate-500 text-sm mt-1">총 {usersWithEmail.length}명</p>

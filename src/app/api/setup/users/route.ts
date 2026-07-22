@@ -45,6 +45,7 @@ export async function GET() {
       id: data.user.id,
       name: u.name,
       role: u.role,
+      team: u.role,
     })
 
     if (profileError) {

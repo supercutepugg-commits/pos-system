@@ -44,19 +44,24 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string, n
     return { error: '이미 이관 승인요청이 존재합니다.' }
   }
 
+  const requestedAt = new Date().toISOString()
+  const requestedByResponsible = profile.approval_role === 'cs_responsible'
+  const approvalStatus: 'requested' | 'cs_responsible_approved' = requestedByResponsible
+    ? 'cs_responsible_approved'
+    : 'requested'
   const approvalValues = {
     franchise_application_id: franchiseApplicationId,
-    status: 'requested',
+    status: approvalStatus,
     delivery_type: null,
     requested_by: user.id,
     requested_by_name: profile.name,
-    requested_at: new Date().toISOString(),
+    requested_at: requestedAt,
     approved_by: null,
     approved_by_name: null,
     approved_at: null,
-    cs_approved_by: null,
-    cs_approved_by_name: null,
-    cs_approved_at: null,
+    cs_approved_by: requestedByResponsible ? user.id : null,
+    cs_approved_by_name: requestedByResponsible ? profile.name : null,
+    cs_approved_at: requestedByResponsible ? requestedAt : null,
     rejection_reason: null,
     approval_notes: appendApprovalNote(existingApproval?.approval_notes, {
       id: user.id, name: profile.name, role: profile.approval_role!,
@@ -68,12 +73,18 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string, n
   const { data: approval, error: approvalError } = approvalResult
   if (approvalError || !approval) return { error: approvalError?.message ?? '승인요청 저장에 실패했습니다.' }
 
-  const { error: logError } = await admin.from('franchise_application_logs').insert({
+  const requestLogs = [{
     franchise_application_id: franchiseApplicationId,
     user_id: user.id,
     from_status: franchise.status,
     to_status: 'transfer_approval_requested',
-  })
+  }, ...(requestedByResponsible ? [{
+    franchise_application_id: franchiseApplicationId,
+    user_id: user.id,
+    from_status: 'transfer_approval_requested',
+    to_status: 'transfer_cs_responsible_approved',
+  }] : [])]
+  const { error: logError } = await admin.from('franchise_application_logs').insert(requestLogs)
   if (logError) {
     if (existingApproval) {
       await admin.from('franchise_transfer_approvals').update({
@@ -96,22 +107,25 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string, n
     }
     return { error: '감사 로그 저장에 실패해 승인요청을 취소했습니다: ' + logError.message }
   }
+  const nextApprovalRole = requestedByResponsible ? 'team_lead' : 'cs_responsible'
   const { data: approvers } = await admin
     .from('profiles')
     .select('id')
-    .eq('approval_role', 'cs_responsible')
+    .eq('approval_role', nextApprovalRole)
     .neq('id', user.id)
   const { error: notificationError } = approvers?.length
     ? await admin.from('notifications').insert(approvers.map(({ id }) => ({
         user_id: id,
         franchise_application_id: franchiseApplicationId,
-        type: 'approval_cs_transfer',
-        title: '[승인요청] 기술지원 이관',
-        body: `${profile.name ?? 'CS 담당자'}님이 CS책임 승인을 요청했습니다.`,
+        type: requestedByResponsible ? 'approval_team_lead_transfer' : 'approval_cs_transfer',
+        title: requestedByResponsible ? '[최종 승인요청] 기술지원 이관' : '[승인요청] 기술지원 이관',
+        body: requestedByResponsible
+          ? `${profile.name ?? 'CS책임'}님이 팀장 최종 승인을 요청했습니다.`
+          : `${profile.name ?? 'CS 담당자'}님이 CS책임 승인을 요청했습니다.`,
       })))
     : { error: null }
 
-  return { error: null, notificationError: notificationError?.message ?? null }
+  return { error: null, approvalStatus, notificationError: notificationError?.message ?? null }
 }
 
 export async function approveCsResponsibleTransfer(franchiseApplicationId: string, note: string) {

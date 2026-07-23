@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
-import { approveCsResponsibleTransfer, approveFranchiseTransfer } from './actions'
+import { approveCsResponsibleTransfer, approveFranchiseTransfer, rejectFranchiseTransfer } from './actions'
 import { approveInstallationCompletion, approveInstallationStatusByTeamLead, rejectInstallationStatusApproval } from '../installs/actions'
 import { INSTALLATION_DELIVERY_TYPE_OPTIONS, type InstallationDeliveryType } from '@/lib/installationDeliveryType'
 import ApprovalNoteTimeline from '@/components/ui/ApprovalNoteTimeline'
@@ -20,11 +20,12 @@ export default function ApprovalButton({ type, id, notes = [] }: { type: 'comple
   const [rejectReason, setRejectReason] = useState('')
   const [deliveryType, setDeliveryType] = useState<InstallationDeliveryType | ''>('')
   const [note, setNote] = useState('')
-  const canReject = type === 'completion' || type === 'tech_final'
 
   function reject() {
     startRejectTransition(async () => {
-      const result = await rejectInstallationStatusApproval(id, rejectReason)
+      const result = type === 'cs_transfer' || type === 'transfer'
+        ? await rejectFranchiseTransfer(id, rejectReason)
+        : await rejectInstallationStatusApproval(id, rejectReason)
       if (result.error) {
         toast.error(`반려 실패: ${result.error}`)
         return
@@ -65,11 +66,9 @@ export default function ApprovalButton({ type, id, notes = [] }: { type: 'comple
   }
 
   return <>
-    {canReject && (
-      <button type="button" onClick={() => { setRejectReason(''); setShowReject(true) }} disabled={isRejecting} className="flex shrink-0 items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
-        {isRejecting ? '처리 중' : '반려'}
-      </button>
-    )}
+    <button type="button" onClick={() => { setRejectReason(''); setShowReject(true) }} disabled={isRejecting} className="flex shrink-0 items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
+      {isRejecting ? '처리 중' : '반려'}
+    </button>
     <button type="button" onClick={() => { setDeliveryType(''); setNote(''); setShowApproval(true) }} disabled={isPending} className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
       <Check size={14} /> {isPending ? '처리 중' : '승인'}
     </button>

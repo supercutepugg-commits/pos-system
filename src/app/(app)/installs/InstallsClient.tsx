@@ -444,7 +444,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     document.getElementById(`install-card-${highlightId}`)?.scrollIntoView({ block: 'center' })
   }, [highlightId, installs])
   const [sendingTransit, setSendingTransit] = useState(false)
-  const [scheduleModal, setScheduleModal] = useState<{ id: string; date: string; time: string } | null>(null)
+  const [scheduleModal, setScheduleModal] = useState<{ id: string; date: string; time: string; isReschedule?: boolean } | null>(null)
   const [sendingSchedule, setSendingSchedule] = useState(false)
   const [editingNotes, setEditingNotes] = useState<{ id: string; value: string } | null>(null)
   const [todayScheduled, setTodayScheduled] = useState<{ id: string; business_name?: string; owner_name?: string }[]>([])
@@ -556,6 +556,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       setScheduleModal({ id, date: inst?.scheduled_date ?? '', time: inst?.scheduled_time ?? '' })
       return
     }
+    if (status === 'reschedule') {
+      const inst = installs.find(i => i.id === id)
+      setScheduleModal({ id, date: inst?.scheduled_date ?? '', time: inst?.scheduled_time ?? '', isReschedule: true })
+      return
+    }
     if (APPROVAL_TARGETS.has(status)) {
       await requestStepApproval(id, status)
       return
@@ -623,14 +628,15 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function submitSchedule() {
     if (!scheduleModal) return
-    const { id, date, time } = scheduleModal
+    const { id, date, time, isReschedule } = scheduleModal
     if (!date.trim()) return
     setSendingSchedule(true)
+    const effectiveSkipNotify = isReschedule ? true : skipNotify
 
     if (profile.approval_role === 'team_lead') {
       const note = window.prompt('변경 사유를 입력해주세요.')?.trim()
       if (!note) { setSendingSchedule(false); return }
-      const result = await rescheduleInstallationByTeamLead({ installationId: id, scheduledDate: date, scheduledTime: time, note, skipNotify })
+      const result = await rescheduleInstallationByTeamLead({ installationId: id, scheduledDate: date, scheduledTime: time, note, skipNotify: effectiveSkipNotify })
       if (result.error) { setSendingSchedule(false); toast.error('일정 변경 실패: ' + result.error); return }
       setInstalls(prev => prev.map(item => item.id === id ? { ...item, status: 'scheduled', scheduled_date: date, scheduled_time: time } : item))
       setScheduleModal(null)
@@ -647,11 +653,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       targetStatus: 'scheduled',
       scheduledDate: date,
       scheduledTime: time,
-      skipNotify,
+      skipNotify: effectiveSkipNotify,
       note,
     })
     if (result.error) { setSendingSchedule(false); toast.error('일정 승인요청 실패: ' + result.error); return }
-    const nextApproval = pendingApproval(id, 'scheduled', note, result.approvalStatus ?? 'requested', { scheduled_date: date, scheduled_time: time, skip_notify: skipNotify })
+    const nextApproval = pendingApproval(id, 'scheduled', note, result.approvalStatus ?? 'requested', { scheduled_date: date, scheduled_time: time, skip_notify: effectiveSkipNotify })
     setCompletionApprovals(prev => ({ ...prev, [id]: nextApproval }))
     setApprovalNoteHistory(prev => ({ ...prev, [id]: [...(prev[id] ?? []), ...nextApproval.approval_notes] }))
     setScheduleModal(null)
@@ -1585,7 +1591,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         </select>
                         {!!approvalNoteHistory[inst.id]?.length && <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3"><p className="mb-2 text-xs font-semibold text-blue-700">승인 비고 이력</p><ApprovalNoteTimeline notes={approvalNoteHistory[inst.id]!} /></div>}
                         {inst.status !== 'completed' && inst.status !== 'rejected' && (
-                          <button onClick={() => handleStatusChange(inst.id, 'scheduled')} disabled={!!completionApprovals[inst.id]}
+                          <button onClick={() => handleStatusChange(inst.id, 'reschedule')} disabled={!!completionApprovals[inst.id]}
                             className="w-full text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 px-3 py-2 rounded-lg">
                             일정변경
                           </button>
@@ -1793,7 +1799,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
                         {canEdit && inst.status !== 'completed' && inst.status !== 'rejected' && (
-                          <button onClick={() => handleStatusChange(inst.id, 'scheduled')} disabled={!!completionApprovals[inst.id]}
+                          <button onClick={() => handleStatusChange(inst.id, 'reschedule')} disabled={!!completionApprovals[inst.id]}
                             className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded-lg hover:bg-indigo-50 disabled:opacity-50">일정변경</button>
                         )}
                         {completionApprovals[inst.id] && (

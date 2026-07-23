@@ -582,8 +582,6 @@ export default function InternetClient({ rows }: Props) {
                       <td key={col.key} className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
                         {options ? (
                           <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
-                        ) : col.key === 'business_name' ? (
-                          <span className="font-medium text-slate-900 block overflow-hidden text-ellipsis" title={row.business_name || undefined}>{row.business_name || '-'}</span>
                         ) : (
                           <EditableText row={row} field={col.key} onSave={saveField} />
                         )}

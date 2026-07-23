@@ -54,6 +54,9 @@ interface CalendarManualEvent {
   date: string
   title: string
   memo?: string | null
+  category?: string | null
+  assigned_to?: string | null
+  assignee?: { name: string } | null
   created_by?: string | null
 }
 
@@ -100,6 +103,16 @@ const LEGEND_ITEMS = [
   { category: '메모',          color: 'bg-violet-500' },
 ] as const
 
+const MANUAL_CATEGORY_OPTIONS = [
+  { value: '일정',    color: 'bg-indigo-500' },
+  { value: '설치',    color: 'bg-emerald-500' },
+  { value: '오픈',    color: 'bg-blue-500' },
+  { value: '카드신청', color: 'bg-orange-500' },
+  { value: '택배발송', color: 'bg-rose-500' },
+  { value: '메모',    color: 'bg-violet-500' },
+] as const
+const MANUAL_CATEGORY_COLOR: Record<string, string> = Object.fromEntries(MANUAL_CATEGORY_OPTIONS.map(o => [o.value, o.color]))
+
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 const INSTALL_STATUS_LABEL: Record<string, string> = {
   received: '접수',
@@ -129,7 +142,7 @@ function mondayOfWeek(ymd: string): string {
 
 type CalendarTab = 'all' | 'personal' | 'assigned'
 
-export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [], installRows = [], currentUserId, canViewAssigned = false }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[]; installRows?: CalendarInstallRow[]; currentUserId: string; canViewAssigned?: boolean }) {
+export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [], installRows = [], techProfiles = [], currentUserId, canViewAssigned = false }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[]; installRows?: CalendarInstallRow[]; techProfiles?: { id: string; name: string }[]; currentUserId: string; canViewAssigned?: boolean }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -138,6 +151,8 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newMemo, setNewMemo] = useState('')
+  const [newCategory, setNewCategory] = useState<string>(MANUAL_CATEGORY_OPTIONS[0].value)
+  const [newAssignedTo, setNewAssignedTo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<CalendarTab>('all')
@@ -147,22 +162,35 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     setSelectedCategory(prev => prev === category ? null : category)
   }, [])
 
-  const handleAddEvent = useCallback(async () => {
+  function resetAddForm() {
+    setNewTitle('')
+    setNewMemo('')
+    setNewCategory(MANUAL_CATEGORY_OPTIONS[0].value)
+    setNewAssignedTo('')
+    setShowAddForm(false)
+  }
+
+  async function handleAddEvent() {
     if (!selectedDate || !newTitle.trim()) return
     setSubmitting(true)
     const supabase = createClient()
     const { data, error } = await supabase
       .from('calendar_events')
-      .insert({ date: selectedDate, title: newTitle.trim(), memo: newMemo.trim() || null, created_by: currentUserId })
-      .select('id, date, title, memo, created_by')
+      .insert({
+        date: selectedDate,
+        title: newTitle.trim(),
+        memo: newMemo.trim() || null,
+        category: newCategory,
+        assigned_to: newCategory === '설치' ? (newAssignedTo || null) : null,
+        created_by: currentUserId,
+      })
+      .select('id, date, title, memo, category, assigned_to, created_by, assignee:profiles!calendar_events_assigned_to_fkey(name)')
       .single()
     setSubmitting(false)
     if (error) { toast.error('일정 등록 실패: ' + error.message); return }
-    setLocalManualEvents(prev => [...prev, data as CalendarManualEvent])
-    setNewTitle('')
-    setNewMemo('')
-    setShowAddForm(false)
-  }, [selectedDate, newTitle, newMemo, toast, currentUserId])
+    setLocalManualEvents(prev => [...prev, data as unknown as CalendarManualEvent])
+    resetAddForm()
+  }
 
   const handleDeleteEvent = useCallback(async (id: string) => {
     if (!confirm('이 일정을 삭제하시겠습니까?')) return
@@ -267,16 +295,18 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       const date = toYMD(ev.date)
       if (!date) continue
       if (!map[date]) map[date] = []
+      const category = ev.category || '메모'
       map[date].push({
         date,
-        label: '메모',
-        category: '메모',
-        color: 'bg-violet-500',
+        label: category,
+        category,
+        color: MANUAL_CATEGORY_COLOR[category] ?? 'bg-violet-500',
         href: '',
         businessName: ev.title,
         subtitle: ev.memo || '',
         manualId: ev.id,
-        ownerIds: ev.created_by ? [ev.created_by] : [],
+        techName: ev.assignee?.name,
+        ownerIds: [ev.created_by, ev.assigned_to].filter((id): id is string => !!id),
       })
     }
     return map
@@ -482,6 +512,21 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
 
             {showAddForm && (
               <div className="px-4 py-3 border-b border-slate-100 flex flex-col gap-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {MANUAL_CATEGORY_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setNewCategory(opt.value)}
+                      className={`flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                        newCategory === opt.value ? 'border-slate-300 bg-slate-100 text-slate-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-sm ${opt.color}`} />
+                      {opt.value}
+                    </button>
+                  ))}
+                </div>
                 <input
                   autoFocus
                   value={newTitle}
@@ -497,8 +542,18 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                   placeholder="메모 (선택)"
                   className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-400"
                 />
+                {newCategory === '설치' && (
+                  <select
+                    value={newAssignedTo}
+                    onChange={e => setNewAssignedTo(e.target.value)}
+                    className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-400"
+                  >
+                    <option value="">담당자 미배정</option>
+                    {techProfiles.map(tech => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
+                  </select>
+                )}
                 <div className="flex justify-end gap-2">
-                  <button onClick={() => { setShowAddForm(false); setNewTitle(''); setNewMemo('') }} className="text-xs px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-50">
+                  <button onClick={resetAddForm} className="text-xs px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-50">
                     취소
                   </button>
                   <button

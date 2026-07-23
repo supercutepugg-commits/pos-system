@@ -7,7 +7,7 @@ export default async function CalendarPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: tickets }, { data: franchiseRows }, { data: wooRows }, { data: manualEvents }, { data: installRows }] = await Promise.all([
+  const [{ data: profile }, { data: tickets }, { data: franchiseRows }, { data: wooRows }, { data: manualEvents }, { data: installRows }, { data: techUsers }] = await Promise.all([
     supabase.from('profiles').select('id, approval_role').eq('id', user.id).single(),
     supabase
       .from('tickets')
@@ -25,11 +25,12 @@ export default async function CalendarPage() {
       .not('open_date', 'is', null),
     supabase
       .from('calendar_events')
-      .select('id, date, title, memo, created_by'),
+      .select('id, date, title, memo, category, assigned_to, created_by, assignee:profiles!calendar_events_assigned_to_fkey(name)'),
     supabase
       .from('installations')
       .select('id, customer_name, status, scheduled_date, assigned_to, assignee:profiles!installations_assigned_to_fkey(name)')
       .not('scheduled_date', 'is', null),
+    supabase.from('profiles').select('id, name').eq('role', 'tech'),
   ])
 
   const isResponsibleOrLead = profile?.approval_role === 'team_lead' || !!profile?.approval_role?.endsWith('_responsible')
@@ -47,6 +48,7 @@ export default async function CalendarPage() {
           wooRows={(wooRows ?? []) as any}
           manualEvents={(manualEvents ?? []) as any}
           installRows={(installRows ?? []) as any}
+          techProfiles={(techUsers ?? []) as any}
           currentUserId={user.id}
           canViewAssigned={isResponsibleOrLead}
         />

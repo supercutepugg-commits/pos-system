@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { TYPE_LABEL, STATUS_LABEL, STATUS_COLOR, type TicketStatus, type TicketType } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
+import { createInstallation } from '../installs/actions'
 
 interface CalendarTicket {
   id: string
@@ -149,6 +150,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
   const [month, setMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [localManualEvents, setLocalManualEvents] = useState(manualEvents)
+  const [localInstallRows, setLocalInstallRows] = useState(installRows)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newMemo, setNewMemo] = useState('')
@@ -174,6 +176,25 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
   async function handleAddEvent() {
     if (!selectedDate || !newTitle.trim()) return
     setSubmitting(true)
+
+    if (newCategory === '설치' || newCategory === '택배발송') {
+      const result = await createInstallation({
+        customerName: newTitle.trim(),
+        customerPhone: null,
+        assignedTo: newAssignedTo || null,
+        notes: newMemo.trim() || null,
+        items: [],
+        deliveryType: newCategory === '택배발송' ? 'delivery' : 'install',
+        scheduledDate: selectedDate,
+      })
+      setSubmitting(false)
+      if (result.error || !result.installation) { toast.error('설치건 등록 실패: ' + result.error); return }
+      const assignee = newAssignedTo ? techProfiles.find(t => t.id === newAssignedTo) ?? null : null
+      setLocalInstallRows(prev => [...prev, { ...result.installation, assignee } as CalendarInstallRow])
+      resetAddForm()
+      return
+    }
+
     const supabase = createClient()
     const { data, error } = await supabase
       .from('calendar_events')
@@ -182,7 +203,6 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         title: newTitle.trim(),
         memo: newMemo.trim() || null,
         category: newCategory,
-        assigned_to: newCategory === '설치' ? (newAssignedTo || null) : null,
         created_by: currentUserId,
       })
       .select('id, date, title, memo, category, assigned_to, created_by, assignee:profiles!calendar_events_assigned_to_fkey(name)')
@@ -245,7 +265,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         })
       }
     }
-    for (const row of installRows) {
+    for (const row of localInstallRows) {
       const date = toYMD(row.scheduled_date)
       if (!date) continue
       if (!map[date]) map[date] = []
@@ -316,7 +336,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
       })
     }
     return map
-  }, [tickets, franchiseRows, wooRows, installRows, localManualEvents])
+  }, [tickets, franchiseRows, wooRows, localInstallRows, localManualEvents])
 
   const tabFilteredEventMap = useMemo(() => {
     if (activeTab === 'all') return eventMap
@@ -548,7 +568,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                   placeholder="메모 (선택)"
                   className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-400"
                 />
-                {newCategory === '설치' && (
+                {(newCategory === '설치' || newCategory === '택배발송') && (
                   <select
                     value={newAssignedTo}
                     onChange={e => setNewAssignedTo(e.target.value)}

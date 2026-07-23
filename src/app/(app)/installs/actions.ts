@@ -36,6 +36,7 @@ export async function createInstallation(input: {
   notes: string | null
   items: { name: string; quantity: number }[]
   deliveryType: string
+  scheduledDate?: string | null
 }) {
   const editor = await getInstallationEditor()
   if ('error' in editor) return { error: editor.error, installation: null }
@@ -52,6 +53,7 @@ export async function createInstallation(input: {
     notes: input.notes,
     items: input.items,
     delivery_type: input.deliveryType,
+    scheduled_date: input.scheduledDate || null,
     created_by: editor.user.id,
     status: 'received',
     sort_order: Date.now(),

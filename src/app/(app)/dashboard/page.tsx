@@ -32,6 +32,14 @@ type TransferApproval = {
   franchise: { id: string; business_name: string | null; owner_name: string | null; address: string | null; phone: string | null } | null
 }
 
+type RejectedTransfer = {
+  franchise_application_id: string
+  updated_at: string
+  rejection_reason: string | null
+  approval_notes: ApprovalNote[]
+  franchise: { id: string; business_name: string | null; owner_name: string | null; address: string | null; phone: string | null } | null
+}
+
 const INSTALL_STEP_LABEL: Record<string, string> = {
   preparing: '제품준비', scheduled: '일정확정', in_transit: '출발', delivery_sent: '택배발송', completed: '완료',
 }
@@ -136,6 +144,14 @@ export default async function DashboardPage() {
       .limit(5)
     : null
 
+  const rejectedTransferQuery = supabase
+    .from('franchise_transfer_approvals')
+    .select('franchise_application_id, updated_at, rejection_reason, approval_notes, franchise:franchise_applications(id, business_name, owner_name, address, phone)')
+    .eq('status', 'rejected')
+    .eq('requested_by', userId)
+    .order('updated_at', { ascending: false })
+    .limit(5)
+
   const [
     { count: unassignedFranchise },
     { count: unassignedInstall },
@@ -146,6 +162,7 @@ export default async function DashboardPage() {
     { data: completedInstalls },
     completionApprovalsResult,
     transferApprovalsResult,
+    rejectedTransfersResult,
   ] = await Promise.all([
     (p.role === 'admin' || p.role === 'master') ? unassignedFranchiseQuery : Promise.resolve({ count: 0 }),
     (p.role === 'admin' || p.role === 'master') ? unassignedInstallQuery : Promise.resolve({ count: 0 }),
@@ -156,6 +173,7 @@ export default async function DashboardPage() {
     avgDaysQuery,
     completionApprovalQuery ?? Promise.resolve({ data: [] as CompletionApproval[] }),
     transferApprovalQuery ?? Promise.resolve({ data: [] as TransferApproval[] }),
+    rejectedTransferQuery,
   ])
 
   const monthlyStats: { label: string; total: number; done: number }[] = []
@@ -188,6 +206,7 @@ export default async function DashboardPage() {
   const todayFranchise = (todayFranchiseResult.data ?? []) as any[]
   const completionApprovals = (completionApprovalsResult.data ?? []) as CompletionApproval[]
   const transferApprovals = (transferApprovalsResult.data ?? []) as TransferApproval[]
+  const rejectedTransfers = (rejectedTransfersResult.data ?? []) as unknown as RejectedTransfer[]
   const isApprover = ['cs_responsible', 'tech_responsible', 'team_lead'].includes(p.approval_role ?? '')
 
   return (
@@ -255,6 +274,44 @@ export default async function DashboardPage() {
               )}
             </>
           ) : <div className="px-6 py-4 text-sm text-slate-500">승인 대기 중인 요청이 없습니다.</div>}
+        </section>
+      )}
+
+      {rejectedTransfers.length > 0 && (
+        <section className="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-red-100">
+            <AlertTriangle size={18} className="text-red-600" />
+            <div>
+              <h2 className="font-bold text-slate-900">반려된 이관 요청</h2>
+              <p className="text-xs text-slate-500 mt-0.5">반려 사유를 확인하고 다시 요청해주세요.</p>
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {rejectedTransfers.map((item) => {
+              const rejectionNote = [...item.approval_notes]
+                .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                .find((note) => note.stage === 'rejection')
+              const reason = rejectionNote?.content ?? item.rejection_reason
+              return (
+                <Link
+                  key={item.franchise_application_id}
+                  href={`/franchise?highlight=${item.franchise_application_id}`}
+                  className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {item.franchise?.business_name || item.franchise?.owner_name || '가맹 접수 건'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">
+                      {rejectionNote ? `${rejectionNote.author_name} · ${reason}` : reason || '반려됨'}
+                    </p>
+                  </div>
+                  <ArrowRight size={16} className="text-slate-400" />
+                </Link>
+              )
+            })}
+          </div>
         </section>
       )}
 

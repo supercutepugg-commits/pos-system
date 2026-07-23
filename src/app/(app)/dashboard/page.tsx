@@ -8,6 +8,7 @@ import { FileEdit, Clock4, CheckCircle2, Flag, AlertTriangle, UserX, CalendarClo
 import ExcelDownloadButton from './ExcelDownloadButton'
 import ApprovalButton from './ApprovalButton'
 import TransferApprovalItem from './TransferApprovalItem'
+import RejectedTransferItem from './RejectedTransferItem'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 import type { ApprovalNote } from '@/lib/approvalNotes'
@@ -287,30 +288,15 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="divide-y divide-slate-100">
-            {rejectedTransfers.map((item) => {
-              const rejectionNote = [...item.approval_notes]
-                .sort((a, b) => b.created_at.localeCompare(a.created_at))
-                .find((note) => note.stage === 'rejection')
-              const reason = rejectionNote?.content ?? item.rejection_reason
-              return (
-                <Link
-                  key={item.franchise_application_id}
-                  href={`/franchise?highlight=${item.franchise_application_id}`}
-                  className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900 truncate">
-                      {item.franchise?.business_name || item.franchise?.owner_name || '가맹 접수 건'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">
-                      {rejectionNote ? `${rejectionNote.author_name} · ${reason}` : reason || '반려됨'}
-                    </p>
-                  </div>
-                  <ArrowRight size={16} className="text-slate-400" />
-                </Link>
-              )
-            })}
+            {rejectedTransfers.map((item) => (
+              <RejectedTransferItem
+                key={item.franchise_application_id}
+                id={item.franchise_application_id}
+                businessName={item.franchise?.business_name ?? null}
+                ownerName={item.franchise?.owner_name ?? null}
+                notes={item.approval_notes}
+              />
+            ))}
           </div>
         </section>
       )}

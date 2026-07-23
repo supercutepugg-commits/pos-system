@@ -504,7 +504,8 @@ export async function rescheduleInstallationByTeamLead(input: {
 }
 
 export async function rejectInstallationStatusApproval(installationId: string, reason: string) {
-  if (!validateApprovalNote(reason)) return { error: '반려 사유를 입력해주세요.', notificationError: null }
+  const trimmedReason = reason.trim()
+  if (trimmedReason.length > 2000) return { error: '반려 사유는 2,000자 이하로 입력해주세요.', notificationError: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
@@ -535,9 +536,11 @@ export async function rejectInstallationStatusApproval(installationId: string, r
     .from('installation_completion_approvals')
     .update({
       status: 'rejected',
-      approval_notes: appendApprovalNote(approval.approval_notes, {
-        id: user.id, name: profile!.name, role: expectedStatus === 'requested' ? 'tech_responsible' : 'team_lead',
-      }, reason, 'rejection'),
+      approval_notes: trimmedReason
+        ? appendApprovalNote(approval.approval_notes, {
+          id: user.id, name: profile!.name, role: expectedStatus === 'requested' ? 'tech_responsible' : 'team_lead',
+        }, reason, 'rejection')
+        : parseApprovalNotes(approval.approval_notes),
     })
     .eq('id', approval.id)
     .eq('status', expectedStatus)
@@ -549,7 +552,7 @@ export async function rejectInstallationStatusApproval(installationId: string, r
     action: 'step_approval_rejected',
     to_status: approval.target_status,
     approval_id: approval.id,
-    details: { reason: reason.trim() },
+    details: { reason: trimmedReason },
   })
   if (logError) {
     await admin.from('installation_completion_approvals').update({
@@ -559,13 +562,14 @@ export async function rejectInstallationStatusApproval(installationId: string, r
     return { error: '감사 로그 저장에 실패해 반려를 취소했습니다: ' + logError.message, notificationError: null }
   }
 
-  const trimmedReason = reason.trim()
   const { error: notificationError } = await admin.from('notifications').insert({
     user_id: approval.requested_by,
     installation_id: installationId,
     type: 'approval_install_step_rejected',
     title: '[반려] 기술지원 단계 승인요청',
-    body: `${profile!.name}님이 ${APPROVAL_STATUS_LABEL[approval.target_status] ?? approval.target_status} 승인요청을 반려했습니다. 사유: ${trimmedReason}`,
+    body: trimmedReason
+      ? `${profile!.name}님이 ${APPROVAL_STATUS_LABEL[approval.target_status] ?? approval.target_status} 승인요청을 반려했습니다. 사유: ${trimmedReason}`
+      : `${profile!.name}님이 ${APPROVAL_STATUS_LABEL[approval.target_status] ?? approval.target_status} 승인요청을 반려했습니다.`,
   })
 
   revalidatePath('/dashboard')

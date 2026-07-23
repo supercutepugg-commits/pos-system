@@ -7,7 +7,7 @@ import {
   isInstallationDeliveryType,
   type InstallationDeliveryType,
 } from '@/lib/installationDeliveryType'
-import { appendApprovalNote, validateApprovalNote } from '@/lib/approvalNotes'
+import { appendApprovalNote, parseApprovalNotes, validateApprovalNote } from '@/lib/approvalNotes'
 
 async function getApprover(requiredRole: 'cs_responsible' | 'tech_responsible' | 'team_lead') {
   const supabase = await createClient()
@@ -193,7 +193,8 @@ export async function approveCsResponsibleTransfer(franchiseApplicationId: strin
 }
 
 export async function rejectFranchiseTransfer(franchiseApplicationId: string, reason: string) {
-  if (!validateApprovalNote(reason)) return { error: '반려 사유를 입력해주세요.' }
+  const trimmedReason = reason.trim()
+  if (trimmedReason.length > 2000) return { error: '반려 사유는 2,000자 이하로 입력해주세요.' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.' }
@@ -224,10 +225,12 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
     .from('franchise_transfer_approvals')
     .update({
       status: 'rejected',
-      rejection_reason: reason.trim() || null,
-      approval_notes: appendApprovalNote(approval.approval_notes, {
-        id: user.id, name: profile?.name ?? null, role: expectedStatus === 'requested' ? 'cs_responsible' : 'team_lead',
-      }, reason, 'rejection'),
+      rejection_reason: trimmedReason || null,
+      approval_notes: trimmedReason
+        ? appendApprovalNote(approval.approval_notes, {
+          id: user.id, name: profile?.name ?? null, role: expectedStatus === 'requested' ? 'cs_responsible' : 'team_lead',
+        }, reason, 'rejection')
+        : parseApprovalNotes(approval.approval_notes),
     })
     .eq('franchise_application_id', franchiseApplicationId)
     .eq('status', expectedStatus)
@@ -238,7 +241,7 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
     user_id: user.id,
     from_status: expectedStatus === 'requested' ? 'transfer_approval_requested' : 'transfer_cs_responsible_approved',
     to_status: expectedStatus === 'requested' ? 'transfer_cs_responsible_rejected' : 'transfer_team_lead_rejected',
-    details: { rejection_reason: reason.trim() || null },
+    details: { rejection_reason: trimmedReason || null },
   })
   if (logError) {
     await admin.from('franchise_transfer_approvals').update({
@@ -250,7 +253,6 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
     return { error: '감사 로그 저장에 실패해 반려를 취소했습니다: ' + logError.message }
   }
 
-  const trimmedReason = reason.trim()
   const { error: notificationError } = await admin.from('notifications').insert({
     user_id: approval.requested_by,
     franchise_application_id: franchiseApplicationId,

@@ -852,8 +852,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const isTeamLead = profile.approval_role === 'team_lead' && approval.status === 'responsible_approved'
     if (!isResponsible && !isTeamLead) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
     if (approval.requested_by === profile.id) { toast.warning('요청자는 직접 반려할 수 없습니다.'); return }
-    const reason = window.prompt('반려 사유를 입력해주세요.')?.trim()
-    if (!reason) return
+    const reason = window.prompt('반려 사유를 입력해주세요. (선택 사항, 비워두어도 반려할 수 있습니다)')?.trim()
+    if (reason === undefined) return
     setCompleting(true)
     const result = await rejectInstallationStatusApproval(id, reason)
     setCompleting(false)

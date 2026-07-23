@@ -77,13 +77,13 @@ export default function ApprovalButton({ type, id, notes = [] }: { type: 'comple
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => !isRejecting && setShowReject(false)}>
         <section className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={event => event.stopPropagation()}>
           <h2 className="text-lg font-bold text-slate-900">승인요청 반려</h2>
-          <p className="mt-1 text-sm text-slate-500">요청자에게 전달할 반려 사유를 입력해주세요.</p>
-          <label className="mt-4 block text-sm font-semibold text-slate-700">반려 사유 <span className="text-red-500">*</span></label>
+          <p className="mt-1 text-sm text-slate-500">요청자에게 전달할 반려 사유를 입력해주세요. (선택 사항)</p>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">반려 사유</label>
           <textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} maxLength={2000} rows={4} placeholder="반려 사유를 입력해주세요." className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100" />
           <p className="mt-1 text-right text-xs text-slate-400">{rejectReason.length}/2,000</p>
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" onClick={() => setShowReject(false)} disabled={isRejecting} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
-            <button type="button" onClick={reject} disabled={!rejectReason.trim() || isRejecting} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{isRejecting ? '반려 중...' : '반려 처리'}</button>
+            <button type="button" onClick={reject} disabled={isRejecting} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{isRejecting ? '반려 중...' : '반려 처리'}</button>
           </div>
         </section>
       </div>

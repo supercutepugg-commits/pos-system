@@ -14,7 +14,6 @@ const MAX_APPROVAL_NOTE_LENGTH = 2000
 
 export function validateApprovalNote(content: string): string | null {
   const note = content.trim()
-  if (!note) return null
   if (note.length > MAX_APPROVAL_NOTE_LENGTH) return null
   return note
 }
@@ -41,7 +40,8 @@ export function appendApprovalNote(
   stage: ApprovalNoteStage,
 ): ApprovalNote[] {
   const note = validateApprovalNote(content)
-  if (!note) throw new Error('비고는 1자 이상 2,000자 이하로 입력해주세요.')
+  if (note === null) throw new Error('비고는 2,000자 이하로 입력해주세요.')
+  if (!note) return parseApprovalNotes(value)
 
   const createdAt = new Date().toISOString()
   return [

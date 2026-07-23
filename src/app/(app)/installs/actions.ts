@@ -209,8 +209,8 @@ export async function requestInstallationStatusApproval(input: {
   skipNotify?: boolean
   note: string
 }) {
-  if (!validateApprovalNote(input.note)) {
-    return { error: '다음 승인자에게 전달할 비고를 입력해주세요.', approvalId: null, approvalStatus: null }
+  if (validateApprovalNote(input.note) === null) {
+    return { error: '비고는 2,000자 이하로 입력해주세요.', approvalId: null, approvalStatus: null }
   }
   const editor = await getInstallationEditor()
   if ('error' in editor) return { error: editor.error, approvalId: null, approvalStatus: null }
@@ -308,7 +308,7 @@ export async function requestInstallationCompletion(installationId: string, note
 }
 
 export async function approveInstallationCompletion(installationId: string, note: string) {
-  if (!validateApprovalNote(note)) return { error: '팀장에게 전달할 비고를 입력해주세요.', notificationError: null }
+  if (validateApprovalNote(note) === null) return { error: '비고는 2,000자 이하로 입력해주세요.', notificationError: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
@@ -388,7 +388,7 @@ export async function approveInstallationCompletion(installationId: string, note
 }
 
 export async function approveInstallationStatusByTeamLead(installationId: string, note: string) {
-  if (!validateApprovalNote(note)) return { error: '최종 전달 비고를 입력해주세요.', notificationError: null }
+  if (validateApprovalNote(note) === null) return { error: '비고는 2,000자 이하로 입력해주세요.', notificationError: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
@@ -464,7 +464,7 @@ export async function rescheduleInstallationByTeamLead(input: {
   note: string
   skipNotify?: boolean
 }) {
-  if (!validateApprovalNote(input.note)) return { error: '변경 사유를 입력해주세요.', notificationError: null }
+  if (validateApprovalNote(input.note) === null) return { error: '비고는 2,000자 이하로 입력해주세요.', notificationError: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }

@@ -40,7 +40,7 @@ export default function ApprovalButton({ type, id, notes = [] }: { type: 'comple
   }
 
   function approve() {
-    if (!note.trim() || (type === 'transfer' && !deliveryType)) return
+    if (type === 'transfer' && !deliveryType) return
     startTransition(async () => {
       const result = type === 'completion'
         ? await approveInstallationCompletion(id, note)
@@ -103,12 +103,12 @@ export default function ApprovalButton({ type, id, notes = [] }: { type: 'comple
             {INSTALLATION_DELIVERY_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           </>}
-          <label className="mt-4 block text-sm font-semibold text-slate-700">전달 비고 <span className="text-red-500">*</span></label>
-          <textarea value={note} onChange={event => setNote(event.target.value)} maxLength={2000} rows={4} placeholder="다음 승인자가 확인할 내용을 입력해주세요." className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+          <label className="mt-4 block text-sm font-semibold text-slate-700">전달 비고</label>
+          <textarea value={note} onChange={event => setNote(event.target.value)} maxLength={2000} rows={4} placeholder="다음 승인자가 확인할 내용을 입력해주세요. (선택 사항)" className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
           <p className="mt-1 text-right text-xs text-slate-400">{note.length}/2,000</p>
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" onClick={() => setShowApproval(false)} disabled={isPending} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
-            <button type="button" onClick={approve} disabled={!note.trim() || (type === 'transfer' && !deliveryType) || isPending} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{isPending ? '승인 중...' : '비고 남기고 승인'}</button>
+            <button type="button" onClick={approve} disabled={(type === 'transfer' && !deliveryType) || isPending} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{isPending ? '승인 중...' : '비고 남기고 승인'}</button>
           </div>
         </section>
       </div>

@@ -25,7 +25,7 @@ async function getApprover(requiredRole: 'cs_responsible' | 'tech_responsible' |
 }
 
 export async function requestFranchiseTransfer(franchiseApplicationId: string, note: string) {
-  if (!validateApprovalNote(note)) return { error: '다음 승인자에게 전달할 비고를 입력해주세요.' }
+  if (validateApprovalNote(note) === null) return { error: '비고는 2,000자 이하로 입력해주세요.' }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.' }
@@ -129,7 +129,7 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string, n
 }
 
 export async function approveCsResponsibleTransfer(franchiseApplicationId: string, note: string) {
-  if (!validateApprovalNote(note)) return { error: '팀장에게 전달할 비고를 입력해주세요.' }
+  if (validateApprovalNote(note) === null) return { error: '비고는 2,000자 이하로 입력해주세요.' }
   const approver = await getApprover('cs_responsible')
   if ('error' in approver) return approver
 
@@ -271,7 +271,7 @@ export async function approveFranchiseTransfer(
   deliveryType: InstallationDeliveryType,
   note: string,
 ) {
-  if (!validateApprovalNote(note)) return { error: '기술지원에 전달할 비고를 입력해주세요.' }
+  if (validateApprovalNote(note) === null) return { error: '비고는 2,000자 이하로 입력해주세요.' }
   const approver = await getApprover('team_lead')
   if ('error' in approver) return approver
   if (!isInstallationDeliveryType(deliveryType)) {

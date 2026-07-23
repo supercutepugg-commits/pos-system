@@ -761,6 +761,13 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkTransferring, setBulkTransferring] = useState(false)
   const [teamLeadTransferRow, setTeamLeadTransferRow] = useState<FranchiseApplication | null>(null)
   const [teamLeadDeliveryType, setTeamLeadDeliveryType] = useState<InstallationDeliveryType | ''>('')
+  const [teamLeadTransferNote, setTeamLeadTransferNote] = useState('')
+  const [csApprovalRow, setCsApprovalRow] = useState<FranchiseApplication | null>(null)
+  const [csApprovalNote, setCsApprovalNote] = useState('')
+  const [transferRequestRow, setTransferRequestRow] = useState<FranchiseApplication | null>(null)
+  const [transferRequestNote, setTransferRequestNote] = useState('')
+  const [bulkTransferNoteModal, setBulkTransferNoteModal] = useState(false)
+  const [bulkTransferNote, setBulkTransferNote] = useState('')
   const [transferApprovals, setTransferApprovals] = useState(initialTransferApprovals)
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
@@ -1389,13 +1396,20 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setSelected(new Set())
   }
 
-  async function requestTransferApproval(row: FranchiseApplication) {
+  function requestTransferApproval(row: FranchiseApplication) {
     if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
     if (existing && existing.status !== 'rejected' && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
+    setTransferRequestNote('')
+    setTransferRequestRow(row)
+  }
+
+  async function submitTransferRequest() {
+    const row = transferRequestRow
+    if (!row) return
+    const note = transferRequestNote.trim()
     const requestedByResponsible = currentUserApprovalRole === 'cs_responsible'
-    const note = window.prompt(requestedByResponsible ? '팀장에게 전달할 비고를 입력해주세요.' : 'CS책임에게 전달할 비고를 입력해주세요.')?.trim()
-    if (!note) return false
+    const existing = transferApprovals[row.id]
     const approvalStatus = requestedByResponsible ? 'cs_responsible_approved' as const : 'requested' as const
     const approvalNotes = appendApprovalNote(existing?.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'request')
     const approval = {
@@ -1416,50 +1430,68 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setTransferringId(row.id)
     const result = await requestFranchiseTransfer(row.id, note)
     setTransferringId(null)
-    if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
+    if (result.error) { toast.error('승인요청 실패: ' + result.error); return }
     if (result.notificationError) {
       toast.warning(`승인요청은 등록됐지만 ${requestedByResponsible ? '팀장' : 'CS책임'} 팝업 알림에 실패했습니다: ` + result.notificationError)
     }
     setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
     toast.success(requestedByResponsible ? '팀장 최종 승인요청을 등록했습니다.' : '기술지원 이관 승인요청을 등록했습니다.')
-    return true
+    setTransferRequestRow(null)
+    setTransferRequestNote('')
   }
 
-  async function approveTransfer(row: FranchiseApplication, deliveryType?: InstallationDeliveryType) {
+  function approveTransfer(row: FranchiseApplication) {
     const approval = transferApprovals[row.id]
     if (!approval) return
     if (approval.requested_by === currentUserId) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
     const isCsResponsibleApproval = currentUserApprovalRole === 'cs_responsible' && approval.status === 'requested'
     const isTeamLeadApproval = currentUserApprovalRole === 'team_lead' && approval.status === 'cs_responsible_approved'
     if (!isCsResponsibleApproval && !isTeamLeadApproval) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
-    if (isTeamLeadApproval && !deliveryType) {
+    if (isTeamLeadApproval) {
       setTeamLeadDeliveryType('')
+      setTeamLeadTransferNote('')
       setTeamLeadTransferRow(row)
       return
     }
-    const note = window.prompt(isCsResponsibleApproval ? '팀장에게 전달할 비고를 입력해주세요.' : '기술지원에 전달할 최종 비고를 입력해주세요.')?.trim()
-    if (!note) return
+    setCsApprovalNote('')
+    setCsApprovalRow(row)
+  }
+
+  async function submitCsApproval() {
+    const row = csApprovalRow
+    const approval = row && transferApprovals[row.id]
+    if (!row || !approval) return
+    const note = csApprovalNote.trim()
     setTransferringId(row.id)
-    if (isCsResponsibleApproval) {
-      const result = await approveCsResponsibleTransfer(row.id, note)
-      setTransferringId(null)
-      if (result.error) { toast.error('승인 실패: ' + result.error); return }
-      if ('notificationError' in result && result.notificationError) {
-        toast.warning('1차 승인은 완료됐지만 팀장 팝업 알림에 실패했습니다: ' + result.notificationError)
-      }
-      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임', approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'first_approval') } }))
-      toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
-      return
+    const result = await approveCsResponsibleTransfer(row.id, note)
+    setTransferringId(null)
+    if (result.error) { toast.error('승인 실패: ' + result.error); return }
+    if ('notificationError' in result && result.notificationError) {
+      toast.warning('1차 승인은 완료됐지만 팀장 팝업 알림에 실패했습니다: ' + result.notificationError)
     }
-    const result = await approveFranchiseTransfer(row.id, deliveryType as InstallationDeliveryType, note)
+    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임', approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'first_approval') } }))
+    toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
+    setCsApprovalRow(null)
+    setCsApprovalNote('')
+  }
+
+  async function submitTeamLeadTransfer() {
+    const row = teamLeadTransferRow
+    const approval = row && transferApprovals[row.id]
+    if (!row || !approval || !teamLeadDeliveryType) return
+    const note = teamLeadTransferNote.trim()
+    const deliveryType = teamLeadDeliveryType as InstallationDeliveryType
+    setTransferringId(row.id)
+    const result = await approveFranchiseTransfer(row.id, deliveryType, note)
     setTransferringId(null)
     if (result.error) { toast.error('승인 실패: ' + result.error); return }
     if ('notificationError' in result && result.notificationError) {
       toast.warning('이관은 완료됐지만 기술지원 내부 알림에 실패했습니다: ' + result.notificationError)
     }
     const approvedAt = new Date().toISOString()
-    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', delivery_type: deliveryType ?? null, approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt, approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'final_approval') } }))
+    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', delivery_type: deliveryType, approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt, approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'final_approval') } }))
     setTeamLeadTransferRow(null)
+    setTeamLeadTransferNote('')
     const supabase = createClient()
     const { data: linkedInstall } = await supabase.from('installations').select('id,status').eq('franchise_application_id', row.id).maybeSingle()
     if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
@@ -1474,7 +1506,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return 'skip'
   }
 
-  async function handleBulkTransfer() {
+  function handleBulkTransfer() {
     const targetRows = localRows.filter(r => selected.has(r.id))
     const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
     const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
@@ -1482,8 +1514,16 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       toast.warning('이관 가능한 건이 없습니다. 이미 모두 이관된 상태입니다.')
       return
     }
-    const note = window.prompt('선택한 모든 이관 건에 적용할 전달 비고를 입력해주세요.')?.trim()
-    if (!note) return
+    setBulkTransferNote('')
+    setBulkTransferNoteModal(true)
+  }
+
+  async function submitBulkTransfer() {
+    const note = bulkTransferNote.trim()
+    const targetRows = localRows.filter(r => selected.has(r.id))
+    const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
+    const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
+    setBulkTransferNoteModal(false)
     setBulkTransferring(true)
     const rows = [...toInsert, ...toUpdate]
     const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id, note) })))
@@ -1721,9 +1761,68 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
                 {INSTALLATION_DELIVERY_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">기술지원에 전달할 비고</label>
+              <textarea value={teamLeadTransferNote} onChange={event => setTeamLeadTransferNote(event.target.value)} maxLength={2000} rows={4} placeholder="기술지원이 확인할 내용을 입력해주세요. (선택 사항)" className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              <p className="mt-1 text-right text-xs text-slate-400">{teamLeadTransferNote.length}/2,000</p>
+            </div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setTeamLeadTransferRow(null)} disabled={!!transferringId} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
-              <button type="button" onClick={() => teamLeadDeliveryType && approveTransfer(teamLeadTransferRow, teamLeadDeliveryType)} disabled={!teamLeadDeliveryType || !!transferringId} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{transferringId ? '승인 중...' : '구분 선택 후 최종 승인'}</button>
+              <button type="button" onClick={submitTeamLeadTransfer} disabled={!teamLeadDeliveryType || !!transferringId} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{transferringId ? '승인 중...' : '구분 선택 후 최종 승인'}</button>
+            </div>
+          </div>
+        </FormModal>
+      )}
+
+      {transferRequestRow && (
+        <FormModal title="기술지원 이관 승인요청" onClose={() => !transferringId && setTransferRequestRow(null)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {transferRequestRow.business_name || transferRequestRow.owner_name || transferRequestRow.id}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">{currentUserApprovalRole === 'cs_responsible' ? '팀장에게 전달할 비고' : 'CS책임에게 전달할 비고'}</label>
+              <textarea value={transferRequestNote} onChange={event => setTransferRequestNote(event.target.value)} maxLength={2000} rows={4} placeholder="다음 승인자가 확인할 내용을 입력해주세요. (선택 사항)" className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              <p className="mt-1 text-right text-xs text-slate-400">{transferRequestNote.length}/2,000</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setTransferRequestRow(null)} disabled={!!transferringId} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+              <button type="button" onClick={submitTransferRequest} disabled={!!transferringId} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{transferringId ? '요청 중...' : '승인요청'}</button>
+            </div>
+          </div>
+        </FormModal>
+      )}
+
+      {csApprovalRow && (
+        <FormModal title="이관 승인" onClose={() => !transferringId && setCsApprovalRow(null)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {csApprovalRow.business_name || csApprovalRow.owner_name || csApprovalRow.id}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">팀장에게 전달할 비고</label>
+              <textarea value={csApprovalNote} onChange={event => setCsApprovalNote(event.target.value)} maxLength={2000} rows={4} placeholder="팀장이 확인할 내용을 입력해주세요. (선택 사항)" className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              <p className="mt-1 text-right text-xs text-slate-400">{csApprovalNote.length}/2,000</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setCsApprovalRow(null)} disabled={!!transferringId} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+              <button type="button" onClick={submitCsApproval} disabled={!!transferringId} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{transferringId ? '승인 중...' : '승인'}</button>
+            </div>
+          </div>
+        </FormModal>
+      )}
+
+      {bulkTransferNoteModal && (
+        <FormModal title="일괄 기술지원 이관 비고" onClose={() => !bulkTransferring && setBulkTransferNoteModal(false)}>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">선택한 모든 이관 건에 적용할 전달 비고</label>
+              <textarea value={bulkTransferNote} onChange={event => setBulkTransferNote(event.target.value)} maxLength={2000} rows={4} placeholder="다음 승인자가 확인할 내용을 입력해주세요. (선택 사항)" className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              <p className="mt-1 text-right text-xs text-slate-400">{bulkTransferNote.length}/2,000</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setBulkTransferNoteModal(false)} disabled={bulkTransferring} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+              <button type="button" onClick={submitBulkTransfer} disabled={bulkTransferring} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{bulkTransferring ? '요청 중...' : '승인요청'}</button>
             </div>
           </div>
         </FormModal>

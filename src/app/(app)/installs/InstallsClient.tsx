@@ -463,7 +463,23 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [rowDragId, setRowDragId] = useState<string | null>(null)
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [savingRowId, setSavingRowId] = useState<string | null>(null)
+  const [notePrompt, setNotePrompt] = useState<{ title: string; placeholder?: string; value: string } | null>(null)
+  const notePromptResolveRef = useRef<((value: string | null) => void) | null>(null)
   const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS)
+
+  function promptNote(title: string, options?: { placeholder?: string }): Promise<string | null> {
+    return new Promise(resolve => {
+      notePromptResolveRef.current = resolve
+      setNotePrompt({ title, placeholder: options?.placeholder, value: '' })
+    })
+  }
+
+  function resolveNotePrompt(value: string | null) {
+    const resolve = notePromptResolveRef.current
+    notePromptResolveRef.current = null
+    setNotePrompt(null)
+    resolve?.(value)
+  }
 
   const supabase = createClient()
 
@@ -590,8 +606,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     : '기술지원책임에게 전달할 비고를 입력해주세요.'
 
   async function requestStepApproval(id: string, targetStatus: string) {
-    const note = window.prompt(approvalRequestPrompt)?.trim()
-    if (!note) return false
+    const note = await promptNote(approvalRequestPrompt)
+    if (note === null) return false
     const result = await requestInstallationStatusApproval({ installationId: id, targetStatus, note, skipNotify })
     if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
     const nextApproval = pendingApproval(id, targetStatus, note, result.approvalStatus ?? 'requested')
@@ -607,8 +623,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setSendingTransit(true)
     const { id, eta } = transitModal
     const sendEta = skipEta ? undefined : (eta.trim() || undefined)
-    const note = window.prompt(approvalRequestPrompt)?.trim()
-    if (!note) { setSendingTransit(false); return }
+    const note = await promptNote(approvalRequestPrompt)
+    if (note === null) { setSendingTransit(false); return }
     const result = await requestInstallationStatusApproval({
       installationId: id,
       targetStatus: 'in_transit',
@@ -634,8 +650,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const effectiveSkipNotify = isReschedule ? true : skipNotify
 
     if (profile.approval_role === 'team_lead') {
-      const note = window.prompt('변경 사유를 입력해주세요.')?.trim()
-      if (!note) { setSendingSchedule(false); return }
+      const note = await promptNote('변경 사유를 입력해주세요.')
+      if (note === null) { setSendingSchedule(false); return }
       const result = await rescheduleInstallationByTeamLead({ installationId: id, scheduledDate: date, scheduledTime: time, note, skipNotify: effectiveSkipNotify })
       if (result.error) { setSendingSchedule(false); toast.error('일정 변경 실패: ' + result.error); return }
       setInstalls(prev => prev.map(item => item.id === id ? { ...item, status: 'scheduled', scheduled_date: date, scheduled_time: time } : item))
@@ -646,8 +662,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       return
     }
 
-    const note = window.prompt(approvalRequestPrompt)?.trim()
-    if (!note) { setSendingSchedule(false); return }
+    const note = await promptNote(approvalRequestPrompt)
+    if (note === null) { setSendingSchedule(false); return }
     const result = await requestInstallationStatusApproval({
       installationId: id,
       targetStatus: 'scheduled',
@@ -721,8 +737,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       toast.warning('설치완료 승인요청은 기술지원매니저 또는 기술지원책임만 등록할 수 있습니다.')
       return
     }
-    const approvalNote = window.prompt(approvalRequestPrompt)?.trim()
-    if (!approvalNote) return
+    const approvalNote = await promptNote(approvalRequestPrompt)
+    if (approvalNote === null) return
 
 
     if (completingRef.current) return
@@ -820,8 +836,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const isTeamLead = profile.approval_role === 'team_lead' && approval.status === 'responsible_approved'
     if (!isResponsible && !isTeamLead) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
     if (approval.requested_by === profile.id) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
-    const note = window.prompt(isResponsible ? '팀장에게 전달할 비고를 입력해주세요.' : '최종 전달 비고를 입력해주세요.')?.trim()
-    if (!note) return
+    const note = await promptNote(isResponsible ? '팀장에게 전달할 비고를 입력해주세요.' : '최종 전달 비고를 입력해주세요.')
+    if (note === null) return
     setCompleting(true)
     const result = isResponsible
       ? await approveInstallationCompletion(id, note)
@@ -858,8 +874,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const isTeamLead = profile.approval_role === 'team_lead' && approval.status === 'responsible_approved'
     if (!isResponsible && !isTeamLead) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
     if (approval.requested_by === profile.id) { toast.warning('요청자는 직접 반려할 수 없습니다.'); return }
-    const reason = window.prompt('반려 사유를 입력해주세요. (선택 사항, 비워두어도 반려할 수 있습니다)')?.trim()
-    if (reason === undefined) return
+    const reason = await promptNote('반려 사유를 입력해주세요.', { placeholder: '반려 사유 (선택 사항, 비워두어도 반려할 수 있습니다)' })
+    if (reason === null) return
     setCompleting(true)
     const result = await rejectInstallationStatusApproval(id, reason)
     setCompleting(false)
@@ -1249,6 +1265,29 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       )}
 
       {}
+      {notePrompt && (
+        <FormModal title={notePrompt.title} onClose={() => resolveNotePrompt(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">비고</label>
+              <textarea
+                autoFocus
+                value={notePrompt.value}
+                onChange={e => setNotePrompt(prev => prev ? { ...prev, value: e.target.value } : prev)}
+                maxLength={2000}
+                rows={4}
+                placeholder={notePrompt.placeholder ?? '내용을 입력해주세요. (선택 사항)'}
+                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              />
+              <p className="mt-1 text-right text-xs text-slate-400">{notePrompt.value.length}/2,000</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => resolveNotePrompt(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+              <button type="button" onClick={() => resolveNotePrompt(notePrompt.value.trim())} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">확인</button>
+            </div>
+          </div>
+        </FormModal>
+      )}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">

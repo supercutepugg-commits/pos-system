@@ -1309,7 +1309,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       {scheduleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
-            <p className="text-sm font-bold text-slate-800">설치 일정을 확정하시나요?</p>
+            <p className="text-sm font-bold text-slate-800">{scheduleModal.isReschedule ? '설치 일정을 변경하시나요?' : '설치 일정을 확정하시나요?'}</p>
             <div>
               <label className="block text-xs text-slate-500 mb-1">설치 예정일</label>
               <input
@@ -1328,13 +1328,17 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
               />
             </div>
-            <p className="text-xs text-slate-400 -mt-2">※ 설치 예정일만 입력해도 확정/발송할 수 있습니다. 시간대는 선택 입력입니다.</p>
+            <p className="text-xs text-slate-400 -mt-2">
+              {scheduleModal.isReschedule
+                ? '※ 예정일만 입력해도 변경할 수 있습니다. 시간대는 선택 입력이며, 고객에게 알림톡은 발송되지 않습니다.'
+                : '※ 설치 예정일만 입력해도 확정/발송할 수 있습니다. 시간대는 선택 입력입니다.'}
+            </p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => submitSchedule()}
                 disabled={sendingSchedule || !scheduleModal.date.trim()}
                 className="w-full py-2 rounded-lg bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 disabled:opacity-50"
-              >{sendingSchedule ? '처리 중...' : '일정 확정하고 발송'}</button>
+              >{sendingSchedule ? '처리 중...' : scheduleModal.isReschedule ? '일정 변경하기' : '일정 확정하고 발송'}</button>
               <button
                 onClick={() => setScheduleModal(null)}
                 className="w-full py-2 rounded-lg text-slate-400 text-sm hover:text-slate-600"

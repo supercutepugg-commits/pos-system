@@ -1569,6 +1569,12 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           {statusOrderFor(inst.delivery_type).map(s => <option key={s} value={s}>{statusLabel(s, inst.delivery_type)}</option>)}
                         </select>
                         {!!approvalNoteHistory[inst.id]?.length && <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3"><p className="mb-2 text-xs font-semibold text-blue-700">승인 비고 이력</p><ApprovalNoteTimeline notes={approvalNoteHistory[inst.id]!} /></div>}
+                        {inst.status !== 'completed' && inst.status !== 'rejected' && (
+                          <button onClick={() => handleStatusChange(inst.id, 'scheduled')} disabled={!!completionApprovals[inst.id]}
+                            className="w-full text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 px-3 py-2 rounded-lg">
+                            일정변경
+                          </button>
+                        )}
                         {inst.status !== 'completed' && (
                           <button onClick={() => setTransitModal({ id: inst.id, eta: '' })}
                             className="w-full text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 px-3 py-2 rounded-lg">
@@ -1771,6 +1777,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                         )}
                         <button onClick={() => copyLink(inst.status_token)}
                           className="text-xs text-slate-500 border border-slate-200 px-2 py-1 rounded-lg hover:bg-slate-50">링크</button>
+                        {canEdit && inst.status !== 'completed' && inst.status !== 'rejected' && (
+                          <button onClick={() => handleStatusChange(inst.id, 'scheduled')} disabled={!!completionApprovals[inst.id]}
+                            className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded-lg hover:bg-indigo-50 disabled:opacity-50">일정변경</button>
+                        )}
                         {completionApprovals[inst.id] && (
                           ((profile.approval_role === 'tech_responsible' && completionApprovals[inst.id]!.status === 'requested') ||
                             (profile.approval_role === 'team_lead' && completionApprovals[inst.id]!.status === 'responsible_approved')) &&

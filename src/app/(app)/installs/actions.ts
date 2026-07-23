@@ -71,6 +71,7 @@ export async function createInstallation(input: {
     return { error: '감사 로그 저장에 실패해 등록을 취소했습니다: ' + logError.message, installation: null }
   }
   revalidatePath('/installs')
+  revalidatePath('/calendar')
   return { error: null, installation }
 }
 
@@ -152,6 +153,7 @@ export async function changeInstallationStatus(input: {
     })
   revalidatePath('/installs')
   revalidatePath('/installs/mine')
+  revalidatePath('/calendar')
   return { error: null, notificationError: notification.error }
 }
 
@@ -192,6 +194,7 @@ export async function changeInstallationAssignment(installationId: string, assig
   }
   revalidatePath('/installs')
   revalidatePath('/installs/mine')
+  revalidatePath('/calendar')
   return { error: null }
 }
 
@@ -448,6 +451,7 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   revalidatePath('/dashboard')
   revalidatePath('/installs')
   revalidatePath('/installs/mine')
+  revalidatePath('/calendar')
   return { error: null, notificationError: notification.error }
 }
 
@@ -564,5 +568,6 @@ export async function deleteInstallations(ids: string[]) {
 
   revalidatePath('/installs')
   revalidatePath('/installs/mine')
+  revalidatePath('/calendar')
   return { error: null }
 }

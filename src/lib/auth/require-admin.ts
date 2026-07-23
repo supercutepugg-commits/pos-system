@@ -43,3 +43,18 @@ export async function requireDeletePermission(): Promise<string | null> {
 
   return null
 }
+
+export async function requireApprovalResponsible(): Promise<string | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return '로그인이 필요합니다.'
+
+  const { data: profile } = await supabase.from('profiles').select('role, approval_role').eq('id', user.id).single()
+  if (!profile) return '권한이 없습니다.'
+  if (profile.role === 'admin' || profile.role === 'master') return null
+  if (!['cs_responsible', 'tech_responsible', 'team_lead'].includes(profile.approval_role ?? '')) {
+    return '권한이 없습니다.'
+  }
+
+  return null
+}

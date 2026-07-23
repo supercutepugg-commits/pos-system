@@ -1117,7 +1117,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       if (!deliveryOnly && (i as any).delivery_type === 'delivery') return false
       if (deliveryOnly && (i as any).delivery_type !== 'delivery') return false
       if (!deliveryOnly && deliveryTab !== 'all' && deliveryTypeOf((i as any).delivery_type) !== deliveryTab) return false
-      if (!showRejected && i.status === 'rejected') return false
+      if (!showRejected && i.status === 'rejected' && statusFilter !== 'rejected') return false
       if (!showCompleted && i.status === 'completed' && statusFilter !== 'completed') return false
       if (statusFilter && i.status !== statusFilter) return false
       if (techFilter && i.assigned_to !== techFilter) return false

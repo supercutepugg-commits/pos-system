@@ -27,6 +27,7 @@ import {
   changeInstallationStatus,
   createInstallation,
   deleteInstallations,
+  rejectInstallationStatusApproval,
   requestInstallationCompletion,
   requestInstallationStatusApproval,
 } from './actions'
@@ -827,6 +828,26 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     setCompleting(false)
     if (result.notificationError) toast.warning(`${isResponsible ? '팀장 팝업 알림' : '알림톡'} 처리에 실패했습니다: ` + result.notificationError)
     toast.success(isResponsible ? '기술지원책임 1차 승인 완료. 팀장 최종 승인을 기다립니다.' : `${statusLabel(approval.target_status)} 최종 승인 및 상태 반영이 완료됐습니다.`)
+  }
+
+  async function rejectCompletion(id: string) {
+    const approval = completionApprovals[id]
+    if (!approval || !['requested', 'responsible_approved'].includes(approval.status)) return
+    const isResponsible = profile.approval_role === 'tech_responsible' && approval.status === 'requested'
+    const isTeamLead = profile.approval_role === 'team_lead' && approval.status === 'responsible_approved'
+    if (!isResponsible && !isTeamLead) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
+    if (approval.requested_by === profile.id) { toast.warning('요청자는 직접 반려할 수 없습니다.'); return }
+    const reason = window.prompt('반려 사유를 입력해주세요.')?.trim()
+    if (!reason) return
+    setCompleting(true)
+    const result = await rejectInstallationStatusApproval(id, reason)
+    setCompleting(false)
+    if (result.error) { toast.error('반려 실패: ' + result.error); return }
+    if (result.notificationError) toast.warning('반려 처리되었지만 요청자 알림 전송에 실패했습니다: ' + result.notificationError)
+    setCompletionApprovals(prev => {
+      const next = { ...prev }; delete next[id]; return next
+    })
+    toast.success('승인 요청을 반려했습니다.')
   }
 
   function computeStampedNotes(prevNotes: string, notes: string): string | null {
@@ -1754,10 +1775,16 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                           ((profile.approval_role === 'tech_responsible' && completionApprovals[inst.id]!.status === 'requested') ||
                             (profile.approval_role === 'team_lead' && completionApprovals[inst.id]!.status === 'responsible_approved')) &&
                             completionApprovals[inst.id]!.requested_by !== profile.id ? (
-                            <button onClick={() => approveCompletion(inst.id)} disabled={completing}
-                              className="text-xs text-white bg-green-600 border border-green-600 px-2 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50">
-                              {statusLabel(completionApprovals[inst.id]!.target_status, inst.delivery_type)} {completionApprovals[inst.id]!.status === 'requested' ? '1차 승인' : '최종 승인'}
-                            </button>
+                            <>
+                              <button onClick={() => rejectCompletion(inst.id)} disabled={completing}
+                                className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50">
+                                반려
+                              </button>
+                              <button onClick={() => approveCompletion(inst.id)} disabled={completing}
+                                className="text-xs text-white bg-green-600 border border-green-600 px-2 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                                {statusLabel(completionApprovals[inst.id]!.target_status, inst.delivery_type)} {completionApprovals[inst.id]!.status === 'requested' ? '1차 승인' : '최종 승인'}
+                              </button>
+                            </>
                           ) : <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 px-2 py-1 rounded-lg">
                             {statusLabel(completionApprovals[inst.id]!.target_status, inst.delivery_type)} {completionApprovals[inst.id]!.status === 'requested' ? '1차 승인대기' : '최종 승인대기'}
                           </span>

@@ -5,18 +5,39 @@ import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { approveCsResponsibleTransfer, approveFranchiseTransfer } from './actions'
-import { approveInstallationCompletion, approveInstallationStatusByTeamLead } from '../installs/actions'
+import { approveInstallationCompletion, approveInstallationStatusByTeamLead, rejectInstallationStatusApproval } from '../installs/actions'
 import { INSTALLATION_DELIVERY_TYPE_OPTIONS, type InstallationDeliveryType } from '@/lib/installationDeliveryType'
 import ApprovalNoteTimeline from '@/components/ui/ApprovalNoteTimeline'
 import type { ApprovalNote } from '@/lib/approvalNotes'
 
 export default function ApprovalButton({ type, id, notes = [] }: { type: 'completion' | 'tech_final' | 'cs_transfer' | 'transfer'; id: string; notes?: ApprovalNote[] }) {
   const [isPending, startTransition] = useTransition()
+  const [isRejecting, startRejectTransition] = useTransition()
   const router = useRouter()
   const toast = useToast()
   const [showApproval, setShowApproval] = useState(false)
+  const [showReject, setShowReject] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
   const [deliveryType, setDeliveryType] = useState<InstallationDeliveryType | ''>('')
   const [note, setNote] = useState('')
+  const canReject = type === 'completion' || type === 'tech_final'
+
+  function reject() {
+    startRejectTransition(async () => {
+      const result = await rejectInstallationStatusApproval(id, rejectReason)
+      if (result.error) {
+        toast.error(`반려 실패: ${result.error}`)
+        return
+      }
+      if (result.notificationError) {
+        toast.warning('반려 처리되었지만 요청자 알림 전송에 실패했습니다: ' + result.notificationError)
+      }
+      toast.success('승인 요청을 반려했습니다.')
+      setShowReject(false)
+      setRejectReason('')
+      router.refresh()
+    })
+  }
 
   function approve() {
     if (!note.trim() || (type === 'transfer' && !deliveryType)) return
@@ -44,9 +65,29 @@ export default function ApprovalButton({ type, id, notes = [] }: { type: 'comple
   }
 
   return <>
+    {canReject && (
+      <button type="button" onClick={() => { setRejectReason(''); setShowReject(true) }} disabled={isRejecting} className="flex shrink-0 items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
+        {isRejecting ? '처리 중' : '반려'}
+      </button>
+    )}
     <button type="button" onClick={() => { setDeliveryType(''); setNote(''); setShowApproval(true) }} disabled={isPending} className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
       <Check size={14} /> {isPending ? '처리 중' : '승인'}
     </button>
+    {showReject && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => !isRejecting && setShowReject(false)}>
+        <section className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={event => event.stopPropagation()}>
+          <h2 className="text-lg font-bold text-slate-900">승인요청 반려</h2>
+          <p className="mt-1 text-sm text-slate-500">요청자에게 전달할 반려 사유를 입력해주세요.</p>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">반려 사유 <span className="text-red-500">*</span></label>
+          <textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} maxLength={2000} rows={4} placeholder="반려 사유를 입력해주세요." className="mt-1.5 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100" />
+          <p className="mt-1 text-right text-xs text-slate-400">{rejectReason.length}/2,000</p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" onClick={() => setShowReject(false)} disabled={isRejecting} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+            <button type="button" onClick={reject} disabled={!rejectReason.trim() || isRejecting} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{isRejecting ? '반려 중...' : '반려 처리'}</button>
+          </div>
+        </section>
+      </div>
+    )}
     {showApproval && (
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => !isPending && setShowApproval(false)}>
         <section className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={event => event.stopPropagation()}>

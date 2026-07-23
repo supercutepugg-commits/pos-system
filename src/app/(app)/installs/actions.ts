@@ -451,6 +451,77 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   return { error: null, notificationError: notification.error }
 }
 
+export async function rejectInstallationStatusApproval(installationId: string, reason: string) {
+  if (!validateApprovalNote(reason)) return { error: '반려 사유를 입력해주세요.', notificationError: null }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, name, approval_role')
+    .eq('id', user.id)
+    .single()
+  const expectedStatus = profile?.approval_role === 'tech_responsible'
+    ? 'requested'
+    : profile?.approval_role === 'team_lead'
+      ? 'responsible_approved'
+      : null
+  if (!expectedStatus) return { error: '반려 권한이 없습니다.', notificationError: null }
+
+  const admin = createAdminClient()
+  const { data: approval } = await admin
+    .from('installation_completion_approvals')
+    .select('id, requested_by, target_status, approval_notes')
+    .eq('installation_id', installationId)
+    .eq('status', expectedStatus)
+    .single()
+  if (!approval) return { error: '처리할 승인 요청이 없습니다.', notificationError: null }
+  if (approval.requested_by === user.id) return { error: '요청자는 직접 반려할 수 없습니다.', notificationError: null }
+
+  const { error: approvalError } = await admin
+    .from('installation_completion_approvals')
+    .update({
+      status: 'rejected',
+      approval_notes: appendApprovalNote(approval.approval_notes, {
+        id: user.id, name: profile!.name, role: expectedStatus === 'requested' ? 'tech_responsible' : 'team_lead',
+      }, reason, 'rejection'),
+    })
+    .eq('id', approval.id)
+    .eq('status', expectedStatus)
+  if (approvalError) return { error: approvalError.message, notificationError: null }
+
+  const { error: logError } = await admin.from('installation_activity_logs').insert({
+    installation_id: installationId,
+    user_id: user.id,
+    action: 'step_approval_rejected',
+    to_status: approval.target_status,
+    approval_id: approval.id,
+    details: { reason: reason.trim() },
+  })
+  if (logError) {
+    await admin.from('installation_completion_approvals').update({
+      status: expectedStatus,
+      approval_notes: approval.approval_notes,
+    }).eq('id', approval.id).eq('status', 'rejected')
+    return { error: '감사 로그 저장에 실패해 반려를 취소했습니다: ' + logError.message, notificationError: null }
+  }
+
+  const trimmedReason = reason.trim()
+  const { error: notificationError } = await admin.from('notifications').insert({
+    user_id: approval.requested_by,
+    installation_id: installationId,
+    type: 'approval_install_step_rejected',
+    title: '[반려] 기술지원 단계 승인요청',
+    body: `${profile!.name}님이 ${APPROVAL_STATUS_LABEL[approval.target_status] ?? approval.target_status} 승인요청을 반려했습니다. 사유: ${trimmedReason}`,
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/installs')
+  revalidatePath('/installs/mine')
+  return { error: null, notificationError: notificationError?.message ?? null }
+}
+
 export async function deleteInstallations(ids: string[]) {
   const authError = await requireDeletePermission()
   if (authError) return { error: authError }

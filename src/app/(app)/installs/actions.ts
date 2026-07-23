@@ -92,8 +92,8 @@ export async function changeInstallationStatus(input: {
   if (APPROVAL_STATUSES.has(input.status)) {
     return { error: '이 단계는 승인요청 후 팀장 최종 승인이 필요합니다.', notificationError: null }
   }
-  if (input.status === 'scheduled' && (!input.scheduledDate || !input.scheduledTime)) {
-    return { error: '일정 날짜와 시간이 필요합니다.', notificationError: null }
+  if (input.status === 'scheduled' && !input.scheduledDate) {
+    return { error: '일정 날짜가 필요합니다.', notificationError: null }
   }
 
   const admin = createAdminClient()
@@ -104,10 +104,10 @@ export async function changeInstallationStatus(input: {
     .single()
   if (lookupError || !installation) return { error: lookupError?.message ?? '설치건을 찾을 수 없습니다.', notificationError: null }
 
-  const values: Record<string, string> = { status: input.status, updated_at: new Date().toISOString() }
+  const values: Record<string, string | null> = { status: input.status, updated_at: new Date().toISOString() }
   if (input.status === 'scheduled') {
     values.scheduled_date = input.scheduledDate!
-    values.scheduled_time = input.scheduledTime!
+    values.scheduled_time = input.scheduledTime || null
   }
   if (input.status === 'rejected') values.notes = input.notes ?? ''
 
@@ -218,8 +218,8 @@ export async function requestInstallationStatusApproval(input: {
   if (!APPROVAL_STATUSES.has(input.targetStatus)) {
     return { error: '승인을 요청할 수 없는 상태입니다.', approvalId: null, approvalStatus: null }
   }
-  if (input.targetStatus === 'scheduled' && (!input.scheduledDate || !input.scheduledTime)) {
-    return { error: '일정 날짜와 시간이 필요합니다.', approvalId: null, approvalStatus: null }
+  if (input.targetStatus === 'scheduled' && !input.scheduledDate) {
+    return { error: '일정 날짜가 필요합니다.', approvalId: null, approvalStatus: null }
   }
 
   const admin = createAdminClient()
@@ -414,14 +414,14 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   }).eq('id', approval.id).eq('status', 'responsible_approved').select('id').maybeSingle()
   if (approvalError || !finalApproval) return { error: approvalError?.message ?? '다른 사용자가 먼저 승인했습니다.', notificationError: null }
 
-  const values: Record<string, string> = { status: approval.target_status, updated_at: approvedAt }
+  const values: Record<string, string | null> = { status: approval.target_status, updated_at: approvedAt }
   if (approval.target_status === 'scheduled') {
-    if (!payload.scheduled_date || !payload.scheduled_time) {
+    if (!payload.scheduled_date) {
       await admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes }).eq('id', approval.id)
       return { error: '승인요청에 일정 정보가 없습니다.', notificationError: null }
     }
     values.scheduled_date = payload.scheduled_date
-    values.scheduled_time = payload.scheduled_time
+    values.scheduled_time = payload.scheduled_time || null
   }
   const { data: updated, error: updateError } = await admin.from('installations').update(values)
     .eq('id', installationId).eq('status', installation.status).select('id').maybeSingle()
@@ -458,7 +458,7 @@ export async function approveInstallationStatusByTeamLead(installationId: string
 export async function rescheduleInstallationByTeamLead(input: {
   installationId: string
   scheduledDate: string
-  scheduledTime: string
+  scheduledTime?: string
   note: string
   skipNotify?: boolean
 }) {
@@ -468,7 +468,7 @@ export async function rescheduleInstallationByTeamLead(input: {
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
   const { data: profile } = await supabase.from('profiles').select('name, approval_role').eq('id', user.id).single()
   if (!profile || profile.approval_role !== 'team_lead') return { error: '팀장만 승인 없이 바로 일정을 변경할 수 있습니다.', notificationError: null }
-  if (!input.scheduledDate || !input.scheduledTime) return { error: '일정 날짜와 시간이 필요합니다.', notificationError: null }
+  if (!input.scheduledDate) return { error: '일정 날짜가 필요합니다.', notificationError: null }
 
   const admin = createAdminClient()
   const { data: installation } = await admin.from('installations').select('status, scheduled_date, scheduled_time').eq('id', input.installationId).single()
@@ -477,14 +477,14 @@ export async function rescheduleInstallationByTeamLead(input: {
 
   const updatedAt = new Date().toISOString()
   const { data: updated, error: updateError } = await admin.from('installations').update({
-    status: 'scheduled', scheduled_date: input.scheduledDate, scheduled_time: input.scheduledTime, updated_at: updatedAt,
+    status: 'scheduled', scheduled_date: input.scheduledDate, scheduled_time: input.scheduledTime || null, updated_at: updatedAt,
   }).eq('id', input.installationId).eq('status', installation.status).select('id').maybeSingle()
   if (updateError || !updated) return { error: updateError?.message ?? '다른 사용자가 먼저 상태를 변경했습니다.', notificationError: null }
 
   const { error: logError } = await admin.from('installation_activity_logs').insert({
     installation_id: input.installationId, user_id: user.id, action: 'step_final_approved',
     from_status: installation.status, to_status: 'scheduled',
-    details: { scheduled_date: input.scheduledDate, scheduled_time: input.scheduledTime, reason: input.note.trim(), by: 'team_lead_direct' },
+    details: { scheduled_date: input.scheduledDate, scheduled_time: input.scheduledTime || null, reason: input.note.trim(), by: 'team_lead_direct' },
   })
   if (logError) {
     await admin.from('installations').update({

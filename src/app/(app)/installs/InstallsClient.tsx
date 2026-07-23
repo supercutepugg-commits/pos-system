@@ -624,7 +624,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   async function submitSchedule() {
     if (!scheduleModal) return
     const { id, date, time } = scheduleModal
-    if (!date.trim() || !time.trim()) return
+    if (!date.trim()) return
     setSendingSchedule(true)
 
     if (profile.approval_role === 'team_lead') {
@@ -1314,7 +1314,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">희망 시간대</label>
+              <label className="block text-xs text-slate-500 mb-1">희망 시간대 (선택)</label>
               <input
                 type="time"
                 value={scheduleModal.time}
@@ -1322,11 +1322,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
               />
             </div>
-            <p className="text-xs text-slate-400 -mt-2">※ 설치 예정일과 희망 시간대를 모두 입력해야 확정/발송할 수 있습니다.</p>
+            <p className="text-xs text-slate-400 -mt-2">※ 설치 예정일만 입력해도 확정/발송할 수 있습니다. 시간대는 선택 입력입니다.</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => submitSchedule()}
-                disabled={sendingSchedule || !scheduleModal.date.trim() || !scheduleModal.time.trim()}
+                disabled={sendingSchedule || !scheduleModal.date.trim()}
                 className="w-full py-2 rounded-lg bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 disabled:opacity-50"
               >{sendingSchedule ? '처리 중...' : '일정 확정하고 발송'}</button>
               <button

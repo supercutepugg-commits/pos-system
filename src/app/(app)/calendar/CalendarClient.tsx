@@ -16,6 +16,8 @@ interface CalendarTicket {
   install_date?: string | null
   open_date?: string | null
   card_apply_date?: string | null
+  tech_id?: string | null
+  sales_id?: string | null
   merchant?: { business_name: string } | null
   tech?: { name: string } | null
   sales?: { name: string } | null
@@ -27,6 +29,7 @@ interface CalendarFranchiseRow {
   status: string
   open_date?: string | null
   install_date?: string | null
+  sales_id?: string | null
   sales?: { name: string } | null
 }
 
@@ -42,6 +45,7 @@ interface CalendarInstallRow {
   customer_name?: string | null
   status: string
   scheduled_date?: string | null
+  assigned_to?: string | null
   assignee?: { name: string } | null
 }
 
@@ -50,6 +54,7 @@ interface CalendarManualEvent {
   date: string
   title: string
   memo?: string | null
+  created_by?: string | null
 }
 
 interface CalendarEvent {
@@ -67,6 +72,7 @@ interface CalendarEvent {
   salesName?: string
   glow?: boolean
   manualId?: string
+  ownerIds: string[]
 }
 
 const EVENT_TYPES = [
@@ -121,7 +127,9 @@ function mondayOfWeek(ymd: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [], installRows = [] }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[]; installRows?: CalendarInstallRow[] }) {
+type CalendarTab = 'all' | 'personal' | 'assigned'
+
+export default function CalendarClient({ tickets, franchiseRows = [], wooRows = [], manualEvents = [], installRows = [], currentUserId, canViewAssigned = false }: { tickets: CalendarTicket[]; franchiseRows?: CalendarFranchiseRow[]; wooRows?: CalendarWooRow[]; manualEvents?: CalendarManualEvent[]; installRows?: CalendarInstallRow[]; currentUserId: string; canViewAssigned?: boolean }) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -132,6 +140,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
   const [newMemo, setNewMemo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<CalendarTab>('all')
   const toast = useToast()
 
   const toggleCategory = useCallback((category: string) => {
@@ -144,8 +153,8 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     const supabase = createClient()
     const { data, error } = await supabase
       .from('calendar_events')
-      .insert({ date: selectedDate, title: newTitle.trim(), memo: newMemo.trim() || null })
-      .select('id, date, title, memo')
+      .insert({ date: selectedDate, title: newTitle.trim(), memo: newMemo.trim() || null, created_by: currentUserId })
+      .select('id, date, title, memo, created_by')
       .single()
     setSubmitting(false)
     if (error) { toast.error('일정 등록 실패: ' + error.message); return }
@@ -153,7 +162,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     setNewTitle('')
     setNewMemo('')
     setShowAddForm(false)
-  }, [selectedDate, newTitle, newMemo, toast])
+  }, [selectedDate, newTitle, newMemo, toast, currentUserId])
 
   const handleDeleteEvent = useCallback(async (id: string) => {
     if (!confirm('이 일정을 삭제하시겠습니까?')) return
@@ -183,6 +192,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           type: ticket.type as TicketType,
           techName: ticket.tech?.name,
           salesName: ticket.sales?.name,
+          ownerIds: [ticket.tech_id, ticket.sales_id].filter((id): id is string => !!id),
         })
       }
     }
@@ -200,6 +210,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           businessName: row.business_name || '상호명 미입력',
           subtitle: '가맹 접수',
           salesName: row.sales?.name,
+          ownerIds: row.sales_id ? [row.sales_id] : [],
         })
       }
     }
@@ -218,6 +229,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         statusLabel: INSTALL_STATUS_LABEL[row.status] ?? row.status,
         statusColor: 'bg-fuchsia-50 text-fuchsia-600',
         techName: row.assignee?.name,
+        ownerIds: row.assigned_to ? [row.assigned_to] : [],
       })
     }
     for (const row of wooRows) {
@@ -234,6 +246,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         businessName,
         subtitle: '우국상 오픈',
         salesName: row.manager ?? undefined,
+        ownerIds: [],
       })
       const installDate = mondayOfWeek(openDate)
       if (!map[installDate]) map[installDate] = []
@@ -247,6 +260,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         subtitle: '우국상 설치 (오픈 주 월요일)',
         salesName: row.manager ?? undefined,
         glow: true,
+        ownerIds: [],
       })
     }
     for (const ev of localManualEvents) {
@@ -262,20 +276,33 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         businessName: ev.title,
         subtitle: ev.memo || '',
         manualId: ev.id,
+        ownerIds: ev.created_by ? [ev.created_by] : [],
       })
     }
     return map
   }, [tickets, franchiseRows, wooRows, installRows, localManualEvents])
 
-  const visibleEventMap = useMemo(() => {
-    if (!selectedCategory) return eventMap
+  const tabFilteredEventMap = useMemo(() => {
+    if (activeTab === 'all') return eventMap
     const map: Record<string, CalendarEvent[]> = {}
     for (const [date, events] of Object.entries(eventMap)) {
+      const filtered = activeTab === 'personal'
+        ? events.filter(ev => ev.ownerIds.includes(currentUserId))
+        : events.filter(ev => ev.category === '설치 관리' && ev.ownerIds.length > 0)
+      if (filtered.length) map[date] = filtered
+    }
+    return map
+  }, [eventMap, activeTab, currentUserId])
+
+  const visibleEventMap = useMemo(() => {
+    if (!selectedCategory) return tabFilteredEventMap
+    const map: Record<string, CalendarEvent[]> = {}
+    for (const [date, events] of Object.entries(tabFilteredEventMap)) {
       const filtered = events.filter(ev => ev.category === selectedCategory)
       if (filtered.length) map[date] = filtered
     }
     return map
-  }, [eventMap, selectedCategory])
+  }, [tabFilteredEventMap, selectedCategory])
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) }
@@ -333,6 +360,28 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
             오늘
           </button>
           <span className="ml-auto text-sm text-slate-400">이번달 일정 {monthTotal}건</span>
+        </div>
+
+        {}
+        <div className="flex gap-1 mb-3 border-b border-slate-200">
+          {([
+            ['all', '전체'],
+            ['personal', '개인'],
+            ...(canViewAssigned ? [['assigned', '배정일정'] as const] : []),
+          ] as [CalendarTab, string][]).map(([tab, label]) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => { setActiveTab(tab); setSelectedCategory(null); setSelectedDate(null) }}
+              className={`px-3 py-1.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === tab
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {}

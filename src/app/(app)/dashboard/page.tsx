@@ -10,6 +10,7 @@ import ApprovalButton from './ApprovalButton'
 import TransferApprovalItem from './TransferApprovalItem'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
+import type { ApprovalNote } from '@/lib/approvalNotes'
 
 type CompletionApproval = {
   installation_id: string
@@ -17,6 +18,7 @@ type CompletionApproval = {
   requested_by: string
   requested_by_name: string
   requested_at: string
+  approval_notes: ApprovalNote[]
   installation: { id: string; customer_name: string | null; address: string | null } | null
 }
 
@@ -26,6 +28,7 @@ type TransferApproval = {
   requested_by_name: string
   requested_at: string
   cs_approved_by_name: string | null
+  approval_notes: ApprovalNote[]
   franchise: { id: string; business_name: string | null; owner_name: string | null; address: string | null; phone: string | null } | null
 }
 
@@ -116,7 +119,7 @@ export default async function DashboardPage() {
   const completionApprovalQuery = p.approval_role === 'tech_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('installation_completion_approvals')
-      .select('installation_id, target_status, requested_by, requested_by_name, requested_at, installation:installations(id, customer_name, address)')
+      .select('installation_id, target_status, requested_by, requested_by_name, requested_at, approval_notes, installation:installations(id, customer_name, address)')
       .eq('status', p.approval_role === 'tech_responsible' ? 'requested' : 'responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
@@ -126,7 +129,7 @@ export default async function DashboardPage() {
   const transferApprovalQuery = p.approval_role === 'cs_responsible' || p.approval_role === 'team_lead'
     ? supabase
       .from('franchise_transfer_approvals')
-      .select('franchise_application_id, requested_by, requested_by_name, requested_at, cs_approved_by_name, franchise:franchise_applications(id, business_name, owner_name, address, phone)')
+      .select('franchise_application_id, requested_by, requested_by_name, requested_at, cs_approved_by_name, approval_notes, franchise:franchise_applications(id, business_name, owner_name, address, phone)')
       .eq('status', p.approval_role === 'cs_responsible' ? 'requested' : 'cs_responsible_approved')
       .neq('requested_by', userId)
       .order('requested_at', { ascending: true })
@@ -225,7 +228,7 @@ export default async function DashboardPage() {
                       </div>
                       <ArrowRight size={16} className="text-slate-400" />
                     </Link>
-                    <ApprovalButton type={p.approval_role === 'team_lead' ? 'tech_final' : 'completion'} id={approval.installation_id} />
+                    <ApprovalButton type={p.approval_role === 'team_lead' ? 'tech_final' : 'completion'} id={approval.installation_id} notes={approval.approval_notes} />
                   </div>
                 ))}
               </div>
@@ -243,8 +246,9 @@ export default async function DashboardPage() {
                       requesterName={approval.requested_by_name}
                       csApproverName={approval.cs_approved_by_name}
                       approvalRole={p.approval_role as 'cs_responsible' | 'team_lead'}
+                      notes={approval.approval_notes}
                     />
-                    <ApprovalButton type={p.approval_role === 'cs_responsible' ? 'cs_transfer' : 'transfer'} id={approval.franchise_application_id} />
+                    <ApprovalButton type={p.approval_role === 'cs_responsible' ? 'cs_transfer' : 'transfer'} id={approval.franchise_application_id} notes={approval.approval_notes} />
                   </div>
                 ))}
               </div>

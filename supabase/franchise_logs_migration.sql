@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS franchise_application_logs (
   user_id UUID REFERENCES profiles(id),
   from_status TEXT,
   to_status TEXT,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

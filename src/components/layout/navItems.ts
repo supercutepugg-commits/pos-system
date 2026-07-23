@@ -3,12 +3,14 @@ import {
   CalendarDays,
   ClipboardList,
   Code2,
+  Database,
   FileEdit,
   FileText,
   HardHat,
   Hash,
   Images,
   LayoutDashboard,
+  ChartNoAxesCombined,
   MessageCircle,
   Network,
   Package,
@@ -37,6 +39,7 @@ export interface NavGroup {
 
 export const COMMON_NAV: NavItem[] = [
   { href: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+  { href: '/kpi', label: 'KPI', icon: ChartNoAxesCombined },
   { href: '/calendar', label: '캘린더', icon: CalendarDays },
   { href: '/merchants', label: '가맹점', icon: Store },
   { href: '/chat', label: '채팅', icon: MessageCircle },
@@ -70,6 +73,7 @@ export const ROLE_FOLDERS: NavGroup[] = [
       { href: '/inventory', label: '재고 실사', icon: ClipboardList },
       { href: '/transfers', label: '전환건', icon: RefreshCw },
       { href: '/blueprints', label: '설계도', icon: Network },
+      { href: '/chatbot-data', label: '챗봇 데이터 수집', icon: Database },
     ],
   },
 ]

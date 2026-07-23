@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { X, Trash2 } from 'lucide-react'
 import HistoryIcon from './HistoryIcon'
 import { createClient } from '@/lib/supabase/client'
+import { INSTALLATION_DELIVERY_TYPE_LABEL, isInstallationDeliveryType } from '@/lib/installationDeliveryType'
 
 type NotificationLog = {
   id: string
@@ -22,6 +23,7 @@ type FranchiseLog = {
   created_at: string
   user_name: string | null
   user: { name: string } | null
+  details: { delivery_type?: string } | null
 }
 
 // 스탬프(`[이름 MM. DD. HH:mm]`)가 붙은 항목뿐 아니라, 스탬프 도입 전에 저장된 맨 텍스트도 하나의 항목으로 살려서 반환한다
@@ -113,7 +115,7 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
     const supabase = createClient()
     supabase
       .from('franchise_application_logs')
-      .select('id, from_status, to_status, created_at, user_name, user:profiles(name)')
+      .select('id, from_status, to_status, details, created_at, user_name, user:profiles(name)')
       .eq('franchise_application_id', franchiseApplicationId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -171,6 +173,9 @@ export default function MemoHistoryPanel({ title, memo, createdAt, onAddMemo, on
         <div>
           {log.from_status ? franchiseStatusLabelMap?.[log.from_status] ?? log.from_status : '-'} →{' '}
           {log.to_status ? franchiseStatusLabelMap?.[log.to_status] ?? log.to_status : '-'}
+          {log.details?.delivery_type && isInstallationDeliveryType(log.details.delivery_type)
+            ? ` · 구분: ${INSTALLATION_DELIVERY_TYPE_LABEL[log.details.delivery_type]}`
+            : ''}
         </div>
       </li>
     ) })),

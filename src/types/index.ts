@@ -1,5 +1,6 @@
-export type Role = 'master' | 'admin' | 'sales' | 'cs' | 'tech'
-export type ApprovalRole = 'cs_manager' | 'cs_responsible' | 'tech_manager' | 'tech_responsible' | 'team_lead'
+export type Role = 'master' | 'admin' | 'sales' | 'cs' | 'tech' | 'developer'
+export type ApprovalRole = 'cs_manager' | 'cs_responsible' | 'tech_manager' | 'tech_responsible' | 'team_lead' | 'developer' | 'test_account'
+export type Team = 'sales' | 'cs' | 'tech' | 'dev'
 
 export type TicketStatus =
   | 'sales'
@@ -34,6 +35,7 @@ export interface Profile {
   name: string
   phone?: string
   role: Role
+  team?: Team
   approval_role?: ApprovalRole | null
   can_delete?: boolean
   created_at: string
@@ -216,6 +218,7 @@ export interface FranchiseApplicationLog {
   user_name?: string
   from_status?: string
   to_status?: string
+  details?: Record<string, unknown>
   created_at: string
   user?: Profile
 }
@@ -293,7 +296,7 @@ export const FRANCHISE_STATUS_LABEL: Record<FranchiseStatus, string> = {
 
 export const FRANCHISE_STATUS_COLOR: Record<FranchiseStatus, string> = {
   info_input: 'bg-slate-100 text-slate-700 border-slate-200',
-  doc_waiting: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  doc_waiting: 'bg-[#ff0000] text-[#ffffff] border-[#ff0000]',
   doc_incomplete: 'bg-red-100 text-red-700 border-red-200',
   card_apply_done: 'bg-sky-100 text-sky-700 border-sky-200',
   internet_apply_done: 'bg-cyan-100 text-cyan-700 border-cyan-200',

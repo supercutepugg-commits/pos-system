@@ -113,13 +113,7 @@ DROP POLICY IF EXISTS "members can view group messages" ON group_chat_messages;
 CREATE POLICY "members can view group messages" ON group_chat_messages FOR SELECT TO authenticated
   USING (is_group_chat_member(room_id));
 
-DROP POLICY IF EXISTS "members c-- 기본 단체 채팅방: 영업팀, CS팀, 기술지원팀
--- 전체 채팅방은 기존 messages 테이블과 /chat/global 화면을 계속 사용합니다.
-
-CREATE TABLE IF NOT EXISTS group_chat_rooms (
-  id UUID PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  description TEXT,an send group messages" ON group_chat_messages;
+DROP POLICY IF EXISTS "members can send group messages" ON group_chat_messages;
 CREATE POLICY "members can send group messages" ON group_chat_messages FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid() AND is_group_chat_member(room_id));
 

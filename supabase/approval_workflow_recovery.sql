@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS franchise_transfer_approvals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   franchise_application_id UUID NOT NULL UNIQUE REFERENCES franchise_applications(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'approved', 'rejected')),
+  delivery_type TEXT CHECK (delivery_type IN ('install', 'delivery', 'as', 'name_change', 'transfer')),
   requested_by UUID NOT NULL REFERENCES profiles(id),
   requested_by_name TEXT NOT NULL,
   requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -23,7 +24,7 @@ CREATE TRIGGER franchise_transfer_approvals_updated_at BEFORE UPDATE ON franchis
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS approval_role TEXT;
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_approval_role_check;
 ALTER TABLE profiles ADD CONSTRAINT profiles_approval_role_check
-  CHECK (approval_role IN ('cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead'));
+  CHECK (approval_role IN ('cs_manager', 'cs_responsible', 'tech_manager', 'tech_responsible', 'team_lead', 'developer', 'test_account'));
 
 UPDATE profiles SET approval_role = CASE
   WHEN role = 'cs' THEN 'cs_manager'

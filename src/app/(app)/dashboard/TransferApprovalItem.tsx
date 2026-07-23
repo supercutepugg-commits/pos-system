@@ -7,6 +7,8 @@ import ApprovalButton from './ApprovalButton'
 import { rejectFranchiseTransfer } from './actions'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
+import ApprovalNoteTimeline from '@/components/ui/ApprovalNoteTimeline'
+import type { ApprovalNote } from '@/lib/approvalNotes'
 
 type Props = {
   id: string
@@ -17,9 +19,10 @@ type Props = {
   requesterName: string
   csApproverName: string | null
   approvalRole: 'cs_responsible' | 'team_lead'
+  notes: ApprovalNote[]
 }
 
-export default function TransferApprovalItem({ id, businessName, ownerName, address, phone, requesterName, csApproverName, approvalRole }: Props) {
+export default function TransferApprovalItem({ id, businessName, ownerName, address, phone, requesterName, csApproverName, approvalRole, notes }: Props) {
   const [open, setOpen] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [reason, setReason] = useState('')
@@ -72,11 +75,16 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
             <dl className="grid grid-cols-[96px_1fr] gap-x-4 gap-y-3 px-6 py-5 text-sm">
               <dt className="text-slate-500">승인 단계</dt><dd className="font-medium text-slate-900">{approvalText}</dd>
               <dt className="text-slate-500">요청자</dt><dd className="text-slate-900">{requesterName}</dd>
+              {isTeamLead && <><dt className="text-slate-500">이관 구분</dt><dd className="font-semibold text-blue-700">최종 승인 시 선택</dd></>}
               {isTeamLead && <><dt className="text-slate-500">CS책임 승인자</dt><dd className="text-slate-900">{csApproverName || '-'}</dd></>}
               <dt className="text-slate-500">대표자</dt><dd className="text-slate-900">{ownerName || '-'}</dd>
               <dt className="text-slate-500">연락처</dt><dd className="text-slate-900">{phone || '-'}</dd>
               <dt className="text-slate-500">주소</dt><dd className="break-words text-slate-900">{address || '-'}</dd>
             </dl>
+            <div className="border-t border-slate-100 px-6 py-5">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">승인 비고 이력</h3>
+              <ApprovalNoteTimeline notes={notes} />
+            </div>
             {showReject && <div className="border-t border-slate-100 px-6 py-4">
               <label className="mb-1.5 block text-sm font-medium text-slate-700">반려 사유</label>
               <textarea value={reason} onChange={event => setReason(event.target.value)} rows={3} placeholder="반려 사유를 입력하세요." className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100" />
@@ -84,7 +92,7 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
             </div>}
             <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
               <Link href={`/franchise?highlight=${id}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">가맹접수로 이동</Link>
-              <div className="flex gap-2"><button type="button" onClick={() => setShowReject(value => !value)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">반려</button><ApprovalButton type={approvalType} id={id} /></div>
+              <div className="flex gap-2"><button type="button" onClick={() => setShowReject(value => !value)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">반려</button><ApprovalButton type={approvalType} id={id} notes={notes} /></div>
             </footer>
           </section>
         </div>

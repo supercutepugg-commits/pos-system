@@ -23,6 +23,8 @@ import FranchiseCreateDialog from './FranchiseCreateDialog'
 import FranchiseDetailDrawer from './FranchiseDetailDrawer'
 import FranchiseMemoDrawer from './FranchiseMemoDrawer'
 import FranchiseReceiptSurface from './FranchiseReceiptSurface'
+import { INSTALLATION_DELIVERY_TYPE_OPTIONS, type InstallationDeliveryType } from '@/lib/installationDeliveryType'
+import { appendApprovalNote, type ApprovalNote } from '@/lib/approvalNotes'
 import {
   docCaseOf,
   createLinkedInstallTicket as createLinkedInstallTicketShared,
@@ -71,6 +73,7 @@ interface Props {
 type TransferApproval = {
   franchise_application_id: string
   status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected'
+  delivery_type: string | null
   requested_by: string
   requested_by_name: string
   requested_at: string
@@ -80,7 +83,7 @@ type TransferApproval = {
   cs_approved_by: string | null
   cs_approved_by_name: string | null
   cs_approved_at: string | null
-  rejection_reason?: string | null
+  approval_notes: ApprovalNote[]
 }
 
 type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
@@ -756,6 +759,8 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   const [bulkAssigning, setBulkAssigning] = useState(false)
   const [bulkTransferConfirmOpen, setBulkTransferConfirmOpen] = useState(false)
   const [bulkTransferring, setBulkTransferring] = useState(false)
+  const [teamLeadTransferRow, setTeamLeadTransferRow] = useState<FranchiseApplication | null>(null)
+  const [teamLeadDeliveryType, setTeamLeadDeliveryType] = useState<InstallationDeliveryType | ''>('')
   const [transferApprovals, setTransferApprovals] = useState(initialTransferApprovals)
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     try { return JSON.parse(localStorage.getItem('franchise_saved_filters') ?? '[]') } catch { return [] }
@@ -1388,55 +1393,73 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
     if (existing && existing.status !== 'rejected' && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
+    const requestedByResponsible = currentUserApprovalRole === 'cs_responsible'
+    const note = window.prompt(requestedByResponsible ? '팀장에게 전달할 비고를 입력해주세요.' : 'CS책임에게 전달할 비고를 입력해주세요.')?.trim()
+    if (!note) return false
+    const approvalStatus = requestedByResponsible ? 'cs_responsible_approved' as const : 'requested' as const
+    const approvalNotes = appendApprovalNote(existing?.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'request')
     const approval = {
       franchise_application_id: row.id,
-      status: 'requested' as const,
+      status: approvalStatus,
+      delivery_type: null,
       requested_by: currentUserId,
       requested_by_name: currentUserName || '사용자',
       requested_at: new Date().toISOString(),
       approved_by: null,
       approved_by_name: null,
       approved_at: null,
-      cs_approved_by: null,
-      cs_approved_by_name: null,
-      cs_approved_at: null,
+      cs_approved_by: requestedByResponsible ? currentUserId : null,
+      cs_approved_by_name: requestedByResponsible ? currentUserName || 'CS책임' : null,
+      cs_approved_at: requestedByResponsible ? new Date().toISOString() : null,
+      approval_notes: approvalNotes,
     }
-    const result = await requestFranchiseTransfer(row.id)
-    if (result.error) { toast.error('승인요청 실패: ' + result.error); return }
+    setTransferringId(row.id)
+    const result = await requestFranchiseTransfer(row.id, note)
+    setTransferringId(null)
+    if (result.error) { toast.error('승인요청 실패: ' + result.error); return false }
     if (result.notificationError) {
-      toast.warning('승인요청은 등록됐지만 CS책임 팝업 알림에 실패했습니다: ' + result.notificationError)
+      toast.warning(`승인요청은 등록됐지만 ${requestedByResponsible ? '팀장' : 'CS책임'} 팝업 알림에 실패했습니다: ` + result.notificationError)
     }
     setTransferApprovals(prev => ({ ...prev, [row.id]: approval }))
-    toast.success('기술지원 이관 승인요청을 등록했습니다.')
+    toast.success(requestedByResponsible ? '팀장 최종 승인요청을 등록했습니다.' : '기술지원 이관 승인요청을 등록했습니다.')
+    return true
   }
 
-  async function approveTransfer(row: FranchiseApplication) {
+  async function approveTransfer(row: FranchiseApplication, deliveryType?: InstallationDeliveryType) {
     const approval = transferApprovals[row.id]
     if (!approval) return
     if (approval.requested_by === currentUserId) { toast.warning('요청자는 직접 승인할 수 없습니다.'); return }
     const isCsResponsibleApproval = currentUserApprovalRole === 'cs_responsible' && approval.status === 'requested'
     const isTeamLeadApproval = currentUserApprovalRole === 'team_lead' && approval.status === 'cs_responsible_approved'
     if (!isCsResponsibleApproval && !isTeamLeadApproval) { toast.warning('현재 승인 단계의 권한이 없습니다.'); return }
+    if (isTeamLeadApproval && !deliveryType) {
+      setTeamLeadDeliveryType('')
+      setTeamLeadTransferRow(row)
+      return
+    }
+    const note = window.prompt(isCsResponsibleApproval ? '팀장에게 전달할 비고를 입력해주세요.' : '기술지원에 전달할 최종 비고를 입력해주세요.')?.trim()
+    if (!note) return
     setTransferringId(row.id)
     if (isCsResponsibleApproval) {
-      const result = await approveCsResponsibleTransfer(row.id)
+      const result = await approveCsResponsibleTransfer(row.id, note)
       setTransferringId(null)
       if (result.error) { toast.error('승인 실패: ' + result.error); return }
       if ('notificationError' in result && result.notificationError) {
         toast.warning('1차 승인은 완료됐지만 팀장 팝업 알림에 실패했습니다: ' + result.notificationError)
       }
-      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임' } }))
+      setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'cs_responsible_approved', cs_approved_by_name: currentUserName || 'CS책임', approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'first_approval') } }))
       toast.success('CS책임 승인 완료. 팀장 최종 승인을 기다립니다.')
       return
     }
-    const result = await approveFranchiseTransfer(row.id)
+    const result = await approveFranchiseTransfer(row.id, deliveryType as InstallationDeliveryType, note)
     setTransferringId(null)
     if (result.error) { toast.error('승인 실패: ' + result.error); return }
     if ('notificationError' in result && result.notificationError) {
       toast.warning('이관은 완료됐지만 기술지원 내부 알림에 실패했습니다: ' + result.notificationError)
     }
     const approvedAt = new Date().toISOString()
-    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt } }))
+    setTransferApprovals(prev => ({ ...prev, [row.id]: { ...approval, status: 'approved', delivery_type: deliveryType ?? null, approved_by: currentUserId, approved_by_name: currentUserName || '관리자', approved_at: approvedAt, approval_notes: appendApprovalNote(approval.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'final_approval') } }))
+    setTeamLeadTransferRow(null)
     const supabase = createClient()
     const { data: linkedInstall } = await supabase.from('installations').select('id,status').eq('franchise_application_id', row.id).maybeSingle()
     if (linkedInstall) setLocalLinkedInstalls(prev => ({ ...prev, [row.id]: linkedInstall }))
@@ -1451,11 +1474,6 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     return 'skip'
   }
 
-  function summarizeRows(rows: FranchiseApplication[]): string {
-    const first = rows[0]?.business_name || rows[0]?.owner_name || '미입력'
-    return rows.length > 1 ? `${first} 외 ${rows.length - 1}건` : first
-  }
-
   async function handleBulkTransfer() {
     const targetRows = localRows.filter(r => selected.has(r.id))
     const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
@@ -1464,28 +1482,36 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
       toast.warning('이관 가능한 건이 없습니다. 이미 모두 이관된 상태입니다.')
       return
     }
+    const note = window.prompt('선택한 모든 이관 건에 적용할 전달 비고를 입력해주세요.')?.trim()
+    if (!note) return
     setBulkTransferring(true)
     const rows = [...toInsert, ...toUpdate]
-    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id) })))
-    const succeeded = results.filter(item => !item.result.error).map(item => item.row)
+    const results = await Promise.all(rows.map(async row => ({ row, result: await requestFranchiseTransfer(row.id, note) })))
+    const succeeded = results.filter(item => !item.result.error)
     const failed = results.filter(item => item.result.error)
     const notificationFailed = results.filter(item => !item.result.error && item.result.notificationError)
     const requestedAt = new Date().toISOString()
     setTransferApprovals(prev => {
       const next = { ...prev }
-      for (const row of succeeded) {
+      for (const { row, result } of succeeded) {
+        const approvalStatus = 'approvalStatus' in result && result.approvalStatus
+          ? result.approvalStatus
+          : 'requested'
+        const requestedByResponsible = approvalStatus === 'cs_responsible_approved'
         next[row.id] = {
           franchise_application_id: row.id,
-          status: 'requested',
+          status: approvalStatus,
+          delivery_type: null,
           requested_by: currentUserId,
           requested_by_name: currentUserName || '사용자',
           requested_at: requestedAt,
           approved_by: null,
           approved_by_name: null,
           approved_at: null,
-          cs_approved_by: null,
-          cs_approved_by_name: null,
-          cs_approved_at: null,
+          cs_approved_by: requestedByResponsible ? currentUserId : null,
+          cs_approved_by_name: requestedByResponsible ? currentUserName || 'CS책임' : null,
+          cs_approved_at: requestedByResponsible ? requestedAt : null,
+          approval_notes: appendApprovalNote(prev[row.id]?.approval_notes, { id: currentUserId, name: currentUserName, role: currentUserApprovalRole }, note, 'request'),
         }
       }
       return next
@@ -1494,9 +1520,9 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
     setBulkTransferring(false)
     setSelected(new Set())
 
-    if (succeeded.length) toast.success(`${succeeded.length}건 기술지원 이관 승인요청 완료`)
+    if (succeeded.length) toast.success(`${succeeded.length}건 ${currentUserApprovalRole === 'cs_responsible' ? '팀장 최종 ' : ''}기술지원 이관 승인요청 완료`)
     if (failed.length) toast.error(`${failed.length}건 승인요청 실패: ${failed[0].result.error}`)
-    if (notificationFailed.length) toast.warning(`${notificationFailed.length}건의 CS책임 팝업 알림 발송에 실패했습니다.`)
+    if (notificationFailed.length) toast.warning(`${notificationFailed.length}건의 ${currentUserApprovalRole === 'cs_responsible' ? '팀장' : 'CS책임'} 팝업 알림 발송에 실패했습니다.`)
   }
 
   async function linkToInternet(row: FranchiseApplication) {
@@ -1662,28 +1688,46 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
 
       {(() => {
         const targetRows = localRows.filter(r => selected.has(r.id))
-        const toInsert = targetRows.filter(r => classifyTransfer(r) === 'insert')
-        const toUpdate = targetRows.filter(r => classifyTransfer(r) === 'update')
-        const toSkip = targetRows.filter(r => classifyTransfer(r) === 'skip')
-        const groups = [
-          { key: 'insert', label: `이관 ${toInsert.length}건`, rows: toInsert },
-          { key: 'update', label: `재이관 ${toUpdate.length}건`, rows: toUpdate },
-          { key: 'skip', label: `이미 이관됨 ${toSkip.length}건`, rows: toSkip },
-        ].filter(g => g.rows.length > 0)
+        const transferableRows = targetRows.filter(r => classifyTransfer(r) !== 'skip')
         return (
           <BulkConfirmDialog
             open={bulkTransferConfirmOpen}
             title="일괄 기술지원 이관 승인요청"
             busy={bulkTransferring}
             confirmText="승인요청"
-            subtitle={`총 ${toInsert.length + toUpdate.length}건의 이관 승인을 요청합니다.`}
+            subtitle={`총 ${transferableRows.length}건의 이관 승인을 요청합니다. 구분은 팀장이 최종 승인할 때 선택합니다.`}
             confirmQuestion="승인요청하시겠습니까?"
-            items={groups.map(g => ({ id: g.key, label: g.label, detail: summarizeRows(g.rows) }))}
+            items={transferableRows.map(row => ({
+              id: row.id,
+              label: row.business_name || row.owner_name || row.id,
+              detail: classifyTransfer(row) === 'update' ? '재이관' : '이관',
+            }))}
             onCancel={() => setBulkTransferConfirmOpen(false)}
             onConfirm={async () => { setBulkTransferConfirmOpen(false); await handleBulkTransfer() }}
           />
         )
       })()}
+
+      {teamLeadTransferRow && (
+        <FormModal title="기술지원 이관 최종 승인" onClose={() => !transferringId && setTeamLeadTransferRow(null)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {teamLeadTransferRow.business_name || teamLeadTransferRow.owner_name || teamLeadTransferRow.id}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">이관 구분 <span className="text-red-500">*</span></label>
+              <select value={teamLeadDeliveryType} onChange={event => setTeamLeadDeliveryType(event.target.value as InstallationDeliveryType | '')} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                <option value="">구분을 선택해주세요</option>
+                {INSTALLATION_DELIVERY_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setTeamLeadTransferRow(null)} disabled={!!transferringId} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 disabled:opacity-50">취소</button>
+              <button type="button" onClick={() => teamLeadDeliveryType && approveTransfer(teamLeadTransferRow, teamLeadDeliveryType)} disabled={!teamLeadDeliveryType || !!transferringId} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{transferringId ? '승인 중...' : '구분 선택 후 최종 승인'}</button>
+            </div>
+          </div>
+        </FormModal>
+      )}
 
       {statusConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -1785,7 +1829,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
         onBulkStatus={() => setBulkStatusModal(true)}
         onBulkAssign={() => setBulkAssignModal(true)}
         onBulkDelete={handleDelete}
-        onBulkTransfer={() => toast.warning('기술지원 이관은 각 접수의 승인요청 후 진행됩니다.')}
+        onBulkTransfer={() => setBulkTransferConfirmOpen(true)}
       />
 
       {showForm && <FranchiseCreateDialog onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} csProfiles={csProfiles} />}

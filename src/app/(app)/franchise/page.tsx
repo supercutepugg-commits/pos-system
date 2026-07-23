@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import FranchiseClient from "./FranchiseClient";
+import type { InstallationDeliveryType } from "@/lib/installationDeliveryType";
+import type { ApprovalNote } from "@/lib/approvalNotes";
 
 interface Props {
   searchParams: Promise<{ status?: string; highlight?: string }>;
@@ -9,6 +11,7 @@ interface Props {
 type TransferApproval = {
   franchise_application_id: string;
   status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected';
+  delivery_type: InstallationDeliveryType | null;
   requested_by: string;
   requested_by_name: string;
   requested_at: string;
@@ -18,7 +21,7 @@ type TransferApproval = {
   cs_approved_by: string | null;
   cs_approved_by_name: string | null;
   cs_approved_at: string | null;
-  rejection_reason: string | null;
+  approval_notes: ApprovalNote[];
 };
 
 export default async function FranchisePage({ searchParams }: Props) {
@@ -66,7 +69,7 @@ export default async function FranchisePage({ searchParams }: Props) {
       .in("to_status", ["card_done", "toss_review_done"])
       .gte("created_at", kstDayStart.toISOString())
       .lt("created_at", kstNextDayStart.toISOString()),
-    supabase.from("franchise_transfer_approvals").select("franchise_application_id,status,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at,rejection_reason"),
+    supabase.from("franchise_transfer_approvals").select("franchise_application_id,status,delivery_type,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at,approval_notes"),
   ]);
 
   const todayCompletedIds = [

@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireDeletePermission } from '@/lib/auth/require-admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendApprovedInstallNotification } from '@/lib/installNotifications'
+import { appendApprovalNote, parseApprovalNotes, validateApprovalNote } from '@/lib/approvalNotes'
 
 const INSTALL_STATUSES = new Set(['received', 'preparing', 'scheduled', 'in_transit', 'delivery_sent', 'completed', 'rejected'])
 const APPROVAL_STATUSES = new Set(['preparing', 'scheduled', 'in_transit', 'delivery_sent', 'completed'])
@@ -201,24 +202,44 @@ export async function requestInstallationStatusApproval(input: {
   scheduledTime?: string
   eta?: string
   skipNotify?: boolean
+  note: string
 }) {
+  if (!validateApprovalNote(input.note)) {
+    return { error: '다음 승인자에게 전달할 비고를 입력해주세요.', approvalId: null, approvalStatus: null }
+  }
   const editor = await getInstallationEditor()
-  if ('error' in editor) return { error: editor.error, approvalId: null }
-  if (editor.profile.approval_role !== 'tech_manager') {
-    return { error: '기술지원매니저만 단계 승인을 요청할 수 있습니다.', approvalId: null }
+  if ('error' in editor) return { error: editor.error, approvalId: null, approvalStatus: null }
+  if (!['tech_manager', 'tech_responsible'].includes(editor.profile.approval_role ?? '')) {
+    return { error: '기술지원매니저 또는 기술지원책임만 단계 승인을 요청할 수 있습니다.', approvalId: null, approvalStatus: null }
   }
   if (!APPROVAL_STATUSES.has(input.targetStatus)) {
-    return { error: '승인을 요청할 수 없는 상태입니다.', approvalId: null }
+    return { error: '승인을 요청할 수 없는 상태입니다.', approvalId: null, approvalStatus: null }
   }
   if (input.targetStatus === 'scheduled' && (!input.scheduledDate || !input.scheduledTime)) {
-    return { error: '일정 날짜와 시간이 필요합니다.', approvalId: null }
+    return { error: '일정 날짜와 시간이 필요합니다.', approvalId: null, approvalStatus: null }
   }
 
   const admin = createAdminClient()
-  const { data: installation } = await admin.from('installations').select('status').eq('id', input.installationId).single()
+  const { data: installation } = await admin.from('installations').select('status,franchise_application_id').eq('id', input.installationId).single()
   if (!installation || ['completed', 'rejected'].includes(installation.status)) {
-    return { error: '단계 승인을 요청할 수 없는 설치건입니다.', approvalId: null }
+    return { error: '단계 승인을 요청할 수 없는 설치건입니다.', approvalId: null, approvalStatus: null }
   }
+  const requestedAt = new Date().toISOString()
+  const requestedByResponsible = editor.profile.approval_role === 'tech_responsible'
+  const approvalStatus: 'requested' | 'responsible_approved' = requestedByResponsible ? 'responsible_approved' : 'requested'
+  const [{ data: previousApproval }, { data: transferApproval }] = await Promise.all([
+    admin.from('installation_completion_approvals')
+      .select('approval_notes')
+      .eq('installation_id', input.installationId)
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    installation.franchise_application_id
+      ? admin.from('franchise_transfer_approvals').select('approval_notes').eq('franchise_application_id', installation.franchise_application_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+  const inheritedNotes = [...parseApprovalNotes(transferApproval?.approval_notes), ...parseApprovalNotes(previousApproval?.approval_notes)]
+    .filter((note, index, notes) => notes.findIndex(item => item.id === note.id) === index)
   const { data: approval, error: approvalError } = await admin
     .from('installation_completion_approvals')
     .insert({
@@ -230,48 +251,59 @@ export async function requestInstallationStatusApproval(input: {
         ...(input.eta ? { eta: input.eta } : {}),
         ...(input.skipNotify ? { skip_notify: true } : {}),
       },
-      status: 'requested',
+      status: approvalStatus,
       requested_by: editor.user.id,
       requested_by_name: editor.profile.name,
+      ...(requestedByResponsible ? {
+        responsible_approved_by: editor.user.id,
+        responsible_approved_by_name: editor.profile.name,
+        responsible_approved_at: requestedAt,
+      } : {}),
       approved_by: null,
       approved_by_name: null,
+      approval_notes: appendApprovalNote(inheritedNotes, {
+        id: editor.user.id, name: editor.profile.name, role: editor.profile.approval_role!,
+      }, input.note, 'request'),
     })
     .select('id')
     .single()
-  if (approvalError || !approval) return { error: approvalError?.message ?? '승인요청 저장에 실패했습니다.', approvalId: null }
+  if (approvalError || !approval) return { error: approvalError?.message ?? '승인요청 저장에 실패했습니다.', approvalId: null, approvalStatus: null }
 
-  const { error: logError } = await admin.from('installation_activity_logs').insert({
-    installation_id: input.installationId,
-    user_id: editor.user.id,
-    action: 'step_approval_requested',
-    from_status: installation.status,
-    to_status: input.targetStatus,
-    approval_id: approval.id,
+  const activityLogs = [{
+    installation_id: input.installationId, user_id: editor.user.id, action: 'step_approval_requested',
+    from_status: installation.status, to_status: input.targetStatus, approval_id: approval.id,
     details: { target_status: input.targetStatus },
-  })
+  }, ...(requestedByResponsible ? [{
+    installation_id: input.installationId, user_id: editor.user.id, action: 'step_responsible_approved',
+    from_status: installation.status, to_status: input.targetStatus, approval_id: approval.id,
+    details: { target_status: input.targetStatus, requested_by_responsible: true },
+  }] : [])]
+  const { error: logError } = await admin.from('installation_activity_logs').insert(activityLogs)
   if (logError) {
     await admin.from('installation_completion_approvals').delete().eq('id', approval.id)
-    return { error: '감사 로그 저장에 실패해 승인요청을 취소했습니다: ' + logError.message, approvalId: null }
+    return { error: '감사 로그 저장에 실패해 승인요청을 취소했습니다: ' + logError.message, approvalId: null, approvalStatus: null }
   }
-  const { data: approvers } = await admin.from('profiles').select('id').eq('approval_role', 'tech_responsible').neq('id', editor.user.id)
+  const nextApprovalRole = requestedByResponsible ? 'team_lead' : 'tech_responsible'
+  const { data: approvers } = await admin.from('profiles').select('id').eq('approval_role', nextApprovalRole).neq('id', editor.user.id)
   const { error: notificationError } = approvers?.length
     ? await admin.from('notifications').insert(approvers.map(approver => ({
       user_id: approver.id,
       installation_id: input.installationId,
-      type: 'approval_install_step',
-      title: '[1차 승인요청] 기술지원 단계',
+      type: requestedByResponsible ? 'approval_install_step_final' : 'approval_install_step',
+      title: requestedByResponsible ? '[최종 승인요청] 기술지원 단계' : '[1차 승인요청] 기술지원 단계',
       body: `${editor.profile.name}님이 ${APPROVAL_STATUS_LABEL[input.targetStatus]} 단계 승인을 요청했습니다.`,
     })))
     : { error: null }
   revalidatePath('/dashboard')
-  return { error: null, approvalId: approval.id, notificationError: notificationError?.message ?? null }
+  return { error: null, approvalId: approval.id, approvalStatus, notificationError: notificationError?.message ?? null }
 }
 
-export async function requestInstallationCompletion(installationId: string, skipNotify = false) {
-  return requestInstallationStatusApproval({ installationId, targetStatus: 'completed', skipNotify })
+export async function requestInstallationCompletion(installationId: string, note: string, skipNotify = false) {
+  return requestInstallationStatusApproval({ installationId, targetStatus: 'completed', note, skipNotify })
 }
 
-export async function approveInstallationCompletion(installationId: string) {
+export async function approveInstallationCompletion(installationId: string, note: string) {
+  if (!validateApprovalNote(note)) return { error: '팀장에게 전달할 비고를 입력해주세요.', notificationError: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
@@ -288,7 +320,7 @@ export async function approveInstallationCompletion(installationId: string) {
   const admin = createAdminClient()
   const { data: approval } = await admin
     .from('installation_completion_approvals')
-    .select('id, requested_by, target_status')
+    .select('id, requested_by, target_status, approval_notes')
     .eq('installation_id', installationId)
     .eq('status', 'requested')
     .single()
@@ -305,6 +337,9 @@ export async function approveInstallationCompletion(installationId: string) {
       responsible_approved_by: user.id,
       responsible_approved_by_name: profile.name,
       responsible_approved_at: approvedAt,
+      approval_notes: appendApprovalNote(approval.approval_notes, {
+        id: user.id, name: profile.name, role: 'tech_responsible',
+      }, note, 'first_approval'),
     })
     .eq('id', approval.id)
     .eq('status', 'requested')
@@ -325,6 +360,7 @@ export async function approveInstallationCompletion(installationId: string) {
       responsible_approved_by: null,
       responsible_approved_by_name: null,
       responsible_approved_at: null,
+      approval_notes: approval.approval_notes,
     }).eq('id', approval.id).eq('status', 'responsible_approved')
     return { error: '감사 로그 저장에 실패해 승인을 취소했습니다: ' + logError.message, notificationError: null }
   }
@@ -346,7 +382,8 @@ export async function approveInstallationCompletion(installationId: string) {
   return { error: null, notificationError: notificationError?.message ?? null }
 }
 
-export async function approveInstallationStatusByTeamLead(installationId: string) {
+export async function approveInstallationStatusByTeamLead(installationId: string, note: string) {
+  if (!validateApprovalNote(note)) return { error: '최종 전달 비고를 입력해주세요.', notificationError: null }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
@@ -355,7 +392,7 @@ export async function approveInstallationStatusByTeamLead(installationId: string
 
   const admin = createAdminClient()
   const { data: approval } = await admin.from('installation_completion_approvals')
-    .select('id, requested_by, target_status, request_payload')
+    .select('id, requested_by, target_status, request_payload, approval_notes')
     .eq('installation_id', installationId)
     .eq('status', 'responsible_approved')
     .single()
@@ -368,13 +405,16 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   const approvedAt = new Date().toISOString()
   const { data: finalApproval, error: approvalError } = await admin.from('installation_completion_approvals').update({
     status: 'approved', approved_by: user.id, approved_by_name: profile.name, approved_at: approvedAt,
+    approval_notes: appendApprovalNote(approval.approval_notes, {
+      id: user.id, name: profile.name, role: 'team_lead',
+    }, note, 'final_approval'),
   }).eq('id', approval.id).eq('status', 'responsible_approved').select('id').maybeSingle()
   if (approvalError || !finalApproval) return { error: approvalError?.message ?? '다른 사용자가 먼저 승인했습니다.', notificationError: null }
 
   const values: Record<string, string> = { status: approval.target_status, updated_at: approvedAt }
   if (approval.target_status === 'scheduled') {
     if (!payload.scheduled_date || !payload.scheduled_time) {
-      await admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null }).eq('id', approval.id)
+      await admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes }).eq('id', approval.id)
       return { error: '승인요청에 일정 정보가 없습니다.', notificationError: null }
     }
     values.scheduled_date = payload.scheduled_date
@@ -383,7 +423,7 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   const { data: updated, error: updateError } = await admin.from('installations').update(values)
     .eq('id', installationId).eq('status', installation.status).select('id').maybeSingle()
   if (updateError || !updated) {
-    await admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null }).eq('id', approval.id)
+    await admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes }).eq('id', approval.id)
     return { error: updateError?.message ?? '설치 상태가 변경되어 승인할 수 없습니다.', notificationError: null }
   }
 
@@ -395,7 +435,7 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   if (logError) {
     await Promise.all([
       admin.from('installations').update({ status: installation.status, scheduled_date: installation.scheduled_date, scheduled_time: installation.scheduled_time }).eq('id', installationId).eq('status', approval.target_status),
-      admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null }).eq('id', approval.id),
+      admin.from('installation_completion_approvals').update({ status: 'responsible_approved', approved_by: null, approved_by_name: null, approved_at: null, approval_notes: approval.approval_notes }).eq('id', approval.id),
     ])
     return { error: '감사 로그 저장에 실패해 최종 승인을 취소했습니다: ' + logError.message, notificationError: null }
   }

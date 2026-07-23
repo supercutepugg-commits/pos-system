@@ -39,6 +39,9 @@ export default function TransferApprovalItem({ id, businessName, ownerName, addr
         toast.error(`반려 실패: ${result.error}`)
         return
       }
+      if (result.notificationError) {
+        toast.warning('반려 처리되었지만 요청자 알림 전송에 실패했습니다: ' + result.notificationError)
+      }
       toast.success('승인 요청을 반려했습니다.')
       setOpen(false)
       router.refresh()

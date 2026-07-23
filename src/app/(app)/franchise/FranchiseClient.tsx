@@ -80,6 +80,7 @@ type TransferApproval = {
   cs_approved_by: string | null
   cs_approved_by_name: string | null
   cs_approved_at: string | null
+  rejection_reason?: string | null
 }
 
 type ReceiptTableView = 'all' | 'mine' | 'doc_incomplete' | 'doc_waiting' | 'approved'
@@ -1386,7 +1387,7 @@ export default function FranchiseClient({ rows, salesProfiles, csProfiles, curre
   async function requestTransferApproval(row: FranchiseApplication) {
     if (!['cs_manager', 'cs_responsible'].includes(currentUserApprovalRole)) { toast.warning('이관 승인요청은 CS매니저 또는 CS책임만 등록할 수 있습니다.'); return }
     const existing = transferApprovals[row.id]
-    if (existing && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
+    if (existing && existing.status !== 'rejected' && localLinkedInstalls[row.id]?.status !== 'rejected') { toast.warning(existing.status === 'requested' ? '이미 이관 승인요청이 진행 중입니다.' : '이미 이관 승인 처리가 완료된 접수입니다.'); return }
     const approval = {
       franchise_application_id: row.id,
       status: 'requested' as const,

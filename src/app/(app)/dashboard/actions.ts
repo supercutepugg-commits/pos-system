@@ -34,7 +34,7 @@ export async function requestFranchiseTransfer(franchiseApplicationId: string) {
     admin.from('installations').select('status').eq('franchise_application_id', franchiseApplicationId).maybeSingle(),
   ])
   if (!franchise) return { error: '가맹접수를 찾을 수 없습니다.' }
-  if (existingApproval && existingInstall?.status !== 'rejected') return { error: '이미 이관 승인요청이 존재합니다.' }
+  if (existingApproval && existingApproval.status !== 'rejected' && existingInstall?.status !== 'rejected') return { error: '이미 이관 승인요청이 존재합니다.' }
 
   const approvalValues = {
     franchise_application_id: franchiseApplicationId,
@@ -166,7 +166,7 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('approval_role')
+    .select('name, approval_role')
     .eq('id', user.id)
     .single()
   const expectedStatus = profile?.approval_role === 'cs_responsible'
@@ -204,7 +204,19 @@ export async function rejectFranchiseTransfer(franchiseApplicationId: string, re
       .eq('franchise_application_id', franchiseApplicationId).eq('status', 'rejected')
     return { error: '감사 로그 저장에 실패해 반려를 취소했습니다: ' + logError.message }
   }
-  return { error: null }
+
+  const trimmedReason = reason.trim()
+  const { error: notificationError } = await admin.from('notifications').insert({
+    user_id: approval.requested_by,
+    franchise_application_id: franchiseApplicationId,
+    type: 'approval_transfer_rejected',
+    title: '[반려] 기술지원 이관 승인요청',
+    body: trimmedReason
+      ? `${profile?.name ?? '승인자'}님이 이관 승인요청을 반려했습니다. 사유: ${trimmedReason}`
+      : `${profile?.name ?? '승인자'}님이 이관 승인요청을 반려했습니다.`,
+  })
+
+  return { error: null, notificationError: notificationError?.message ?? null }
 }
 
 export async function approveFranchiseTransfer(franchiseApplicationId: string) {

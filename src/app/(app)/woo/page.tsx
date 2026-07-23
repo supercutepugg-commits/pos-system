@@ -2,10 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import WooClient from './WooClient'
 
-export default async function WooPage() {
+export default async function WooPage({ searchParams }: { searchParams: Promise<{ highlight?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const { highlight } = await searchParams
 
   const { data: rows, error } = await supabase
     .from('woo_customers')
@@ -32,7 +33,7 @@ export default async function WooPage() {
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <WooClient rows={rows ?? []} currentUserId={user.id} linkedInstalls={linkedInstalls} />
+        <WooClient rows={rows ?? []} currentUserId={user.id} linkedInstalls={linkedInstalls} initialHighlightId={highlight} />
       )}
     </div>
   )

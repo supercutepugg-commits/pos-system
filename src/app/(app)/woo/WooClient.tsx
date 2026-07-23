@@ -21,6 +21,7 @@ interface Props {
   rows: WooCustomer[]
   currentUserId: string
   linkedInstalls?: Record<string, { id: string; status: string }>
+  initialHighlightId?: string
 }
 
 const CATEGORIES = ['명의변경', '승계', '신규']
@@ -329,7 +330,7 @@ const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: C
   )
 })
 
-export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: Props) {
+export default function WooClient({ rows, currentUserId, linkedInstalls = {}, initialHighlightId }: Props) {
   const toast = useToast()
   const router = useRouter()
   const [localRows, setLocalRows] = useState(rows)
@@ -413,6 +414,26 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
   }, [page, totalPages])
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  const highlightAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!initialHighlightId || highlightAppliedRef.current) return
+    const target = localRows.find(r => r.id === initialHighlightId)
+    if (!target) return
+    highlightAppliedRef.current = true
+    setSearch('')
+    setCategoryFilter('')
+    setExpandedId(target.id)
+  }, [initialHighlightId, localRows])
+
+  useEffect(() => {
+    if (!initialHighlightId) return
+    const idx = filteredRows.findIndex(r => r.id === initialHighlightId)
+    if (idx === -1) return
+    setPage(Math.floor(idx / PAGE_SIZE) + 1)
+    setTimeout(() => {
+      document.getElementById(`woo-row-${initialHighlightId}`)?.scrollIntoView({ block: 'center' })
+    }, 50)
+  }, [initialHighlightId, filteredRows])
 
   const allChecked = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
 
@@ -684,6 +705,7 @@ export default function WooClient({ rows, currentUserId, linkedInstalls = {} }: 
             {pagedRows.map(row => (
               <Fragment key={row.id}>
                 <tr
+                  id={`woo-row-${row.id}`}
                   className="border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer"
                   onClick={() => toggleExpand(row.id)}
                 >

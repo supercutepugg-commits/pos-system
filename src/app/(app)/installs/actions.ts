@@ -455,6 +455,54 @@ export async function approveInstallationStatusByTeamLead(installationId: string
   return { error: null, notificationError: notification.error }
 }
 
+export async function rescheduleInstallationByTeamLead(input: {
+  installationId: string
+  scheduledDate: string
+  scheduledTime: string
+  note: string
+  skipNotify?: boolean
+}) {
+  if (!validateApprovalNote(input.note)) return { error: '변경 사유를 입력해주세요.', notificationError: null }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '로그인이 필요합니다.', notificationError: null }
+  const { data: profile } = await supabase.from('profiles').select('name, approval_role').eq('id', user.id).single()
+  if (!profile || profile.approval_role !== 'team_lead') return { error: '팀장만 승인 없이 바로 일정을 변경할 수 있습니다.', notificationError: null }
+  if (!input.scheduledDate || !input.scheduledTime) return { error: '일정 날짜와 시간이 필요합니다.', notificationError: null }
+
+  const admin = createAdminClient()
+  const { data: installation } = await admin.from('installations').select('status, scheduled_date, scheduled_time').eq('id', input.installationId).single()
+  if (!installation) return { error: '설치건을 찾을 수 없습니다.', notificationError: null }
+  if (['completed', 'rejected'].includes(installation.status)) return { error: '완료/반려된 설치건은 일정을 변경할 수 없습니다.', notificationError: null }
+
+  const updatedAt = new Date().toISOString()
+  const { data: updated, error: updateError } = await admin.from('installations').update({
+    status: 'scheduled', scheduled_date: input.scheduledDate, scheduled_time: input.scheduledTime, updated_at: updatedAt,
+  }).eq('id', input.installationId).eq('status', installation.status).select('id').maybeSingle()
+  if (updateError || !updated) return { error: updateError?.message ?? '다른 사용자가 먼저 상태를 변경했습니다.', notificationError: null }
+
+  const { error: logError } = await admin.from('installation_activity_logs').insert({
+    installation_id: input.installationId, user_id: user.id, action: 'step_final_approved',
+    from_status: installation.status, to_status: 'scheduled',
+    details: { scheduled_date: input.scheduledDate, scheduled_time: input.scheduledTime, reason: input.note.trim(), by: 'team_lead_direct' },
+  })
+  if (logError) {
+    await admin.from('installations').update({
+      status: installation.status, scheduled_date: installation.scheduled_date, scheduled_time: installation.scheduled_time, updated_at: new Date().toISOString(),
+    }).eq('id', input.installationId).eq('status', 'scheduled')
+    return { error: '감사 로그 저장에 실패해 일정 변경을 취소했습니다: ' + logError.message, notificationError: null }
+  }
+
+  const notification = input.skipNotify
+    ? { error: null }
+    : await sendApprovedInstallNotification({ installationId: input.installationId, status: 'scheduled', userId: user.id })
+  revalidatePath('/dashboard')
+  revalidatePath('/installs')
+  revalidatePath('/installs/mine')
+  revalidatePath('/calendar')
+  return { error: null, notificationError: notification.error }
+}
+
 export async function rejectInstallationStatusApproval(installationId: string, reason: string) {
   if (!validateApprovalNote(reason)) return { error: '반려 사유를 입력해주세요.', notificationError: null }
   const supabase = await createClient()

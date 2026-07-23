@@ -30,6 +30,7 @@ import {
   rejectInstallationStatusApproval,
   requestInstallationCompletion,
   requestInstallationStatusApproval,
+  rescheduleInstallationByTeamLead,
 } from './actions'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -625,6 +626,20 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     const { id, date, time } = scheduleModal
     if (!date.trim() || !time.trim()) return
     setSendingSchedule(true)
+
+    if (profile.approval_role === 'team_lead') {
+      const note = window.prompt('변경 사유를 입력해주세요.')?.trim()
+      if (!note) { setSendingSchedule(false); return }
+      const result = await rescheduleInstallationByTeamLead({ installationId: id, scheduledDate: date, scheduledTime: time, note, skipNotify })
+      if (result.error) { setSendingSchedule(false); toast.error('일정 변경 실패: ' + result.error); return }
+      setInstalls(prev => prev.map(item => item.id === id ? { ...item, status: 'scheduled', scheduled_date: date, scheduled_time: time } : item))
+      setScheduleModal(null)
+      setSendingSchedule(false)
+      if (result.notificationError) toast.warning('일정은 변경됐지만 알림톡 발송에 실패했습니다: ' + result.notificationError)
+      toast.success('일정이 변경되었습니다.')
+      return
+    }
+
     const note = window.prompt(approvalRequestPrompt)?.trim()
     if (!note) { setSendingSchedule(false); return }
     const result = await requestInstallationStatusApproval({

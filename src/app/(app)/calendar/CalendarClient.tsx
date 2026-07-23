@@ -76,6 +76,7 @@ interface CalendarEvent {
   glow?: boolean
   manualId?: string
   ownerIds: string[]
+  newTab?: boolean
 }
 
 const EVENT_TYPES = [
@@ -221,6 +222,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           techName: ticket.tech?.name,
           salesName: ticket.sales?.name,
           ownerIds: [ticket.tech_id, ticket.sales_id].filter((id): id is string => !!id),
+          newTab: true,
         })
       }
     }
@@ -239,6 +241,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
           subtitle: '가맹 접수',
           salesName: row.sales?.name,
           ownerIds: row.sales_id ? [row.sales_id] : [],
+          newTab: true,
         })
       }
     }
@@ -257,6 +260,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         statusLabel: INSTALL_STATUS_LABEL[row.status] ?? row.status,
         statusColor: 'bg-fuchsia-50 text-fuchsia-600',
         techName: row.assignee?.name,
+        newTab: true,
         ownerIds: row.assigned_to ? [row.assigned_to] : [],
       })
     }
@@ -270,11 +274,12 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         label: '오픈',
         category: '우국상 오픈',
         color: 'bg-cyan-500',
-        href: '/woo',
+        href: `/woo?highlight=${row.id}`,
         businessName,
         subtitle: '우국상 오픈',
         salesName: row.manager ?? undefined,
         ownerIds: [],
+        newTab: true,
       })
       const installDate = mondayOfWeek(openDate)
       if (!map[installDate]) map[installDate] = []
@@ -283,12 +288,13 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
         label: '설치',
         category: '우국상 설치(월요일)',
         color: 'bg-amber-500',
-        href: '/woo',
+        href: `/woo?highlight=${row.id}`,
         businessName,
         subtitle: '우국상 설치 (오픈 주 월요일)',
         salesName: row.manager ?? undefined,
         glow: true,
         ownerIds: [],
+        newTab: true,
       })
     }
     for (const ev of localManualEvents) {
@@ -612,6 +618,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
                   }
                   return (
                     <Link key={i} href={ev.href}
+                      {...(ev.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                       className="block px-4 py-3 hover:bg-slate-50 transition-colors">
                       {content}
                     </Link>

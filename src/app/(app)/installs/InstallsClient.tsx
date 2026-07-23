@@ -178,7 +178,7 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   tech: 90,
   notes: 150,
   date: 100,
-  actions: 80,
+  actions: 280,
 }
 const COL_WIDTHS_STORAGE_KEY = 'installs_col_widths'
 
@@ -1780,8 +1780,8 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                     <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap font-mono">
                       {format(new Date(inst.created_at), 'M/d HH:mm', { locale: ko })}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-1.5">
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex flex-wrap gap-1.5">
                         {inst.franchise_application_id && (
                           <button onClick={() => openFranchiseDetail(inst.franchise_application_id!)}
                             className="text-xs text-purple-600 border border-purple-200 px-2 py-1 rounded-lg hover:bg-purple-50">가맹접수</button>

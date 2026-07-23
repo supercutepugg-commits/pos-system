@@ -318,7 +318,7 @@ export default function CalendarClient({ tickets, franchiseRows = [], wooRows = 
     for (const [date, events] of Object.entries(eventMap)) {
       const filtered = activeTab === 'personal'
         ? events.filter(ev => ev.ownerIds.includes(currentUserId))
-        : events.filter(ev => ev.category === '설치 관리' && ev.ownerIds.length > 0)
+        : events.filter(ev => (ev.category === '설치 관리' || ev.category === '설치' || ev.category === '택배발송') && ev.ownerIds.length > 0)
       if (filtered.length) map[date] = filtered
     }
     return map

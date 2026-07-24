@@ -1,56 +1,56 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import FormModal from '@/components/ui/FormModal'
-import { useToast } from '@/components/ui/Toast'
-import type { Profile } from '@/types'
-import ChatbotDataDetailDrawer from './ChatbotDataDetailDrawer'
+import { useMemo, useState } from "react";
+import { Plus, Search } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import FormModal from "@/components/ui/FormModal";
+import { useToast } from "@/components/ui/Toast";
+import type { Profile } from "@/types";
+import ChatbotDataDetailDrawer from "./ChatbotDataDetailDrawer";
 
 export interface ChatbotDataRow {
-  id: string
-  problem_situation: string
-  solution: string
-  registered_by: string
-  registrant_name: string
-  created_at: string
-  updated_at: string
+  id: string;
+  problem_situation: string;
+  solution: string;
+  registered_by: string;
+  registrant_name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ChatbotDataFormValue {
-  problemSituation: string
-  solution: string
+  problemSituation: string;
+  solution: string;
 }
 
 const EMPTY_FORM: ChatbotDataFormValue = {
-  problemSituation: '',
-  solution: '',
-}
+  problemSituation: "",
+  solution: "",
+};
 
 function formatDateTime(value: string) {
-  const date = new Date(value)
-  return `${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`
+  const date = new Date(value);
+  return `${date.toLocaleDateString("ko-KR")} ${date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
 }
 
 interface CreateFormProps {
-  registrantName: string
-  submitting: boolean
-  onClose: () => void
-  onSubmit: (value: ChatbotDataFormValue) => Promise<void>
+  registrantName: string;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (value: ChatbotDataFormValue) => Promise<void>;
 }
 
 function CreateForm({ registrantName, submitting, onClose, onSubmit }: CreateFormProps) {
-  const [form, setForm] = useState(EMPTY_FORM)
-  const canSubmit = form.problemSituation.trim() && form.solution.trim()
+  const [form, setForm] = useState(EMPTY_FORM);
+  const canSubmit = form.problemSituation.trim() && form.solution.trim();
 
   async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    if (!canSubmit) return
-    await onSubmit(form)
+    event.preventDefault();
+    if (!canSubmit) return;
+    await onSubmit(form);
   }
 
   return (
@@ -96,84 +96,84 @@ function CreateForm({ registrantName, submitting, onClose, onSubmit }: CreateFor
             disabled={submitting || !canSubmit}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
           >
-            {submitting ? '등록 중...' : '등록'}
+            {submitting ? "등록 중..." : "등록"}
           </button>
         </div>
       </form>
     </FormModal>
-  )
+  );
 }
 
 interface Props {
-  rows: ChatbotDataRow[]
-  profile: Profile
+  rows: ChatbotDataRow[];
+  profile: Profile;
 }
 
 export default function ChatbotDataClient({ rows, profile }: Props) {
-  const toast = useToast()
-  const [localRows, setLocalRows] = useState(rows)
-  const [search, setSearch] = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const toast = useToast();
+  const [localRows, setLocalRows] = useState(rows);
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const filteredRows = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return localRows
+    const term = search.trim().toLowerCase();
+    if (!term) return localRows;
     return localRows.filter((row) =>
       `${row.problem_situation} ${row.solution} ${row.registrant_name}`
         .toLowerCase()
         .includes(term),
-    )
-  }, [localRows, search])
+    );
+  }, [localRows, search]);
 
-  const selectedRow = localRows.find((row) => row.id === selectedId) ?? null
+  const selectedRow = localRows.find((row) => row.id === selectedId) ?? null;
 
   async function handleCreate(value: ChatbotDataFormValue) {
-    setSubmitting(true)
-    const supabase = createClient()
+    setSubmitting(true);
+    const supabase = createClient();
     const { data, error } = await supabase
-      .from('chatbot_training_data')
+      .from("chatbot_training_data")
       .insert({
         problem_situation: value.problemSituation.trim(),
         solution: value.solution.trim(),
       })
       .select()
-      .single()
-    setSubmitting(false)
+      .single();
+    setSubmitting(false);
 
     if (error) {
-      toast.error(`등록 실패: ${error.message}`)
-      return
+      toast.error(`등록 실패: ${error.message}`);
+      return;
     }
 
-    setLocalRows((previous) => [data as ChatbotDataRow, ...previous])
-    setShowForm(false)
-    toast.success('챗봇 데이터가 등록되었습니다.')
+    setLocalRows((previous) => [data as ChatbotDataRow, ...previous]);
+    setShowForm(false);
+    toast.success("챗봇 데이터가 등록되었습니다.");
   }
 
   async function handleUpdate(
     row: ChatbotDataRow,
-    value: Pick<ChatbotDataRow, 'problem_situation' | 'solution'>,
+    value: Pick<ChatbotDataRow, "problem_situation" | "solution">,
   ) {
-    const supabase = createClient()
+    const supabase = createClient();
     const { data, error } = await supabase
-      .from('chatbot_training_data')
+      .from("chatbot_training_data")
       .update(value)
-      .eq('id', row.id)
+      .eq("id", row.id)
       .select()
-      .single()
+      .single();
 
     if (error) {
-      toast.error(`수정 실패: ${error.message}`)
-      return false
+      toast.error(`수정 실패: ${error.message}`);
+      return false;
     }
 
     setLocalRows((previous) =>
       previous.map((item) => (item.id === row.id ? (data as ChatbotDataRow) : item)),
-    )
-    toast.success('챗봇 데이터가 수정되었습니다.')
-    return true
+    );
+    toast.success("챗봇 데이터가 수정되었습니다.");
+    return true;
   }
 
   return (
@@ -189,7 +189,9 @@ export default function ChatbotDataClient({ rows, profile }: Props) {
           />
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <div className="text-sm text-slate-500">전체 {filteredRows.length.toLocaleString()}건</div>
+          <div className="text-sm text-slate-500">
+            전체 {filteredRows.length.toLocaleString()}건
+          </div>
           <button
             type="button"
             onClick={() => setShowForm(true)}
@@ -230,7 +232,10 @@ export default function ChatbotDataClient({ rows, profile }: Props) {
           </thead>
           <tbody>
             {filteredRows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-100 transition-colors hover:bg-blue-50">
+              <tr
+                key={row.id}
+                className="border-b border-slate-100 transition-colors hover:bg-blue-50"
+              >
                 <td className="max-w-0 px-4 py-3">
                   <button
                     type="button"
@@ -249,7 +254,9 @@ export default function ChatbotDataClient({ rows, profile }: Props) {
                     {row.solution}
                   </button>
                 </td>
-                <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{row.registrant_name}</td>
+                <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                  {row.registrant_name}
+                </td>
                 <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
                   {formatDateTime(row.updated_at)}
                 </td>
@@ -275,5 +282,5 @@ export default function ChatbotDataClient({ rows, profile }: Props) {
         />
       )}
     </div>
-  )
+  );
 }

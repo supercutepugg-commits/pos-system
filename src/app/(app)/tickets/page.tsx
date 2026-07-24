@@ -1,92 +1,112 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { Plus } from 'lucide-react'
-import { STATUS_LABEL, type TicketStatus, type Profile } from '@/types'
-import TicketsClient from './TicketsClient'
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { STATUS_LABEL, type TicketStatus, type Profile } from "@/types";
+import TicketsClient from "./TicketsClient";
 
 interface Props {
-  searchParams: Promise<{ status?: string; tab?: string; page?: string }>
+  searchParams: Promise<{ status?: string; tab?: string; page?: string }>;
 }
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 50;
 
-const TRANSFERRED_STATUSES: TicketStatus[] = ['cs_pending', 'cs_progress', 'scheduled', 'tech_pending', 'in_progress', 'done', 'canceled']
+const TRANSFERRED_STATUSES: TicketStatus[] = [
+  "cs_pending",
+  "cs_progress",
+  "scheduled",
+  "tech_pending",
+  "in_progress",
+  "done",
+  "canceled",
+];
 
 const TAB_STATUSES: Record<string, TicketStatus[]> = {
-  sales: ['sales'],
+  sales: ["sales"],
   transferred: TRANSFERRED_STATUSES,
-  cs: ['cs_pending', 'cs_progress', 'scheduled'],
-  tech: ['in_progress'],
-}
+  cs: ["cs_pending", "cs_progress", "scheduled"],
+  tech: ["in_progress"],
+};
 
 export default async function TicketsPage({ searchParams }: Props) {
-  const params = await searchParams
-  const tab = params.tab ?? 'all'
-  const requestedPage = Math.max(1, Number(params.page) || 1)
-  const supabase = await createClient()
+  const params = await searchParams;
+  const tab = params.tab ?? "all";
+  const requestedPage = Math.max(1, Number(params.page) || 1);
+  const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  if (!profile) redirect('/login')
-  const p = profile as Profile
-  const userId = user.id
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  if (!profile) redirect("/login");
+  const p = profile as Profile;
+  const userId = user.id;
 
   function buildQuery() {
     let q = supabase
-      .from('tickets')
-      .select('*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)', { count: 'exact' })
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
+      .from("tickets")
+      .select(
+        "*, merchant:merchants(business_name, phone), sales:profiles!tickets_sales_id_fkey(name), tech:profiles!tickets_tech_id_fkey(name)",
+        { count: "exact" },
+      )
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
 
-    
-    if (p.role === 'sales') q = q.eq('sales_id', userId)
-    if (p.role === 'cs') q = q.eq('cs_id', userId)
-    if (p.role === 'tech') q = q.eq('tech_id', userId)
+    if (p.role === "sales") q = q.eq("sales_id", userId);
+    if (p.role === "cs") q = q.eq("cs_id", userId);
+    if (p.role === "tech") q = q.eq("tech_id", userId);
 
-    
     if (params.status) {
-      q = q.eq('status', params.status)
-    } else if (tab !== 'all') {
-      q = q.in('status', TAB_STATUSES[tab] ?? [])
+      q = q.eq("status", params.status);
+    } else if (tab !== "all") {
+      q = q.in("status", TAB_STATUSES[tab] ?? []);
     }
 
-    return q
+    return q;
   }
 
-  
-  const { count } = await buildQuery().range(0, 0)
-  const totalCount = count ?? 0
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const page = Math.min(requestedPage, totalPages)
+  const { count } = await buildQuery().range(0, 0);
+  const totalCount = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
 
-  const { data: tickets } = await buildQuery().range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+  const { data: tickets } = await buildQuery().range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-  
-  const TABS = p.role === 'sales' || p.role === 'admin' || p.role === 'master'
-    ? [
-        { key: 'all', label: '전체' },
-        { key: 'sales', label: '접수중' },
-        { key: 'transferred', label: '이관완료' },
-        { key: 'cs', label: 'CS팀' },
-        { key: 'tech', label: '기술지원' },
-      ]
-    : p.role === 'cs'
-    ? [
-        { key: 'all', label: '전체' },
-        { key: 'cs', label: 'CS 진행' },
-        { key: 'tech', label: '기술지원' },
-      ]
-    : [
-        { key: 'all', label: '전체' },
-        { key: 'tech', label: '진행중' },
-      ]
+  const TABS =
+    p.role === "sales" || p.role === "admin" || p.role === "master"
+      ? [
+          { key: "all", label: "전체" },
+          { key: "sales", label: "접수중" },
+          { key: "transferred", label: "이관완료" },
+          { key: "cs", label: "CS팀" },
+          { key: "tech", label: "기술지원" },
+        ]
+      : p.role === "cs"
+        ? [
+            { key: "all", label: "전체" },
+            { key: "cs", label: "CS 진행" },
+            { key: "tech", label: "기술지원" },
+          ]
+        : [
+            { key: "all", label: "전체" },
+            { key: "tech", label: "진행중" },
+          ];
 
-  const statusFilters: TicketStatus[] = tab === 'all'
-    ? ['sales', 'cs_pending', 'cs_progress', 'scheduled', 'tech_pending', 'in_progress', 'done', 'canceled']
-    : (TAB_STATUSES[tab] ?? [])
+  const statusFilters: TicketStatus[] =
+    tab === "all"
+      ? [
+          "sales",
+          "cs_pending",
+          "cs_progress",
+          "scheduled",
+          "tech_pending",
+          "in_progress",
+          "done",
+          "canceled",
+        ]
+      : (TAB_STATUSES[tab] ?? []);
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -96,15 +116,19 @@ export default async function TicketsPage({ searchParams }: Props) {
           <p className="text-slate-500 text-sm mt-1">총 {totalCount}건</p>
         </div>
         <div className="flex items-center gap-2">
-          {(p.role === 'admin' || p.role === 'master' || p.role === 'cs' || p.can_delete) && (
-            <Link href="/tickets/trash"
-              className="text-sm text-slate-500 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-colors font-medium">
+          {(p.role === "admin" || p.role === "master" || p.role === "cs" || p.can_delete) && (
+            <Link
+              href="/tickets/trash"
+              className="text-sm text-slate-500 px-3 py-2.5 rounded-xl hover:bg-slate-100 transition-colors font-medium"
+            >
               휴지통
             </Link>
           )}
-          {(p.role === 'sales' || p.role === 'cs' || p.role === 'admin' || p.role === 'master') && (
-            <Link href="/tickets/new"
-              className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200">
+          {(p.role === "sales" || p.role === "cs" || p.role === "admin" || p.role === "master") && (
+            <Link
+              href="/tickets/new"
+              className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors font-semibold shadow-sm shadow-blue-200"
+            >
               <Plus size={16} />새 작업
             </Link>
           )}
@@ -113,11 +137,16 @@ export default async function TicketsPage({ searchParams }: Props) {
 
       {}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-5 w-fit">
-        {TABS.map(t => (
-          <Link key={t.key} href={`/tickets?tab=${t.key}`}
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={`/tickets?tab=${t.key}`}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === t.key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'
-            }`}>
+              tab === t.key
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-black/5"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
             {t.label}
           </Link>
         ))}
@@ -126,13 +155,18 @@ export default async function TicketsPage({ searchParams }: Props) {
       {}
       {statusFilters.length > 0 && (
         <div className="flex gap-1 overflow-x-auto pb-2 mb-5">
-          <Link href={`/tickets?tab=${tab}`}
-            className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${!params.status ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}>
+          <Link
+            href={`/tickets?tab=${tab}`}
+            className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${!params.status ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"}`}
+          >
             전체
           </Link>
-          {statusFilters.map(s => (
-            <Link key={s} href={`/tickets?tab=${tab}&status=${s}`}
-              className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${params.status === s ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}>
+          {statusFilters.map((s) => (
+            <Link
+              key={s}
+              href={`/tickets?tab=${tab}&status=${s}`}
+              className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${params.status === s ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"}`}
+            >
               {STATUS_LABEL[s]}
             </Link>
           ))}
@@ -146,18 +180,22 @@ export default async function TicketsPage({ searchParams }: Props) {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
           <Link
-            href={`/tickets?tab=${tab}${params.status ? `&status=${params.status}` : ''}&page=${Math.max(1, page - 1)}`}
-            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page <= 1 ? 'text-slate-300 pointer-events-none' : 'text-slate-600 hover:bg-slate-50'}`}>
+            href={`/tickets?tab=${tab}${params.status ? `&status=${params.status}` : ""}&page=${Math.max(1, page - 1)}`}
+            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page <= 1 ? "text-slate-300 pointer-events-none" : "text-slate-600 hover:bg-slate-50"}`}
+          >
             이전
           </Link>
-          <span className="text-sm text-slate-500 font-medium">{page} / {totalPages}</span>
+          <span className="text-sm text-slate-500 font-medium">
+            {page} / {totalPages}
+          </span>
           <Link
-            href={`/tickets?tab=${tab}${params.status ? `&status=${params.status}` : ''}&page=${Math.min(totalPages, page + 1)}`}
-            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page >= totalPages ? 'text-slate-300 pointer-events-none' : 'text-slate-600 hover:bg-slate-50'}`}>
+            href={`/tickets?tab=${tab}${params.status ? `&status=${params.status}` : ""}&page=${Math.min(totalPages, page + 1)}`}
+            className={`text-sm px-3 py-1.5 rounded-lg border border-slate-200 font-medium ${page >= totalPages ? "text-slate-300 pointer-events-none" : "text-slate-600 hover:bg-slate-50"}`}
+          >
             다음
           </Link>
         </div>
       )}
     </div>
-  )
+  );
 }

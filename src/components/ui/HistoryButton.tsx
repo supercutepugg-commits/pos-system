@@ -1,7 +1,15 @@
-import HistoryIcon from './HistoryIcon'
+import HistoryIcon from "./HistoryIcon";
 
-export default function HistoryButton({ onClick, label = '히스토리', size = 'large' }: { onClick: () => void; label?: string; size?: 'large' | 'small' }) {
-  if (size === 'small') {
+export default function HistoryButton({
+  onClick,
+  label = "히스토리",
+  size = "large",
+}: {
+  onClick: () => void;
+  label?: string;
+  size?: "large" | "small";
+}) {
+  if (size === "small") {
     return (
       <button
         onClick={onClick}
@@ -11,7 +19,7 @@ export default function HistoryButton({ onClick, label = '히스토리', size = 
         <HistoryIcon size={16} />
         {label}
       </button>
-    )
+    );
   }
 
   return (
@@ -23,5 +31,5 @@ export default function HistoryButton({ onClick, label = '히스토리', size = 
       <HistoryIcon size={48} />
       {label}
     </button>
-  )
+  );
 }

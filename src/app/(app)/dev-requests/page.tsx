@@ -1,19 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import DevRequestsClient from './DevRequestsClient'
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import DevRequestsClient from "./DevRequestsClient";
 
 export default async function DevRequestsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  if (!profile) redirect('/login')
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  if (!profile) redirect("/login");
 
   const { data: rows, error } = await supabase
-    .from('dev_requests')
-    .select('*')
-    .order('created_at', { ascending: false })
+    .from("dev_requests")
+    .select("*")
+    .order("created_at", { ascending: false });
 
   return (
     <div className="flex flex-col h-screen p-6 gap-4">
@@ -27,5 +29,5 @@ export default async function DevRequestsPage() {
         <DevRequestsClient rows={rows ?? []} profile={profile} />
       )}
     </div>
-  )
+  );
 }

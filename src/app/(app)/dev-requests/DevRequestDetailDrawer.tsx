@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
-import { X } from 'lucide-react'
-import type { DevRequest, DevRequestStatus } from './DevRequestsClient'
+import { X } from "lucide-react";
+import type { DevRequest, DevRequestStatus } from "./DevRequestsClient";
 
 const STATUS_STYLE: Record<DevRequestStatus, string> = {
-  '확인중': 'bg-amber-100 text-amber-700',
-  '미승인': 'bg-red-100 text-red-700',
-  '승인': 'bg-emerald-100 text-emerald-700',
-  '처리완료': 'bg-blue-100 text-blue-700',
-}
+  확인중: "bg-amber-100 text-amber-700",
+  미승인: "bg-red-100 text-red-700",
+  승인: "bg-emerald-100 text-emerald-700",
+  처리완료: "bg-blue-100 text-blue-700",
+};
 
-const STATUS_OPTIONS: DevRequestStatus[] = ['확인중', '미승인', '승인', '처리완료']
+const STATUS_OPTIONS: DevRequestStatus[] = ["확인중", "미승인", "승인", "처리완료"];
 
 function formatDateTime(value: string | null) {
-  if (!value) return '-'
-  const date = new Date(value)
-  return `${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+  if (!value) return "-";
+  const date = new Date(value);
+  return `${date.toLocaleDateString("ko-KR")} ${date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -24,13 +24,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs text-slate-500">{label}</span>
       {children}
     </div>
-  )
+  );
 }
 
 interface Props {
-  row: DevRequest
-  onClose: () => void
-  onStatusChange: (status: DevRequestStatus) => void | Promise<void>
+  row: DevRequest;
+  onClose: () => void;
+  onStatusChange: (status: DevRequestStatus) => void | Promise<void>;
 }
 
 export default function DevRequestDetailDrawer({ row, onClose, onStatusChange }: Props) {
@@ -40,17 +40,25 @@ export default function DevRequestDetailDrawer({ row, onClose, onStatusChange }:
         role="dialog"
         aria-modal="true"
         aria-labelledby="dev-request-detail-title"
-        onMouseDown={e => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         className="bg-white text-slate-900 absolute inset-y-0 right-0 flex h-dvh w-[520px] max-w-[calc(100vw-32px)] flex-col shadow-2xl"
       >
         <div className="flex-shrink-0 border-b border-slate-200 px-6 py-5">
           <div className="flex items-start justify-between">
             <div>
-              <div id="dev-request-detail-title" className="text-lg font-bold text-slate-900">{row.title}</div>
-              <div className="mt-1 text-[13.5px] text-slate-500">요청자 {row.requester_name ?? '-'}</div>
+              <div id="dev-request-detail-title" className="text-lg font-bold text-slate-900">
+                {row.title}
+              </div>
+              <div className="mt-1 text-[13.5px] text-slate-500">
+                요청자 {row.requester_name ?? "-"}
+              </div>
             </div>
-            <button type="button" aria-label="닫기" onClick={onClose}
-              className="inline-flex size-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <button
+              type="button"
+              aria-label="닫기"
+              onClick={onClose}
+              className="inline-flex size-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            >
               <X size={18} />
             </button>
           </div>
@@ -58,12 +66,18 @@ export default function DevRequestDetailDrawer({ row, onClose, onStatusChange }:
             <select
               aria-label="상태"
               value={row.status}
-              onChange={e => onStatusChange(e.target.value as DevRequestStatus)}
+              onChange={(e) => onStatusChange(e.target.value as DevRequestStatus)}
               className={`h-auto rounded-md border-none px-2.5 py-1 text-xs font-semibold outline-none cursor-pointer ${STATUS_STYLE[row.status]}`}
             >
-              {STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
-            <span className="text-sm text-slate-500">요청일시 {formatDateTime(row.created_at)}</span>
+            <span className="text-sm text-slate-500">
+              요청일시 {formatDateTime(row.created_at)}
+            </span>
           </div>
         </div>
 
@@ -71,19 +85,27 @@ export default function DevRequestDetailDrawer({ row, onClose, onStatusChange }:
           <div className="flex flex-col gap-5">
             <Field label="내용">
               <div className="whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700 min-h-[80px]">
-                {row.content || '-'}
+                {row.content || "-"}
               </div>
             </Field>
 
             <div className="grid grid-cols-2 gap-3.5">
-              <Field label="요청자"><div className="text-sm text-slate-700">{row.requester_name ?? '-'}</div></Field>
-              <Field label="요청일시"><div className="text-sm text-slate-700">{formatDateTime(row.created_at)}</div></Field>
-              <Field label="승인자"><div className="text-sm text-slate-700">{row.approver_name ?? '-'}</div></Field>
-              <Field label="승인/완료일시"><div className="text-sm text-slate-700">{formatDateTime(row.approved_at)}</div></Field>
+              <Field label="요청자">
+                <div className="text-sm text-slate-700">{row.requester_name ?? "-"}</div>
+              </Field>
+              <Field label="요청일시">
+                <div className="text-sm text-slate-700">{formatDateTime(row.created_at)}</div>
+              </Field>
+              <Field label="승인자">
+                <div className="text-sm text-slate-700">{row.approver_name ?? "-"}</div>
+              </Field>
+              <Field label="승인/완료일시">
+                <div className="text-sm text-slate-700">{formatDateTime(row.approved_at)}</div>
+              </Field>
             </div>
           </div>
         </div>
       </aside>
     </div>
-  )
+  );
 }

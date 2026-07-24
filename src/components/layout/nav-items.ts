@@ -73,9 +73,7 @@ export const ROLE_FOLDERS: {
   },
 ];
 
-export const ADMIN_NAV: NavItem[] = [
-  { href: "/admin/users", label: "직원 관리", icon: Users },
-];
+export const ADMIN_NAV: NavItem[] = [{ href: "/admin/users", label: "직원 관리", icon: Users }];
 
 export const MASTER_NAV: NavItem[] = [
   { href: "/admin/logs", label: "직원 활동 로그", icon: ClipboardList },

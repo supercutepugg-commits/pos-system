@@ -10,7 +10,7 @@ interface Props {
 
 type TransferApproval = {
   franchise_application_id: string;
-  status: 'requested' | 'cs_responsible_approved' | 'approved' | 'rejected';
+  status: "requested" | "cs_responsible_approved" | "approved" | "rejected";
   delivery_type: InstallationDeliveryType | null;
   requested_by: string;
   requested_by_name: string;
@@ -32,9 +32,7 @@ export default async function FranchisePage({ searchParams }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const kstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const kstDayStart = new Date(`${kstToday}T00:00:00+09:00`);
   const kstNextDayStart = new Date(kstDayStart.getTime() + 24 * 60 * 60 * 1000);
 
@@ -69,13 +67,15 @@ export default async function FranchisePage({ searchParams }: Props) {
       .in("to_status", ["card_done", "toss_review_done"])
       .gte("created_at", kstDayStart.toISOString())
       .lt("created_at", kstNextDayStart.toISOString()),
-    supabase.from("franchise_transfer_approvals").select("franchise_application_id,status,delivery_type,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at,approval_notes"),
+    supabase
+      .from("franchise_transfer_approvals")
+      .select(
+        "franchise_application_id,status,delivery_type,requested_by,requested_by_name,requested_at,approved_by,approved_by_name,approved_at,cs_approved_by,cs_approved_by_name,cs_approved_at,approval_notes",
+      ),
   ]);
 
   const todayCompletedIds = [
-    ...new Set(
-      (todayCompletionLogs ?? []).map((log) => log.franchise_application_id),
-    ),
+    ...new Set((todayCompletionLogs ?? []).map((log) => log.franchise_application_id)),
   ];
 
   const linkedInstalls: Record<string, { id: string; status: string }> = {};
@@ -84,44 +84,39 @@ export default async function FranchisePage({ searchParams }: Props) {
     { id: string; status: string | null; category: string | null }
   > = {};
   if (rows && rows.length > 0) {
-    const phones = [
-      ...new Set(rows.map((r) => r.phone).filter((p): p is string => !!p)),
-    ];
-    const [
-      { data: installs },
-      { data: internetsById },
-      { data: internetsByPhone },
-    ] = await Promise.all([
-      supabase
-        .from("installations")
-        .select("id, status, franchise_application_id")
-        .in(
-          "franchise_application_id",
-          rows.map((r) => r.id),
-        ),
-      supabase
-        .from("internet_management")
-        .select("id, status, category, franchise_application_id")
-        .in(
-          "franchise_application_id",
-          rows.map((r) => r.id),
-        ),
+    const phones = [...new Set(rows.map((r) => r.phone).filter((p): p is string => !!p))];
+    const [{ data: installs }, { data: internetsById }, { data: internetsByPhone }] =
+      await Promise.all([
+        supabase
+          .from("installations")
+          .select("id, status, franchise_application_id")
+          .in(
+            "franchise_application_id",
+            rows.map((r) => r.id),
+          ),
+        supabase
+          .from("internet_management")
+          .select("id, status, category, franchise_application_id")
+          .in(
+            "franchise_application_id",
+            rows.map((r) => r.id),
+          ),
 
-      phones.length > 0
-        ? supabase
-            .from("internet_management")
-            .select("id, status, category, phone")
-            .is("franchise_application_id", null)
-            .in("phone", phones)
-        : Promise.resolve({
-            data: [] as {
-              id: string;
-              status: string | null;
-              category: string | null;
-              phone: string | null;
-            }[],
-          }),
-    ]);
+        phones.length > 0
+          ? supabase
+              .from("internet_management")
+              .select("id, status, category, phone")
+              .is("franchise_application_id", null)
+              .in("phone", phones)
+          : Promise.resolve({
+              data: [] as {
+                id: string;
+                status: string | null;
+                category: string | null;
+                phone: string | null;
+              }[],
+            }),
+      ]);
     for (const inst of installs ?? []) {
       if (inst.franchise_application_id)
         linkedInstalls[inst.franchise_application_id] = {
@@ -139,14 +134,10 @@ export default async function FranchisePage({ searchParams }: Props) {
     }
     const normalizePhone = (p: string) => p.replace(/\D/g, "");
     const phoneToFranchiseId = new Map(
-      rows
-        .filter((r) => r.phone)
-        .map((r) => [normalizePhone(r.phone as string), r.id]),
+      rows.filter((r) => r.phone).map((r) => [normalizePhone(r.phone as string), r.id]),
     );
     for (const net of internetsByPhone ?? []) {
-      const fid = net.phone
-        ? phoneToFranchiseId.get(normalizePhone(net.phone))
-        : undefined;
+      const fid = net.phone ? phoneToFranchiseId.get(normalizePhone(net.phone)) : undefined;
       if (fid && !linkedInternets[fid])
         linkedInternets[fid] = {
           id: net.id,
@@ -159,9 +150,7 @@ export default async function FranchisePage({ searchParams }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {error ? (
-        <div className="text-red-500 text-sm">
-          데이터를 불러오지 못했습니다: {error.message}
-        </div>
+        <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
         <FranchiseClient
           rows={rows ?? []}
@@ -177,7 +166,14 @@ export default async function FranchisePage({ searchParams }: Props) {
           linkedInternets={linkedInternets}
           todayDate={kstToday}
           todayCompletedIds={todayCompletedIds}
-          initialTransferApprovals={Object.fromEntries((transferApprovals ?? []).map((approval) => [approval.franchise_application_id, approval])) as Record<string, TransferApproval>}
+          initialTransferApprovals={
+            Object.fromEntries(
+              (transferApprovals ?? []).map((approval) => [
+                approval.franchise_application_id,
+                approval,
+              ]),
+            ) as Record<string, TransferApproval>
+          }
         />
       )}
     </div>

@@ -1,34 +1,33 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { redirect } from 'next/navigation'
-import CreateUserForm from './CreateUserForm'
-import UsersList from './UsersList'
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
+import CreateUserForm from "./CreateUserForm";
+import UsersList from "./UsersList";
 
 export default async function UsersPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  const [
-    { data: profile },
-    { data: users },
-  ] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
-    supabase.from('profiles').select('*').order('role').order('name'),
-  ])
+  const [{ data: profile }, { data: users }] = await Promise.all([
+    supabase.from("profiles").select("role").eq("id", user.id).single(),
+    supabase.from("profiles").select("*").order("role").order("name"),
+  ]);
 
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'master')) redirect('/dashboard')
+  if (!profile || (profile.role !== "admin" && profile.role !== "master")) redirect("/dashboard");
 
-  const emailById: Record<string, string> = {}
+  const emailById: Record<string, string> = {};
   if (users?.length) {
-    const adminSupabase = createAdminClient()
-    const { data: authList } = await adminSupabase.auth.admin.listUsers({ perPage: 1000 })
-    authList?.users.forEach(u => {
-      if (u.email) emailById[u.id] = u.email
-    })
+    const adminSupabase = createAdminClient();
+    const { data: authList } = await adminSupabase.auth.admin.listUsers({ perPage: 1000 });
+    authList?.users.forEach((u) => {
+      if (u.email) emailById[u.id] = u.email;
+    });
   }
 
-  const usersWithEmail = (users ?? []).map(u => ({ ...u, email: emailById[u.id] ?? null }))
+  const usersWithEmail = (users ?? []).map((u) => ({ ...u, email: emailById[u.id] ?? null }));
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -41,5 +40,5 @@ export default async function UsersPage() {
 
       <UsersList users={usersWithEmail} currentUserId={user.id} currentUserRole={profile.role} />
     </div>
-  )
+  );
 }

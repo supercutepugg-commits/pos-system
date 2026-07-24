@@ -1,26 +1,22 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { X } from 'lucide-react'
-import type { KpiScoreDetail } from '@/lib/kpi'
+import { useState } from "react";
+import { X } from "lucide-react";
+import type { KpiScoreDetail } from "@/lib/kpi";
 
 function scoreTone(score: number) {
-  if (score >= 90) return 'border-emerald-200 bg-emerald-50 text-emerald-700'
-  if (score >= 80) return 'border-blue-200 bg-blue-50 text-blue-700'
-  if (score >= 70) return 'border-amber-200 bg-amber-50 text-amber-700'
-  return 'border-red-200 bg-red-50 text-red-700'
+  if (score >= 90) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (score >= 80) return "border-blue-200 bg-blue-50 text-blue-700";
+  if (score >= 70) return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-red-200 bg-red-50 text-red-700";
 }
 
 function formatPoint(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1)
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-export default function MasterKpiList({
-  scores,
-}: {
-  scores: KpiScoreDetail[]
-}) {
-  const [selected, setSelected] = useState<KpiScoreDetail | null>(null)
+export default function MasterKpiList({ scores }: { scores: KpiScoreDetail[] }) {
+  const [selected, setSelected] = useState<KpiScoreDetail | null>(null);
 
   return (
     <>
@@ -40,9 +36,7 @@ export default function MasterKpiList({
                 <p className="truncate font-semibold text-slate-900 underline-offset-4 group-hover:underline">
                   {score.name}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {score.roleLabel}
-                </p>
+                <p className="mt-0.5 text-xs text-slate-500">{score.roleLabel}</p>
               </div>
               <span
                 className={`min-w-20 rounded-xl border px-4 py-2 text-center text-lg font-bold ${scoreTone(score.score)}`}
@@ -68,15 +62,10 @@ export default function MasterKpiList({
           >
             <header className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <h2
-                  id="kpi-detail-title"
-                  className="text-lg font-bold text-slate-900"
-                >
+                <h2 id="kpi-detail-title" className="text-lg font-bold text-slate-900">
                   {selected.name}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selected.roleLabel} · 이번 달 KPI
-                </p>
+                <p className="mt-1 text-sm text-slate-500">{selected.roleLabel} · 이번 달 KPI</p>
               </div>
               <button
                 type="button"
@@ -90,9 +79,7 @@ export default function MasterKpiList({
 
             <div className="space-y-5 px-6 py-5">
               <div className="flex items-center justify-between rounded-xl bg-slate-50 px-5 py-4">
-                <span className="text-sm font-semibold text-slate-600">
-                  최종 점수
-                </span>
+                <span className="text-sm font-semibold text-slate-600">최종 점수</span>
                 <span
                   className={`rounded-xl border px-4 py-2 text-2xl font-bold ${scoreTone(selected.score)}`}
                 >
@@ -101,9 +88,7 @@ export default function MasterKpiList({
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold text-slate-900">
-                  점수 계산
-                </h3>
+                <h3 className="mb-3 text-sm font-bold text-slate-900">점수 계산</h3>
                 <div className="overflow-hidden rounded-xl border border-slate-200">
                   {selected.items.map((item) => (
                     <div
@@ -111,9 +96,7 @@ export default function MasterKpiList({
                       className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
                     >
                       <div>
-                        <p className="font-medium text-slate-700">
-                          {item.label}
-                        </p>
+                        <p className="font-medium text-slate-700">{item.label}</p>
                         <p className="mt-0.5 text-xs text-slate-400">
                           {item.numerator}/{item.denominator}건 반영
                         </p>
@@ -127,47 +110,30 @@ export default function MasterKpiList({
                     <div className="space-y-2 bg-blue-50/50 px-4 py-3 text-sm">
                       <div className="flex justify-between">
                         <span className="text-slate-600">팀원 평균 점수</span>
-                        <strong>
-                          {formatPoint(
-                            selected.teamLeadCalculation.averageScore,
-                          )}
-                          점
-                        </strong>
+                        <strong>{formatPoint(selected.teamLeadCalculation.averageScore)}점</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-600">관리책임 배수</span>
-                        <strong>
-                          × {selected.teamLeadCalculation.multiplier}
-                        </strong>
+                        <strong>× {selected.teamLeadCalculation.multiplier}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-600">반영 감점</span>
                         <strong className="text-red-600">
-                          -
-                          {formatPoint(
-                            selected.teamLeadCalculation.totalDeduction,
-                          )}
-                          점
+                          -{formatPoint(selected.teamLeadCalculation.totalDeduction)}점
                         </strong>
                       </div>
                     </div>
                   )}
                   <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                    <span className="font-semibold text-slate-700">
-                      최종 합계
-                    </span>
-                    <strong className="text-slate-900">
-                      {selected.score}점
-                    </strong>
+                    <span className="font-semibold text-slate-700">최종 합계</span>
+                    <strong className="text-slate-900">{selected.score}점</strong>
                   </div>
                 </div>
               </div>
 
               {!!selected.teamMembers?.length && (
                 <div>
-                  <h3 className="mb-3 text-sm font-bold text-slate-900">
-                    팀원 반영 현황
-                  </h3>
+                  <h3 className="mb-3 text-sm font-bold text-slate-900">팀원 반영 현황</h3>
                   <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
                     {selected.teamMembers.map((member) => (
                       <div
@@ -175,16 +141,10 @@ export default function MasterKpiList({
                         className="flex items-center justify-between px-4 py-3 text-sm"
                       >
                         <div>
-                          <p className="font-medium text-slate-800">
-                            {member.name}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {member.roleLabel}
-                          </p>
+                          <p className="font-medium text-slate-800">{member.name}</p>
+                          <p className="text-xs text-slate-400">{member.roleLabel}</p>
                         </div>
-                        <span className="font-semibold text-slate-700">
-                          {member.score}점
-                        </span>
+                        <span className="font-semibold text-slate-700">{member.score}점</span>
                       </div>
                     ))}
                   </div>
@@ -195,5 +155,5 @@ export default function MasterKpiList({
         </div>
       )}
     </>
-  )
+  );
 }

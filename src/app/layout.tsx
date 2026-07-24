@@ -6,11 +6,7 @@ export const metadata: Metadata = {
   description: "포스 설치 및 가입 대행 전산 시스템",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" className="h-full">
       <head>

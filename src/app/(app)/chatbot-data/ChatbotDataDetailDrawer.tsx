@@ -1,41 +1,39 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Pencil, X } from 'lucide-react'
-import type { ChatbotDataRow } from './ChatbotDataClient'
+import { useState } from "react";
+import { Pencil, X } from "lucide-react";
+import type { ChatbotDataRow } from "./ChatbotDataClient";
 
 function formatDateTime(value: string) {
-  const date = new Date(value)
-  return `${date.toLocaleDateString('ko-KR')} ${date.toLocaleTimeString('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`
+  const date = new Date(value);
+  return `${date.toLocaleDateString("ko-KR")} ${date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
 }
 
 interface Props {
-  row: ChatbotDataRow
-  onClose: () => void
-  onSave: (
-    value: Pick<ChatbotDataRow, 'problem_situation' | 'solution'>,
-  ) => Promise<boolean>
+  row: ChatbotDataRow;
+  onClose: () => void;
+  onSave: (value: Pick<ChatbotDataRow, "problem_situation" | "solution">) => Promise<boolean>;
 }
 
 export default function ChatbotDataDetailDrawer({ row, onClose, onSave }: Props) {
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [problemSituation, setProblemSituation] = useState(row.problem_situation)
-  const [solution, setSolution] = useState(row.solution)
-  const canSave = problemSituation.trim() && solution.trim()
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [problemSituation, setProblemSituation] = useState(row.problem_situation);
+  const [solution, setSolution] = useState(row.solution);
+  const canSave = problemSituation.trim() && solution.trim();
 
   async function handleSave() {
-    if (!canSave) return
-    setSaving(true)
+    if (!canSave) return;
+    setSaving(true);
     const saved = await onSave({
       problem_situation: problemSituation.trim(),
       solution: solution.trim(),
-    })
-    setSaving(false)
-    if (saved) setEditing(false)
+    });
+    setSaving(false);
+    if (saved) setEditing(false);
   }
 
   return (
@@ -108,9 +106,9 @@ export default function ChatbotDataDetailDrawer({ row, onClose, onSave }: Props)
               <button
                 type="button"
                 onClick={() => {
-                  setProblemSituation(row.problem_situation)
-                  setSolution(row.solution)
-                  setEditing(false)
+                  setProblemSituation(row.problem_situation);
+                  setSolution(row.solution);
+                  setEditing(false);
                 }}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
               >
@@ -122,7 +120,7 @@ export default function ChatbotDataDetailDrawer({ row, onClose, onSave }: Props)
                 onClick={() => void handleSave()}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                {saving ? '저장 중...' : '저장'}
+                {saving ? "저장 중..." : "저장"}
               </button>
             </>
           ) : (
@@ -138,5 +136,5 @@ export default function ChatbotDataDetailDrawer({ row, onClose, onSave }: Props)
         </div>
       </aside>
     </div>
-  )
+  );
 }

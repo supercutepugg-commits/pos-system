@@ -1,56 +1,60 @@
-'use server'
+"use server";
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-import { requireAdmin, requireDeletePermission } from '@/lib/auth/require-admin'
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { requireAdmin, requireDeletePermission } from "@/lib/auth/require-admin";
 
-const CHUNK_SIZE = 100
+const CHUNK_SIZE = 100;
 
 export async function deleteTickets(ids: string[]) {
-  const authError = await requireDeletePermission()
-  if (authError) return { error: authError }
-  if (!ids.length) return { error: null }
+  const authError = await requireDeletePermission();
+  if (authError) return { error: authError };
+  if (!ids.length) return { error: null };
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const admin = createAdminClient()
+  const admin = createAdminClient();
   for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + CHUNK_SIZE)
-    const { error } = await admin.from('tickets')
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const { error } = await admin
+      .from("tickets")
       .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id ?? null })
-      .in('id', chunk)
-    if (error) return { error: error.message }
+      .in("id", chunk);
+    if (error) return { error: error.message };
   }
-  return { error: null }
+  return { error: null };
 }
 
 export async function restoreTickets(ids: string[]) {
-  const authError = await requireDeletePermission()
-  if (authError) return { error: authError }
-  if (!ids.length) return { error: null }
+  const authError = await requireDeletePermission();
+  if (authError) return { error: authError };
+  if (!ids.length) return { error: null };
 
-  const admin = createAdminClient()
+  const admin = createAdminClient();
   for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + CHUNK_SIZE)
-    const { error } = await admin.from('tickets')
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const { error } = await admin
+      .from("tickets")
       .update({ deleted_at: null, deleted_by: null })
-      .in('id', chunk)
-    if (error) return { error: error.message }
+      .in("id", chunk);
+    if (error) return { error: error.message };
   }
-  return { error: null }
+  return { error: null };
 }
 
 export async function purgeTickets(ids: string[]) {
-  const authError = await requireAdmin()
-  if (authError) return { error: authError }
-  if (!ids.length) return { error: null }
+  const authError = await requireAdmin();
+  if (authError) return { error: authError };
+  if (!ids.length) return { error: null };
 
-  const admin = createAdminClient()
+  const admin = createAdminClient();
   for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + CHUNK_SIZE)
-    const { error } = await admin.from('tickets').delete().in('id', chunk)
-    if (error) return { error: error.message }
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const { error } = await admin.from("tickets").delete().in("id", chunk);
+    if (error) return { error: error.message };
   }
-  return { error: null }
+  return { error: null };
 }

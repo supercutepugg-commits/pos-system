@@ -1,17 +1,19 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import InternetClient from './InternetClient'
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import InternetClient from "./InternetClient";
 
 export default async function InternetPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   const { data: rows, error } = await supabase
-    .from('internet_management')
-    .select('*')
-    .order('sort_order', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
+    .from("internet_management")
+    .select("*")
+    .order("sort_order", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
 
   return (
     <div className="flex flex-col h-screen p-6 gap-4">
@@ -25,5 +27,5 @@ export default async function InternetPage() {
         <InternetClient rows={rows ?? []} />
       )}
     </div>
-  )
+  );
 }

@@ -1,33 +1,33 @@
-'use client'
+"use client";
 
-import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, RefreshCw } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import ThemeToggle from './ThemeToggle'
-import { breadcrumbForPath } from './navItems'
-import { Popover, PopoverItem, PopoverPanel } from '@/components/ui/Popover'
-import type { Profile, Role } from '@/types'
+import { usePathname, useRouter } from "next/navigation";
+import { ChevronDown, LogOut, RefreshCw } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import ThemeToggle from "./ThemeToggle";
+import { breadcrumbForPath } from "./navItems";
+import { Popover, PopoverItem, PopoverPanel } from "@/components/ui/Popover";
+import type { Profile, Role } from "@/types";
 
 const ROLE_LABEL: Record<Role, string> = {
-  master: '마스터',
-  admin: '관리자',
-  sales: '영업',
-  cs: 'CS',
-  tech: '기술지원',
-  developer: '개발자',
-}
+  master: "마스터",
+  admin: "관리자",
+  sales: "영업",
+  cs: "CS",
+  tech: "기술지원",
+  developer: "개발자",
+};
 
 export default function AppHeader({ profile }: { profile: Profile }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const breadcrumb = breadcrumbForPath(pathname)
-  const initial = profile.name.trim().slice(0, 1) || 'P'
+  const pathname = usePathname();
+  const router = useRouter();
+  const breadcrumb = breadcrumbForPath(pathname);
+  const initial = profile.name.trim().slice(0, 1) || "P";
 
   async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
   }
 
   return (
@@ -38,7 +38,7 @@ export default function AppHeader({ profile }: { profile: Profile }) {
             {index > 0 && <span>/</span>}
             <span
               className={
-                index === breadcrumb.length - 1 ? 'font-semibold text-slate-900' : undefined
+                index === breadcrumb.length - 1 ? "font-semibold text-slate-900" : undefined
               }
             >
               {label}
@@ -81,8 +81,8 @@ export default function AppHeader({ profile }: { profile: Profile }) {
                 <div className="my-1 border-t border-slate-200" />
                 <PopoverItem
                   onClick={() => {
-                    close()
-                    window.location.reload()
+                    close();
+                    window.location.reload();
                   }}
                 >
                   <RefreshCw className="size-4" />
@@ -90,8 +90,8 @@ export default function AppHeader({ profile }: { profile: Profile }) {
                 </PopoverItem>
                 <PopoverItem
                   onClick={() => {
-                    close()
-                    void handleLogout()
+                    close();
+                    void handleLogout();
                   }}
                   className="text-red-500 hover:bg-red-50 hover:text-red-600"
                 >
@@ -104,5 +104,5 @@ export default function AppHeader({ profile }: { profile: Profile }) {
         )}
       </Popover>
     </header>
-  )
+  );
 }

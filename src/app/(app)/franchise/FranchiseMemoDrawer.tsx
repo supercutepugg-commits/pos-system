@@ -1,49 +1,56 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Pin, Trash2, X } from 'lucide-react'
-import HistoryIcon from '@/components/ui/HistoryIcon'
-import type { FranchiseApplication } from '@/types'
-import { APPLICANT_TYPE_LABEL } from '@/types'
+import { useState } from "react";
+import { Pin, Trash2, X } from "lucide-react";
+import HistoryIcon from "@/components/ui/HistoryIcon";
+import type { FranchiseApplication } from "@/types";
+import { APPLICANT_TYPE_LABEL } from "@/types";
 
 export interface FranchiseMemoEntry {
-  index: number
-  at: string
-  user: string
-  text: string
-  pinned: boolean
-  pinnedAt: string | null
+  index: number;
+  at: string;
+  user: string;
+  text: string;
+  pinned: boolean;
+  pinnedAt: string | null;
 }
 
 interface Props {
-  row: FranchiseApplication
-  entries: FranchiseMemoEntry[]
-  onClose: () => void
-  onAdd: (content: string) => void | Promise<void>
-  onTogglePin: (index: number) => void | Promise<void>
-  onDelete: (index: number) => void | Promise<void>
+  row: FranchiseApplication;
+  entries: FranchiseMemoEntry[];
+  onClose: () => void;
+  onAdd: (content: string) => void | Promise<void>;
+  onTogglePin: (index: number) => void | Promise<void>;
+  onDelete: (index: number) => void | Promise<void>;
 }
 
 function formatEntryDate(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('ko-KR')
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("ko-KR");
 }
 
-export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTogglePin, onDelete }: Props) {
-  const [draft, setDraft] = useState('')
+export default function FranchiseMemoDrawer({
+  row,
+  entries,
+  onClose,
+  onAdd,
+  onTogglePin,
+  onDelete,
+}: Props) {
+  const [draft, setDraft] = useState("");
   const sortedEntries = [...entries].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     if (a.pinned && b.pinned) {
-      return new Date(b.pinnedAt ?? b.at).getTime() - new Date(a.pinnedAt ?? a.at).getTime()
+      return new Date(b.pinnedAt ?? b.at).getTime() - new Date(a.pinnedAt ?? a.at).getTime();
     }
-    return new Date(b.at).getTime() - new Date(a.at).getTime()
-  })
+    return new Date(b.at).getTime() - new Date(a.at).getTime();
+  });
 
   function submit() {
-    const content = draft.trim()
-    if (!content) return
-    void onAdd(content)
-    setDraft('')
+    const content = draft.trim();
+    if (!content) return;
+    void onAdd(content);
+    setDraft("");
   }
 
   return (
@@ -52,13 +59,18 @@ export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTo
         <p className="flex items-center gap-2 text-base font-semibold min-w-0">
           <HistoryIcon size={32} />
           <span className="truncate">
-            히스토리 · {row.business_name || row.owner_name || '-'}
+            히스토리 · {row.business_name || row.owner_name || "-"}
             <span className="text-slate-400 font-normal text-sm ml-2">
-              {row.owner_name || '-'} · {APPLICANT_TYPE_LABEL[row.applicant_type]} · {row.phone || '-'}
+              {row.owner_name || "-"} · {APPLICANT_TYPE_LABEL[row.applicant_type]} ·{" "}
+              {row.phone || "-"}
             </span>
           </span>
         </p>
-        <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors shrink-0" aria-label="닫기">
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white p-1 rounded transition-colors shrink-0"
+          aria-label="닫기"
+        >
           <X size={20} />
         </button>
       </div>
@@ -66,12 +78,12 @@ export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTo
         <label className="text-xs font-semibold text-slate-400">새 히스토리 추가</label>
         <textarea
           value={draft}
-          onChange={e => setDraft(e.target.value)}
+          onChange={(e) => setDraft(e.target.value)}
           onBlur={submit}
-          onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              submit()
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              submit();
             }
           }}
           placeholder="새 히스토리 입력..."
@@ -84,20 +96,34 @@ export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTo
           <p className="text-[15pt] text-slate-400">이력이 없습니다.</p>
         ) : (
           <ul className="space-y-2.5">
-            {sortedEntries.map(entry => (
-              <li key={`${entry.index}-${entry.at}`} className={`text-[15pt] group ${entry.pinned ? 'text-amber-200' : 'text-slate-200'}`}>
+            {sortedEntries.map((entry) => (
+              <li
+                key={`${entry.index}-${entry.at}`}
+                className={`text-[15pt] group ${entry.pinned ? "text-amber-200" : "text-slate-200"}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-slate-400">
                     {formatEntryDate(entry.at)}
-                    {' · '}
-                    <span className="font-semibold text-blue-300">{entry.user || '-'}</span>
+                    {" · "}
+                    <span className="font-semibold text-blue-300">{entry.user || "-"}</span>
                   </div>
                   <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => onTogglePin(entry.index)} aria-label={entry.pinned ? '고정 해제' : '상단 고정'}
-                      className={entry.pinned ? 'text-amber-300 hover:text-amber-200' : 'text-slate-500 hover:text-amber-300'}>
-                      <Pin size={14} className={entry.pinned ? 'fill-current' : ''} />
+                    <button
+                      onClick={() => onTogglePin(entry.index)}
+                      aria-label={entry.pinned ? "고정 해제" : "상단 고정"}
+                      className={
+                        entry.pinned
+                          ? "text-amber-300 hover:text-amber-200"
+                          : "text-slate-500 hover:text-amber-300"
+                      }
+                    >
+                      <Pin size={14} className={entry.pinned ? "fill-current" : ""} />
                     </button>
-                    <button onClick={() => onDelete(entry.index)} aria-label="히스토리 삭제" className="text-slate-500 hover:text-red-400">
+                    <button
+                      onClick={() => onDelete(entry.index)}
+                      aria-label="히스토리 삭제"
+                      className="text-slate-500 hover:text-red-400"
+                    >
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -109,5 +135,5 @@ export default function FranchiseMemoDrawer({ row, entries, onClose, onAdd, onTo
         )}
       </div>
     </div>
-  )
+  );
 }

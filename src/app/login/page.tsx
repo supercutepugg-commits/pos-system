@@ -1,46 +1,46 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, password }),
-    })
-    const data = await res.json()
+    });
+    const data = await res.json();
 
     if (!res.ok || data.error) {
-      setError('이름 또는 비밀번호가 올바르지 않습니다.')
-      setLoading(false)
-      return
+      setError("이름 또는 비밀번호가 올바르지 않습니다.");
+      setLoading(false);
+      return;
     }
 
-    const supabase = createClient()
+    const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: data.email,
       password,
-    })
+    });
 
     if (signInError) {
-      setError('이름 또는 비밀번호가 올바르지 않습니다.')
-      setLoading(false)
+      setError("이름 또는 비밀번호가 올바르지 않습니다.");
+      setLoading(false);
     } else {
-      router.push('/')
-      router.refresh()
+      router.push("/");
+      router.refresh();
     }
   }
 
@@ -55,24 +55,31 @@ export default function LoginPage() {
           <p className="text-slate-500 mt-1 text-sm">이름과 비밀번호로 로그인하세요</p>
         </div>
 
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+        <form
+          onSubmit={handleLogin}
+          className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4"
+        >
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">이름 <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              이름 <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               placeholder="홍길동"
               required
               className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">비밀번호 <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              비밀번호 <span className="text-red-500">*</span>
+            </label>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
               className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -80,7 +87,13 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p role="alert" aria-live="assertive" className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+            <p
+              role="alert"
+              aria-live="assertive"
+              className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg"
+            >
+              {error}
+            </p>
           )}
 
           <button
@@ -88,12 +101,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? '로그인 중...' : '로그인'}
+            {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-slate-500 mt-4">비밀번호를 잊으셨나요? 관리자에게 문의하세요</p>
+        <p className="text-center text-sm text-slate-500 mt-4">
+          비밀번호를 잊으셨나요? 관리자에게 문의하세요
+        </p>
       </div>
     </div>
-  )
+  );
 }

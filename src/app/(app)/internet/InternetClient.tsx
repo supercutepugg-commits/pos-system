@@ -1,82 +1,102 @@
-'use client'
+"use client";
 
-import { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo, Fragment } from 'react'
-import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Search, ChevronDown, ChevronUp, GripVertical, ClipboardList, CalendarClock, Wifi, CheckCircle2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { formatPhone, formatDateText } from '@/lib/format'
-import { useColumnWidths } from '@/hooks/useColumnWidths'
-import { mergeRowsPreservingIdentity } from '@/lib/mergeRows'
-import { deleteInternetRows } from './actions'
-import type { InternetManagement } from '@/types'
-import { useToast } from '@/components/ui/Toast'
-import BulkConfirmDialog from '@/components/ui/BulkConfirmDialog'
-import FormModal from '@/components/ui/FormModal'
-import HistoryButton from '@/components/ui/HistoryButton'
-import MemoHistoryPanel from '@/components/ui/MemoHistoryPanel'
-import KpiCard from '@/components/ui/KpiCard'
+import {
+  useState,
+  useTransition,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  memo,
+  Fragment,
+} from "react";
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  Trash2,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  ClipboardList,
+  CalendarClock,
+  Wifi,
+  CheckCircle2,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { formatPhone, formatDateText } from "@/lib/format";
+import { useColumnWidths } from "@/hooks/useColumnWidths";
+import { mergeRowsPreservingIdentity } from "@/lib/mergeRows";
+import { deleteInternetRows } from "./actions";
+import type { InternetManagement } from "@/types";
+import { useToast } from "@/components/ui/Toast";
+import BulkConfirmDialog from "@/components/ui/BulkConfirmDialog";
+import FormModal from "@/components/ui/FormModal";
+import HistoryButton from "@/components/ui/HistoryButton";
+import MemoHistoryPanel from "@/components/ui/MemoHistoryPanel";
+import KpiCard from "@/components/ui/KpiCard";
 
 interface Props {
-  rows: InternetManagement[]
+  rows: InternetManagement[];
 }
 
-const STATUSES = ['접수완료', '개통완료', '취소']
+const STATUSES = ["접수완료", "개통완료", "취소"];
 
-const STATUS_NOTIFY_KIND: Partial<Record<string, 'internet_apply_done' | 'internet_done'>> = {
-  '접수완료': 'internet_apply_done',
-  '개통완료': 'internet_done',
-}
-const CATEGORIES = ['백메가', '3S']
-const CARRIERS = ['LG', 'KT', 'SKT']
-const SPEEDS = ['100M', '500M']
-const CUSTOM_SPEED = '__custom__'
+const STATUS_NOTIFY_KIND: Partial<Record<string, "internet_apply_done" | "internet_done">> = {
+  접수완료: "internet_apply_done",
+  개통완료: "internet_done",
+};
+const CATEGORIES = ["백메가", "3S"];
+const CARRIERS = ["LG", "KT", "SKT"];
+const SPEEDS = ["100M", "500M"];
+const CUSTOM_SPEED = "__custom__";
 
 const SELECT_OPTIONS: Partial<Record<keyof InternetManagement, string[]>> = {
   status: STATUSES,
   category: CATEGORIES,
   carrier: CARRIERS,
-}
+};
 
 const EMPTY_FORM = {
-  business_name: '',
-  apply_date: '',
-  open_date: '',
-  status: '',
-  category: '',
-  carrier: '',
-  speed: '',
-  addon: '',
-  gift: '',
-  owner_name: '',
-  phone: '',
-  region: '',
-  monthly_fee: '',
-  install_fee: '',
-  memo: '',
-}
+  business_name: "",
+  apply_date: "",
+  open_date: "",
+  status: "",
+  category: "",
+  carrier: "",
+  speed: "",
+  addon: "",
+  gift: "",
+  owner_name: "",
+  phone: "",
+  region: "",
+  monthly_fee: "",
+  install_fee: "",
+  memo: "",
+};
 
 const MAIN_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
-  { key: 'business_name', label: '상호명' },
-  { key: 'apply_date', label: '접수신청일' },
-  { key: 'open_date', label: '개통완료일' },
-  { key: 'status', label: '상태' },
-  { key: 'owner_name', label: '대표자' },
-  { key: 'phone', label: '연락처' },
-]
+  { key: "business_name", label: "상호명" },
+  { key: "apply_date", label: "접수신청일" },
+  { key: "open_date", label: "개통완료일" },
+  { key: "status", label: "상태" },
+  { key: "owner_name", label: "대표자" },
+  { key: "phone", label: "연락처" },
+];
 
 const DETAIL_COLUMNS: { key: keyof InternetManagement; label: string }[] = [
-  { key: 'category', label: '구분' },
-  { key: 'carrier', label: '통신사' },
-  { key: 'speed', label: '속도' },
-  { key: 'addon', label: '추가 가입상품' },
-  { key: 'gift', label: '사은품' },
-  { key: 'region', label: '지역' },
-  { key: 'monthly_fee', label: '월요금' },
-  { key: 'install_fee', label: '설치비' },
-  { key: 'memo', label: '비고' },
-]
+  { key: "category", label: "구분" },
+  { key: "carrier", label: "통신사" },
+  { key: "speed", label: "속도" },
+  { key: "addon", label: "추가 가입상품" },
+  { key: "gift", label: "사은품" },
+  { key: "region", label: "지역" },
+  { key: "monthly_fee", label: "월요금" },
+  { key: "install_fee", label: "설치비" },
+  { key: "memo", label: "비고" },
+];
 
-const COLUMNS = [...MAIN_COLUMNS, ...DETAIL_COLUMNS]
+const COLUMNS = [...MAIN_COLUMNS, ...DETAIL_COLUMNS];
 
 const DEFAULT_WIDTHS: Partial<Record<keyof InternetManagement, number>> = {
   business_name: 180,
@@ -85,78 +105,99 @@ const DEFAULT_WIDTHS: Partial<Record<keyof InternetManagement, number>> = {
   status: 100,
   owner_name: 100,
   phone: 130,
-}
+};
 
-const COL_WIDTHS_STORAGE_KEY = 'internet_management_col_widths'
-const PAGE_SIZE = 50
+const COL_WIDTHS_STORAGE_KEY = "internet_management_col_widths";
+const PAGE_SIZE = 50;
 
 const AUTO_FORMAT: Partial<Record<keyof InternetManagement, (raw: string) => string>> = {
   phone: formatPhone,
   apply_date: formatDateText,
   open_date: formatDateText,
-}
+};
 
 interface EditableTextProps {
-  row: InternetManagement
-  field: keyof InternetManagement
-  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
+  row: InternetManagement;
+  field: keyof InternetManagement;
+  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void;
 }
 const EditableText = memo(function EditableText({ row, field, onSave }: EditableTextProps) {
-  const [value, setValue] = useState((row[field] as string) ?? '')
-  const autoFormat = AUTO_FORMAT[field]
+  const [value, setValue] = useState((row[field] as string) ?? "");
+  const autoFormat = AUTO_FORMAT[field];
   return (
     <input
       value={value}
-      onChange={e => setValue(autoFormat ? autoFormat(e.target.value) : e.target.value)}
-      onBlur={() => { if (value !== ((row[field] as string) ?? '')) onSave(row, field, value) }}
-      onClick={e => e.stopPropagation()}
+      onChange={(e) => setValue(autoFormat ? autoFormat(e.target.value) : e.target.value)}
+      onBlur={() => {
+        if (value !== ((row[field] as string) ?? "")) onSave(row, field, value);
+      }}
+      onClick={(e) => e.stopPropagation()}
       className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     />
-  )
-})
+  );
+});
 
 interface SelectFieldProps {
-  row: InternetManagement
-  field: keyof InternetManagement
-  options: string[]
-  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
-  pill?: boolean
+  row: InternetManagement;
+  field: keyof InternetManagement;
+  options: string[];
+  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void;
+  pill?: boolean;
 }
-const SelectField = memo(function SelectField({ row, field, options, onSave, pill }: SelectFieldProps) {
-  const statusColor = field === 'status'
-    ? (row.status === '개통완료' ? 'bg-green-100 text-green-700 border border-green-200' : row.status === '취소' ? 'bg-red-100 text-red-700 border border-red-200' : row.status === '접수완료' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' : 'bg-slate-100 text-slate-700 border border-slate-200')
-    : 'bg-slate-100 text-slate-700 border border-slate-200'
+const SelectField = memo(function SelectField({
+  row,
+  field,
+  options,
+  onSave,
+  pill,
+}: SelectFieldProps) {
+  const statusColor =
+    field === "status"
+      ? row.status === "개통완료"
+        ? "bg-green-100 text-green-700 border border-green-200"
+        : row.status === "취소"
+          ? "bg-red-100 text-red-700 border border-red-200"
+          : row.status === "접수완료"
+            ? "bg-cyan-100 text-cyan-700 border border-cyan-200"
+            : "bg-slate-100 text-slate-700 border border-slate-200"
+      : "bg-slate-100 text-slate-700 border border-slate-200";
   return (
     <select
-      value={(row[field] as string) ?? ''}
-      onChange={e => onSave(row, field, e.target.value)}
-      onClick={e => e.stopPropagation()}
-      className={pill
-        ? `text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${statusColor}`
-        : 'w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm'}
+      value={(row[field] as string) ?? ""}
+      onChange={(e) => onSave(row, field, e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className={
+        pill
+          ? `text-xs font-medium rounded-full pl-2.5 pr-1.5 py-1 border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${statusColor}`
+          : "w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
+      }
     >
       <option value="">-</option>
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
     </select>
-  )
-})
+  );
+});
 
 interface SpeedFieldProps {
-  row: InternetManagement
-  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void
+  row: InternetManagement;
+  onSave: (row: InternetManagement, field: keyof InternetManagement, value: string) => void;
 }
 const SpeedField = memo(function SpeedField({ row, onSave }: SpeedFieldProps) {
-  const currentIsCustom = !!row.speed && !SPEEDS.includes(row.speed)
-  const [customMode, setCustomMode] = useState(currentIsCustom)
-  const [customValue, setCustomValue] = useState(currentIsCustom ? (row.speed ?? '') : '')
+  const currentIsCustom = !!row.speed && !SPEEDS.includes(row.speed);
+  const [customMode, setCustomMode] = useState(currentIsCustom);
+  const [customValue, setCustomValue] = useState(currentIsCustom ? (row.speed ?? "") : "");
 
   function handleSelect(v: string) {
     if (v === CUSTOM_SPEED) {
-      setCustomMode(true)
-      setCustomValue(currentIsCustom ? (row.speed ?? '') : '')
+      setCustomMode(true);
+      setCustomValue(currentIsCustom ? (row.speed ?? "") : "");
     } else {
-      setCustomMode(false)
-      onSave(row, 'speed', v)
+      setCustomMode(false);
+      onSave(row, "speed", v);
     }
   }
 
@@ -164,293 +205,382 @@ const SpeedField = memo(function SpeedField({ row, onSave }: SpeedFieldProps) {
     return (
       <input
         value={customValue}
-        onChange={e => setCustomValue(e.target.value)}
-        onBlur={() => onSave(row, 'speed', customValue)}
-        onClick={e => e.stopPropagation()}
+        onChange={(e) => setCustomValue(e.target.value)}
+        onBlur={() => onSave(row, "speed", customValue)}
+        onClick={(e) => e.stopPropagation()}
         placeholder="속도 직접입력"
         className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
       />
-    )
+    );
   }
 
   return (
     <select
-      value={SPEEDS.includes(row.speed ?? '') ? row.speed! : ''}
-      onChange={e => handleSelect(e.target.value)}
-      onClick={e => e.stopPropagation()}
+      value={SPEEDS.includes(row.speed ?? "") ? row.speed! : ""}
+      onChange={(e) => handleSelect(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
       className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 -mx-1 text-sm"
     >
       <option value="">-</option>
-      {SPEEDS.map(s => <option key={s} value={s}>{s}</option>)}
+      {SPEEDS.map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
       <option value={CUSTOM_SPEED}>직접입력</option>
     </select>
-  )
-})
+  );
+});
 
 interface SpeedFormFieldProps {
-  value: string
-  onChange: (value: string) => void
+  value: string;
+  onChange: (value: string) => void;
 }
 const SpeedFormField = memo(function SpeedFormField({ value, onChange }: SpeedFormFieldProps) {
-  const valueIsCustom = !!value && !SPEEDS.includes(value)
-  const [customMode, setCustomMode] = useState(valueIsCustom)
+  const valueIsCustom = !!value && !SPEEDS.includes(value);
+  const [customMode, setCustomMode] = useState(valueIsCustom);
 
   function handleSelect(v: string) {
     if (v === CUSTOM_SPEED) {
-      setCustomMode(true)
-      onChange('')
+      setCustomMode(true);
+      onChange("");
     } else {
-      setCustomMode(false)
-      onChange(v)
+      setCustomMode(false);
+      onChange(v);
     }
   }
 
   if (customMode) {
     return (
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder="속도 직접입력"
-        className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-    )
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="속도 직접입력"
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    );
   }
 
   return (
-    <select value={SPEEDS.includes(value) ? value : ''} onChange={e => handleSelect(e.target.value)}
-      className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <select
+      value={SPEEDS.includes(value) ? value : ""}
+      onChange={(e) => handleSelect(e.target.value)}
+      className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
       <option value="">선택 안함</option>
-      {SPEEDS.map(s => <option key={s} value={s}>{s}</option>)}
+      {SPEEDS.map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
       <option value={CUSTOM_SPEED}>직접입력</option>
     </select>
-  )
-})
+  );
+});
 
 interface CreateFormProps {
-  onSubmit: (form: typeof EMPTY_FORM) => Promise<void>
-  submitting: boolean
-  onClose: () => void
+  onSubmit: (form: typeof EMPTY_FORM) => Promise<void>;
+  submitting: boolean;
+  onClose: () => void;
 }
 const CreateForm = memo(function CreateForm({ onSubmit, submitting, onClose }: CreateFormProps) {
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState(EMPTY_FORM);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    await onSubmit(form)
-    setForm(EMPTY_FORM)
+    e.preventDefault();
+    await onSubmit(form);
+    setForm(EMPTY_FORM);
   }
 
   return (
     <FormModal title="인터넷 정보 입력" onClose={onClose} maxWidthClassName="max-w-3xl">
-    <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
-      {COLUMNS.map(col => {
-        const options = SELECT_OPTIONS[col.key]
-        return (
-          <div key={col.key} className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">{col.label}</label>
-            {col.key === 'speed' ? (
-              <SpeedFormField value={form.speed} onChange={v => setForm({ ...form, speed: v })} />
-            ) : options ? (
-              <select value={form[col.key as keyof typeof form]} onChange={e => setForm({ ...form, [col.key]: e.target.value })}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">선택 안함</option>
-                {options.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ) : (
-              <input value={form[col.key as keyof typeof form]}
-                onChange={e => { const fmt = AUTO_FORMAT[col.key]; setForm({ ...form, [col.key]: fmt ? fmt(e.target.value) : e.target.value }) }}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            )}
-          </div>
-        )
-      })}
-      <button type="submit" disabled={submitting}
-        className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors">
-        {submitting ? '등록 중...' : '등록'}
-      </button>
-    </form>
+      <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
+        {COLUMNS.map((col) => {
+          const options = SELECT_OPTIONS[col.key];
+          return (
+            <div key={col.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">{col.label}</label>
+              {col.key === "speed" ? (
+                <SpeedFormField
+                  value={form.speed}
+                  onChange={(v) => setForm({ ...form, speed: v })}
+                />
+              ) : options ? (
+                <select
+                  value={form[col.key as keyof typeof form]}
+                  onChange={(e) => setForm({ ...form, [col.key]: e.target.value })}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">선택 안함</option>
+                  {options.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={form[col.key as keyof typeof form]}
+                  onChange={(e) => {
+                    const fmt = AUTO_FORMAT[col.key];
+                    setForm({ ...form, [col.key]: fmt ? fmt(e.target.value) : e.target.value });
+                  }}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+            </div>
+          );
+        })}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+        >
+          {submitting ? "등록 중..." : "등록"}
+        </button>
+      </form>
     </FormModal>
-  )
-})
+  );
+});
 
 export default function InternetClient({ rows }: Props) {
-  const router = useRouter()
-  const toast = useToast()
-  const [isPending, startTransition] = useTransition()
-  const [localRows, setLocalRows] = useState(rows)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [deleting, setDeleting] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [page, setPage] = useState(1)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
-  const [rowDragId, setRowDragId] = useState<string | null>(null)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const { colWidths, startResize } = useColumnWidths(COL_WIDTHS_STORAGE_KEY, DEFAULT_WIDTHS as Record<string, number>)
+  const router = useRouter();
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+  const [localRows, setLocalRows] = useState(rows);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
+  const [rowDragId, setRowDragId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const { colWidths, startResize } = useColumnWidths(
+    COL_WIDTHS_STORAGE_KEY,
+    DEFAULT_WIDTHS as Record<string, number>,
+  );
 
   useEffect(() => {
-    setLocalRows(prev => mergeRowsPreservingIdentity(prev, rows))
-    setSelected(new Set())
-  }, [rows])
+    setLocalRows((prev) => mergeRowsPreservingIdentity(prev, rows));
+    setSelected(new Set());
+  }, [rows]);
 
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const supabase = createClient()
+    const supabase = createClient();
     const channel = supabase
-      .channel('internet_management-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'internet_management' }, () => {
-        if (refreshTimer.current) clearTimeout(refreshTimer.current)
-        refreshTimer.current = setTimeout(() => startTransition(() => router.refresh()), 400)
-      })
-      .subscribe()
+      .channel("internet_management-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "internet_management" },
+        () => {
+          if (refreshTimer.current) clearTimeout(refreshTimer.current);
+          refreshTimer.current = setTimeout(() => startTransition(() => router.refresh()), 400);
+        },
+      )
+      .subscribe();
     return () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current)
-      supabase.removeChannel(channel)
-    }
-  }, [router])
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const filteredRows = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    return localRows.filter(row => {
-      if (statusFilter && row.status !== statusFilter) return false
-      if (categoryFilter && row.category !== categoryFilter) return false
+    const term = search.trim().toLowerCase();
+    return localRows.filter((row) => {
+      if (statusFilter && row.status !== statusFilter) return false;
+      if (categoryFilter && row.category !== categoryFilter) return false;
       if (term) {
-        const haystack = `${row.business_name ?? ''} ${row.owner_name ?? ''} ${row.phone ?? ''} ${row.region ?? ''}`.toLowerCase()
-        if (!haystack.includes(term)) return false
+        const haystack =
+          `${row.business_name ?? ""} ${row.owner_name ?? ""} ${row.phone ?? ""} ${row.region ?? ""}`.toLowerCase();
+        if (!haystack.includes(term)) return false;
       }
-      return true
-    })
-  }, [localRows, search, statusFilter, categoryFilter])
+      return true;
+    });
+  }, [localRows, search, statusFilter, categoryFilter]);
 
-  useEffect(() => { setPage(1) }, [search, statusFilter, categoryFilter])
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, categoryFilter]);
 
   const kpis = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10)
-    const monthStr = todayStr.slice(0, 7)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const monthStr = todayStr.slice(0, 7);
     return {
-      today: localRows.filter(r => r.apply_date === todayStr).length,
-      waiting: localRows.filter(r => r.status === '접수완료').length,
-      openedToday: localRows.filter(r => r.status === '개통완료' && r.open_date === todayStr).length,
-      openedMonth: localRows.filter(r => r.status === '개통완료' && (r.open_date ?? '').startsWith(monthStr)).length,
-    }
-  }, [localRows])
+      today: localRows.filter((r) => r.apply_date === todayStr).length,
+      waiting: localRows.filter((r) => r.status === "접수완료").length,
+      openedToday: localRows.filter((r) => r.status === "개통완료" && r.open_date === todayStr)
+        .length,
+      openedMonth: localRows.filter(
+        (r) => r.status === "개통완료" && (r.open_date ?? "").startsWith(monthStr),
+      ).length,
+    };
+  }, [localRows]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
-  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const allChecked = pagedRows.length > 0 && pagedRows.every(r => selected.has(r.id))
+  const allChecked = pagedRows.length > 0 && pagedRows.every((r) => selected.has(r.id));
 
   const toggleAll = useCallback(() => {
-    setSelected(prev => {
+    setSelected((prev) => {
       if (allChecked) {
-        const next = new Set(prev)
-        pagedRows.forEach(r => next.delete(r.id))
-        return next
+        const next = new Set(prev);
+        pagedRows.forEach((r) => next.delete(r.id));
+        return next;
       }
-      return new Set([...prev, ...pagedRows.map(r => r.id)])
-    })
-  }, [allChecked, pagedRows])
+      return new Set([...prev, ...pagedRows.map((r) => r.id)]);
+    });
+  }, [allChecked, pagedRows]);
 
   const selectAllFiltered = useCallback(() => {
-    setSelected(new Set(filteredRows.map(r => r.id)))
-  }, [filteredRows])
+    setSelected(new Set(filteredRows.map((r) => r.id)));
+  }, [filteredRows]);
 
   const toggleOne = useCallback((id: string) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
 
   const toggleExpand = useCallback((id: string) => {
-    setExpandedId(prev => prev === id ? null : id)
-  }, [])
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
 
-  const canReorder = !search.trim() && !statusFilter && !categoryFilter
+  const canReorder = !search.trim() && !statusFilter && !categoryFilter;
 
-  const reorderRows = useCallback((dragId: string, dropId: string) => {
-    if (dragId === dropId) return
-    const from = localRows.findIndex(r => r.id === dragId)
-    const to = localRows.findIndex(r => r.id === dropId)
-    if (from === -1 || to === -1) return
-    const next = [...localRows]
-    const [moved] = next.splice(from, 1)
-    next.splice(to, 0, moved)
-    setLocalRows(next)
-    const n = next.length
-    const supabase = createClient()
-    Promise.all(next.map((r, i) =>
-      supabase.from('internet_management').update({ sort_order: (n - i) * 1000 }).eq('id', r.id)
-    )).catch(() => toast.error('순서 저장에 실패했습니다.'))
-  }, [localRows, toast])
+  const reorderRows = useCallback(
+    (dragId: string, dropId: string) => {
+      if (dragId === dropId) return;
+      const from = localRows.findIndex((r) => r.id === dragId);
+      const to = localRows.findIndex((r) => r.id === dropId);
+      if (from === -1 || to === -1) return;
+      const next = [...localRows];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      setLocalRows(next);
+      const n = next.length;
+      const supabase = createClient();
+      Promise.all(
+        next.map((r, i) =>
+          supabase
+            .from("internet_management")
+            .update({ sort_order: (n - i) * 1000 })
+            .eq("id", r.id),
+        ),
+      ).catch(() => toast.error("순서 저장에 실패했습니다."));
+    },
+    [localRows, toast],
+  );
 
   const handleDelete = useCallback(() => {
-    if (selected.size === 0) return
-    setDeleteConfirmOpen(true)
-  }, [selected])
+    if (selected.size === 0) return;
+    setDeleteConfirmOpen(true);
+  }, [selected]);
 
   const confirmDelete = useCallback(async () => {
-    setDeleting(true)
-    const { error } = await deleteInternetRows([...selected])
-    setDeleting(false)
-    setDeleteConfirmOpen(false)
-    if (error) { toast.error('삭제 실패: ' + error); return }
-    setLocalRows(prev => prev.filter(r => !selected.has(r.id)))
-    setSelected(new Set())
-  }, [selected])
+    setDeleting(true);
+    const { error } = await deleteInternetRows([...selected]);
+    setDeleting(false);
+    setDeleteConfirmOpen(false);
+    if (error) {
+      toast.error("삭제 실패: " + error);
+      return;
+    }
+    setLocalRows((prev) => prev.filter((r) => !selected.has(r.id)));
+    setSelected(new Set());
+  }, [selected]);
 
   const handleCreate = useCallback(async (form: typeof EMPTY_FORM) => {
-    setSubmitting(true)
-    const supabase = createClient()
-    const payload = Object.fromEntries(
-      Object.entries(form).map(([k, v]) => [k, v || null])
-    )
-    const { data, error } = await supabase.from('internet_management').insert({ ...payload, sort_order: Date.now() }).select().single()
-    setSubmitting(false)
-    if (error) { toast.error('등록 실패: ' + error.message); return }
-    setShowForm(false)
-    setLocalRows(prev => [data, ...prev])
-  }, [])
+    setSubmitting(true);
+    const supabase = createClient();
+    const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v || null]));
+    const { data, error } = await supabase
+      .from("internet_management")
+      .insert({ ...payload, sort_order: Date.now() })
+      .select()
+      .single();
+    setSubmitting(false);
+    if (error) {
+      toast.error("등록 실패: " + error.message);
+      return;
+    }
+    setShowForm(false);
+    setLocalRows((prev) => [data, ...prev]);
+  }, []);
 
-  const saveField = useCallback(async (row: InternetManagement, field: keyof InternetManagement, value: string) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('internet_management').update({ [field]: value || null }).eq('id', row.id)
-    if (error) { toast.error('수정 실패: ' + error.message); return }
+  const saveField = useCallback(
+    async (row: InternetManagement, field: keyof InternetManagement, value: string) => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("internet_management")
+        .update({ [field]: value || null })
+        .eq("id", row.id);
+      if (error) {
+        toast.error("수정 실패: " + error.message);
+        return;
+      }
 
-    if (field === 'status' && value !== row.status) {
-      const notifyKind = STATUS_NOTIFY_KIND[value]
-      if (notifyKind && row.phone) {
-        if (confirm(`'${value}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 계속하시겠습니까?`)) {
-          try {
-            const res = await fetch('/api/franchise/notify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type: 'status_update', phone: row.phone, ownerName: row.owner_name, businessName: row.business_name, status: notifyKind }),
-            })
-            const data = await res.json()
-            if (!data.ok) toast.error('메시지 발송 실패: ' + data.error)
-          } catch {
-            toast.error('메시지 발송 실패')
+      if (field === "status" && value !== row.status) {
+        const notifyKind = STATUS_NOTIFY_KIND[value];
+        if (notifyKind && row.phone) {
+          if (
+            confirm(`'${value}'(으)로 변경하면 고객에게 메시지가 발송됩니다. 계속하시겠습니까?`)
+          ) {
+            try {
+              const res = await fetch("/api/franchise/notify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "status_update",
+                  phone: row.phone,
+                  ownerName: row.owner_name,
+                  businessName: row.business_name,
+                  status: notifyKind,
+                }),
+              });
+              const data = await res.json();
+              if (!data.ok) toast.error("메시지 발송 실패: " + data.error);
+            } catch {
+              toast.error("메시지 발송 실패");
+            }
+          } else {
+            toast.warning("상태는 저장됐지만 알림은 보내지 않았습니다.");
           }
-        } else {
-          toast.warning('상태는 저장됐지만 알림은 보내지 않았습니다.')
         }
       }
-    }
 
-    setLocalRows(prev => prev.map(r => r.id === row.id ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() } : r))
-  }, [])
+      setLocalRows((prev) =>
+        prev.map((r) =>
+          r.id === row.id
+            ? { ...r, [field]: value || undefined, updated_at: new Date().toISOString() }
+            : r,
+        ),
+      );
+    },
+    [],
+  );
 
   return (
     <div className="flex flex-col h-full">
       <BulkConfirmDialog
         open={deleteConfirmOpen}
         title="선택 항목 삭제"
-        items={[...selected].map(id => {
-          const row = localRows.find(r => r.id === id)
-          return { id, label: row?.business_name || row?.owner_name || id, detail: row?.phone ?? undefined }
+        items={[...selected].map((id) => {
+          const row = localRows.find((r) => r.id === id);
+          return {
+            id,
+            label: row?.business_name || row?.owner_name || id,
+            detail: row?.phone ?? undefined,
+          };
         })}
         confirmText="삭제"
         confirmColor="red"
@@ -469,32 +599,56 @@ export default function InternetClient({ rows }: Props) {
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="상호명, 대표자, 연락처, 지역..."
             className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
           <option value="">상태 전체</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
-        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
           <option value="">구분 전체</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
         {(search || statusFilter || categoryFilter) && (
-          <button onClick={() => { setSearch(''); setStatusFilter(''); setCategoryFilter('') }}
-            className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">
+          <button
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("");
+              setCategoryFilter("");
+            }}
+            className="text-sm text-slate-400 hover:text-red-500 px-2 py-2 transition-colors"
+          >
             초기화
           </button>
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          <div className="text-sm text-slate-500">전체 {filteredRows.length.toLocaleString()}건</div>
-          <button onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
+          <div className="text-sm text-slate-500">
+            전체 {filteredRows.length.toLocaleString()}건
+          </div>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors"
+          >
             <Plus size={14} />
             정보 입력
           </button>
@@ -505,46 +659,74 @@ export default function InternetClient({ rows }: Props) {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-lg rounded-xl px-5 py-3">
           <span className="text-sm font-semibold text-blue-700">{selected.size}건 선택됨</span>
           {filteredRows.length > pagedRows.length && selected.size < filteredRows.length && (
-            <button onClick={selectAllFiltered} title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
-              className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+            <button
+              onClick={selectAllFiltered}
+              title="체크박스는 이 페이지만 선택합니다. 필터링된 전체를 선택하려면 이 버튼을 누르세요."
+              className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2"
+            >
               필터링된 전체 {filteredRows.length.toLocaleString()}건 선택
             </button>
           )}
-          <button onClick={handleDelete} disabled={deleting}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
+          >
             <Trash2 size={14} />
-            {deleting ? '삭제 중...' : '선택 삭제'}
+            {deleting ? "삭제 중..." : "선택 삭제"}
           </button>
-          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 hover:text-slate-700">
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-sm text-slate-500 hover:text-slate-700"
+          >
             취소
           </button>
         </div>
       )}
 
-      {showForm && <CreateForm onSubmit={handleCreate} submitting={submitting} onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <CreateForm
+          onSubmit={handleCreate}
+          submitting={submitting}
+          onClose={() => setShowForm(false)}
+        />
+      )}
 
       <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
-        <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
+        <table className="w-full text-sm border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: 24 }} />
             <col style={{ width: 32 }} />
             <col style={{ width: 24 }} />
-            {MAIN_COLUMNS.map(col => (
-              <col key={col.key} style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }} />
+            {MAIN_COLUMNS.map((col) => (
+              <col
+                key={col.key}
+                style={{ width: colWidths[col.key] ?? DEFAULT_WIDTHS[col.key] ?? 140 }}
+              />
             ))}
           </colgroup>
           <thead className="bg-slate-50 sticky top-0 z-10">
             <tr>
               <th className="px-1 py-3 border-b border-slate-200" />
               <th className="px-3 py-3 border-b border-slate-200">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="w-4 h-4 accent-blue-600 cursor-pointer" title="이 페이지 전체 선택 (필터링된 전체가 아님)" />
+                <input
+                  type="checkbox"
+                  checked={allChecked}
+                  onChange={toggleAll}
+                  className="w-4 h-4 accent-blue-600 cursor-pointer"
+                  title="이 페이지 전체 선택 (필터링된 전체가 아님)"
+                />
               </th>
               <th className="px-3 py-3 border-b border-slate-200" />
-              {MAIN_COLUMNS.map(col => (
-                <th key={col.key} title={col.label} className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none">
+              {MAIN_COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  title={col.label}
+                  className="relative text-left px-3 py-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap overflow-hidden text-ellipsis select-none"
+                >
                   {col.label}
                   <div
-                    onMouseDown={e => startResize(e, col.key)}
+                    onMouseDown={(e) => startResize(e, col.key)}
                     className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500/60"
                   />
                 </th>
@@ -552,62 +734,98 @@ export default function InternetClient({ rows }: Props) {
             </tr>
           </thead>
           <tbody>
-            {pagedRows.map(row => (
+            {pagedRows.map((row) => (
               <Fragment key={row.id}>
                 <tr
-                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? 'opacity-40' : ''}`}
+                  className={`border-b border-slate-100 hover:bg-blue-50 transition-colors cursor-pointer ${rowDragId === row.id ? "opacity-40" : ""}`}
                   onClick={() => toggleExpand(row.id)}
-                  onDragOver={e => { if (canReorder && rowDragId) e.preventDefault() }}
-                  onDrop={e => { e.preventDefault(); if (rowDragId) reorderRows(rowDragId, row.id) }}
+                  onDragOver={(e) => {
+                    if (canReorder && rowDragId) e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (rowDragId) reorderRows(rowDragId, row.id);
+                  }}
                 >
                   <td
-                    className={`px-1 py-3 text-slate-700 ${canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed opacity-30'}`}
-                    onClick={e => e.stopPropagation()}
+                    className={`px-1 py-3 text-slate-700 ${canReorder ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-30"}`}
+                    onClick={(e) => e.stopPropagation()}
                     draggable={canReorder}
-                    onDragStart={e => { if (!canReorder) { e.preventDefault(); return } setRowDragId(row.id) }}
+                    onDragStart={(e) => {
+                      if (!canReorder) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setRowDragId(row.id);
+                    }}
                     onDragEnd={() => setRowDragId(null)}
-                    title={canReorder ? '드래그해서 순서 변경' : '검색/필터 중에는 순서를 변경할 수 없습니다'}
+                    title={
+                      canReorder
+                        ? "드래그해서 순서 변경"
+                        : "검색/필터 중에는 순서를 변경할 수 없습니다"
+                    }
                   >
                     <GripVertical size={14} />
                   </td>
-                  <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => toggleOne(row.id)}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
                   </td>
                   <td className="px-3 py-3 text-slate-500">
                     {expandedId === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </td>
-                  {MAIN_COLUMNS.map(col => {
-                    const options = SELECT_OPTIONS[col.key]
+                  {MAIN_COLUMNS.map((col) => {
+                    const options = SELECT_OPTIONS[col.key];
                     return (
-                      <td key={col.key} className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
+                      <td
+                        key={col.key}
+                        className="px-3 py-3 whitespace-nowrap overflow-hidden text-ellipsis"
+                      >
                         {options ? (
-                          <SelectField row={row} field={col.key} options={options} onSave={saveField} pill />
+                          <SelectField
+                            row={row}
+                            field={col.key}
+                            options={options}
+                            onSave={saveField}
+                            pill
+                          />
                         ) : (
                           <EditableText row={row} field={col.key} onSave={saveField} />
                         )}
                       </td>
-                    )
+                    );
                   })}
                 </tr>
                 {expandedId === row.id && (
                   <tr className="bg-blue-50/50 border-b border-slate-100">
                     <td colSpan={MAIN_COLUMNS.length + 3} className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-4">
-                        {DETAIL_COLUMNS.map(col => {
-                          const options = SELECT_OPTIONS[col.key]
-                          const wide = col.key === 'memo'
+                        {DETAIL_COLUMNS.map((col) => {
+                          const options = SELECT_OPTIONS[col.key];
+                          const wide = col.key === "memo";
                           return (
-                            <div key={col.key} className={wide ? 'col-span-4' : ''}>
-                              <label className="text-xs font-semibold text-slate-400">{col.label}</label>
-                              {col.key === 'speed' ? (
+                            <div key={col.key} className={wide ? "col-span-4" : ""}>
+                              <label className="text-xs font-semibold text-slate-400">
+                                {col.label}
+                              </label>
+                              {col.key === "speed" ? (
                                 <SpeedField row={row} onSave={saveField} />
                               ) : options ? (
-                                <SelectField row={row} field={col.key} options={options} onSave={saveField} />
+                                <SelectField
+                                  row={row}
+                                  field={col.key}
+                                  options={options}
+                                  onSave={saveField}
+                                />
                               ) : (
                                 <EditableText row={row} field={col.key} onSave={saveField} />
                               )}
                             </div>
-                          )
+                          );
                         })}
                       </div>
                       <div className="flex justify-end mt-3">
@@ -619,34 +837,57 @@ export default function InternetClient({ rows }: Props) {
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
-              <tr><td colSpan={MAIN_COLUMNS.length + 3} className="text-center text-slate-500 py-10">조건에 맞는 데이터가 없습니다.</td></tr>
+              <tr>
+                <td colSpan={MAIN_COLUMNS.length + 3} className="text-center text-slate-500 py-10">
+                  조건에 맞는 데이터가 없습니다.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 py-1">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">이전</button>
-          <span className="text-xs text-slate-500">{page} / {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">다음</button>
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+          >
+            이전
+          </button>
+          <span className="text-xs text-slate-500">
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+          >
+            다음
+          </button>
         </div>
       )}
-      {historyOpenId && (() => {
-        const row = localRows.find(r => r.id === historyOpenId)
-        if (!row) return null
-        return (
-          <MemoHistoryPanel
-            title={row.business_name || row.owner_name || ''}
-            memo={row.memo}
-            createdAt={row.created_at}
-            onAddMemo={(value) => saveField(row, 'memo', `${(row.memo ?? '').trim()}${(row.memo ?? '').trim() ? '\n' : ''}${value}`)}
-            onDeleteMemo={(newMemo) => saveField(row, 'memo', newMemo)}
-            onClose={() => setHistoryOpenId(null)}
-          />
-        )
-      })()}
+      {historyOpenId &&
+        (() => {
+          const row = localRows.find((r) => r.id === historyOpenId);
+          if (!row) return null;
+          return (
+            <MemoHistoryPanel
+              title={row.business_name || row.owner_name || ""}
+              memo={row.memo}
+              createdAt={row.created_at}
+              onAddMemo={(value) =>
+                saveField(
+                  row,
+                  "memo",
+                  `${(row.memo ?? "").trim()}${(row.memo ?? "").trim() ? "\n" : ""}${value}`,
+                )
+              }
+              onDeleteMemo={(newMemo) => saveField(row, "memo", newMemo)}
+              onClose={() => setHistoryOpenId(null)}
+            />
+          );
+        })()}
     </div>
-  )
+  );
 }

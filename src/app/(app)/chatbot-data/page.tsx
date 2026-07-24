@@ -1,20 +1,20 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import ChatbotDataClient from './ChatbotDataClient'
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import ChatbotDataClient from "./ChatbotDataClient";
 
 export default async function ChatbotDataPage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   const [{ data: profile }, { data: rows, error }] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('chatbot_training_data').select('*').order('updated_at', { ascending: false }),
-  ])
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("chatbot_training_data").select("*").order("updated_at", { ascending: false }),
+  ]);
 
-  if (!profile) redirect('/login')
+  if (!profile) redirect("/login");
 
   return (
     <div className="flex h-screen flex-col gap-4 p-6">
@@ -25,12 +25,10 @@ export default async function ChatbotDataPage() {
         </p>
       </div>
       {error ? (
-        <div className="text-sm text-red-500">
-          데이터를 불러오지 못했습니다: {error.message}
-        </div>
+        <div className="text-sm text-red-500">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
         <ChatbotDataClient rows={rows ?? []} profile={profile} />
       )}
     </div>
-  )
+  );
 }

@@ -1,26 +1,36 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import WooClient from './WooClient'
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import WooClient from "./WooClient";
 
-export default async function WooPage({ searchParams }: { searchParams: Promise<{ highlight?: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { highlight } = await searchParams
+export default async function WooPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ highlight?: string }>;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { highlight } = await searchParams;
 
   const { data: rows, error } = await supabase
-    .from('woo_customers')
-    .select('*')
-    .order('created_at', { ascending: false })
+    .from("woo_customers")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  const linkedInstalls: Record<string, { id: string; status: string }> = {}
+  const linkedInstalls: Record<string, { id: string; status: string }> = {};
   if (rows && rows.length > 0) {
     const { data: installs } = await supabase
-      .from('installations')
-      .select('id, status, woo_customer_id')
-      .in('woo_customer_id', rows.map(r => r.id))
+      .from("installations")
+      .select("id, status, woo_customer_id")
+      .in(
+        "woo_customer_id",
+        rows.map((r) => r.id),
+      );
     for (const inst of installs ?? []) {
-      if (inst.woo_customer_id) linkedInstalls[inst.woo_customer_id] = { id: inst.id, status: inst.status }
+      if (inst.woo_customer_id)
+        linkedInstalls[inst.woo_customer_id] = { id: inst.id, status: inst.status };
     }
   }
 
@@ -33,8 +43,13 @@ export default async function WooPage({ searchParams }: { searchParams: Promise<
       {error ? (
         <div className="text-red-500 text-sm">데이터를 불러오지 못했습니다: {error.message}</div>
       ) : (
-        <WooClient rows={rows ?? []} currentUserId={user.id} linkedInstalls={linkedInstalls} initialHighlightId={highlight} />
+        <WooClient
+          rows={rows ?? []}
+          currentUserId={user.id}
+          linkedInstalls={linkedInstalls}
+          initialHighlightId={highlight}
+        />
       )}
     </div>
-  )
+  );
 }

@@ -1,40 +1,40 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
-import { ko } from 'date-fns/locale'
-import { Hash, RefreshCw } from 'lucide-react'
-import type { SlackMessage } from '@/lib/slack'
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { Hash, RefreshCw } from "lucide-react";
+import type { SlackMessage } from "@/lib/slack";
 
 interface Props {
-  initialMessages: SlackMessage[]
-  initialError: string | null
+  initialMessages: SlackMessage[];
+  initialError: string | null;
 }
 
 export default function SlackMessagesClient({ initialMessages, initialError }: Props) {
-  const [messages, setMessages] = useState(initialMessages)
-  const [error, setError] = useState(initialError)
-  const [loading, setLoading] = useState(false)
+  const [messages, setMessages] = useState(initialMessages);
+  const [error, setError] = useState(initialError);
+  const [loading, setLoading] = useState(false);
 
   async function refresh() {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await fetch('/api/slack/messages', { cache: 'no-store' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? '메시지를 불러오지 못했습니다')
-      setMessages(data.messages)
-      setError(null)
+      const res = await fetch("/api/slack/messages", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "메시지를 불러오지 못했습니다");
+      setMessages(data.messages);
+      setError(null);
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    const interval = setInterval(refresh, 30000)
-    return () => clearInterval(interval)
-  }, [])
+    const interval = setInterval(refresh, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="max-w-lg mx-auto border border-slate-200 rounded-lg overflow-hidden">
@@ -48,7 +48,7 @@ export default function SlackMessagesClient({ initialMessages, initialError }: P
           disabled={loading}
           className="text-white/80 hover:text-white disabled:opacity-50"
         >
-          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
@@ -62,12 +62,12 @@ export default function SlackMessagesClient({ initialMessages, initialError }: P
         {messages.length === 0 && !error && (
           <p className="px-5 py-6 text-sm text-slate-400 text-center">메시지가 없습니다</p>
         )}
-        {messages.map(m => (
+        {messages.map((m) => (
           <div key={m.ts} className="px-5 py-3.5">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-sm font-semibold text-slate-900">{m.user}</p>
               <p className="text-xs text-slate-400 flex-shrink-0">
-                {format(new Date(Number(m.ts) * 1000), 'MM/dd HH:mm', { locale: ko })}
+                {format(new Date(Number(m.ts) * 1000), "MM/dd HH:mm", { locale: ko })}
               </p>
             </div>
             <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap break-words">{m.text}</p>
@@ -75,5 +75,5 @@ export default function SlackMessagesClient({ initialMessages, initialError }: P
         ))}
       </div>
     </div>
-  )
+  );
 }

@@ -166,7 +166,8 @@ export default function ExcelDownloadButton() {
 
       const STATUS_KO: Record<string, string> = { received: '접수', preparing: '제품준비', scheduled: '일정확정', in_transit: '이동중', completed: '설치완료', rejected: '반려' }
       const installData = (installRows ?? []).map((i: any) => ({
-        고객명: i.customer_name ?? '',
+        상호명: i.customer_name ?? '',
+        고객명: i.contact_name ?? '',
         전화번호: i.customer_phone ?? '',
         제품: (i.items ?? []).map((it: any) => `${it.name} x${it.quantity}`).join(', '),
         상태: STATUS_KO[i.status] ?? i.status,

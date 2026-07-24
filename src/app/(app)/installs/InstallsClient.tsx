@@ -106,6 +106,7 @@ const PRODUCT_CATALOG = [
 interface Installation {
   id: string
   customer_name: string
+  contact_name?: string
   customer_phone?: string
   items: { name: string; quantity: number }[]
   status: string
@@ -157,7 +158,7 @@ const PAGE_SIZE = 50
 const FETCH_LIMIT = 300
 
 const MAIN_COLUMNS = [
-  { key: 'name', label: '고객명' },
+  { key: 'name', label: '상호명' },
   { key: 'delivery_type', label: '구분' },
   { key: 'phone', label: '전화번호' },
   { key: 'tracking_number', label: '송장번호' },
@@ -202,11 +203,15 @@ interface CreateFormProps {
   techUsers: { id: string; name: string }[]
   onSubmit: (v: {
     customerName: string
+    contactName: string
     customerPhone: string
+    address: string
     assignedTo: string
     notes: string
     items: { name: string; quantity: number }[]
     deliveryType: DeliveryType
+    scheduledDate: string
+    scheduledTime: string
   }) => Promise<void>
   submitting: boolean
   onCancel: () => void
@@ -214,7 +219,7 @@ interface CreateFormProps {
   deliveryOnly?: boolean
 }
 const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, onCancel, onClose, deliveryOnly }: CreateFormProps) {
-  const [form, setForm] = useState({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
+  const [form, setForm] = useState({ customerName: '', contactName: '', customerPhone: '', address: '', assignedTo: '', notes: '', scheduledDate: '', scheduledTime: '' })
   const [deliveryType, setDeliveryType] = useState<DeliveryType>(deliveryOnly ? 'delivery' : 'install')
   const [cartProduct, setCartProduct] = useState(PRODUCT_CATALOG[0])
   const [cartCustomName, setCartCustomName] = useState('')
@@ -237,13 +242,17 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
     e.preventDefault()
     await onSubmit({
       customerName: form.customerName,
+      contactName: form.contactName,
       customerPhone: form.customerPhone,
+      address: form.address,
       assignedTo: form.assignedTo,
       notes: form.notes,
       items: cartItems,
       deliveryType,
+      scheduledDate: form.scheduledDate,
+      scheduledTime: form.scheduledTime,
     })
-    setForm({ customerName: '', customerPhone: '', assignedTo: '', notes: '' })
+    setForm({ customerName: '', contactName: '', customerPhone: '', address: '', assignedTo: '', notes: '', scheduledDate: '', scheduledTime: '' })
     setDeliveryType(deliveryOnly ? 'delivery' : 'install')
     setCartItems([])
   }
@@ -263,8 +272,13 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
         )}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">고객명 *</label>
+            <label className="block text-xs text-slate-500 mb-1">상호명 *</label>
             <input required value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
+              className={INPUT} placeholder="가맹점 상호명" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">고객명</label>
+            <input value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))}
               className={INPUT} placeholder="홍길동" />
           </div>
           <div>
@@ -281,6 +295,18 @@ const CreateForm = memo(function CreateForm({ techUsers, onSubmit, submitting, o
               </select>
             </div>
           )}
+          <div className="col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">주소</label>
+            <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className={INPUT} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">설치 예정일</label>
+            <input type="date" value={form.scheduledDate} onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))} className={INPUT} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">희망 시간대</label>
+            <input type="time" value={form.scheduledTime} onChange={e => setForm(f => ({ ...f, scheduledTime: e.target.value }))} className={INPUT} />
+          </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">비고</label>
             <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className={INPUT} />
@@ -406,6 +432,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   const [detailInst, setDetailInst] = useState<Installation | null>(null)
   const [detailDraft, setDetailDraft] = useState<{
     customer_name: string
+    contact_name: string
     customer_phone: string
     address: string
     scheduled_date: string
@@ -486,6 +513,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   function buildDetailDraft(inst: Installation) {
     return {
       customer_name: inst.customer_name,
+      contact_name: inst.contact_name ?? '',
       customer_phone: inst.customer_phone ?? '',
       address: inst.address ?? '',
       scheduled_date: inst.scheduled_date ?? '',
@@ -525,21 +553,29 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
 
   async function handleCreate(newInstall: {
     customerName: string
+    contactName: string
     customerPhone: string
+    address: string
     assignedTo: string
     notes: string
     items: { name: string; quantity: number }[]
     deliveryType: DeliveryType
+    scheduledDate: string
+    scheduledTime: string
   }) {
     if (!newInstall.customerName) return
     setSubmitting(true)
     const result = await createInstallation({
       customerName: newInstall.customerName,
+      contactName: newInstall.contactName || null,
       customerPhone: newInstall.customerPhone ? formatPhone(newInstall.customerPhone) : null,
+      address: newInstall.address || null,
       items: newInstall.items,
       assignedTo: newInstall.assignedTo || null,
       notes: newInstall.notes || null,
       deliveryType: newInstall.deliveryType,
+      scheduledDate: newInstall.scheduledDate || null,
+      scheduledTime: newInstall.scheduledTime || null,
     })
     setSubmitting(false)
     if (result.error || !result.installation) { toast.error('등록 실패: ' + (result.error ?? '알 수 없는 오류')); return }
@@ -918,7 +954,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     return true
   }
 
-  async function saveInstallField(id: string, field: 'customer_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number' | 'notes', value: string) {
+  async function saveInstallField(id: string, field: 'customer_name' | 'contact_name' | 'customer_phone' | 'address' | 'delivery_type' | 'scheduled_date' | 'scheduled_time' | 'tracking_number' | 'notes', value: string) {
 
     if (field === 'notes') return saveNotes(id, value)
     const saveValue = field === 'customer_phone' ? (value ? formatPhone(value) : null) : (value || null)
@@ -940,6 +976,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
     if (!inst || !detailDraft) return
     const tasks: Promise<boolean>[] = []
     if (detailDraft.customer_name !== inst.customer_name) tasks.push(saveInstallField(id, 'customer_name', detailDraft.customer_name))
+    if (detailDraft.contact_name !== (inst.contact_name ?? '')) tasks.push(saveInstallField(id, 'contact_name', detailDraft.contact_name))
     if (detailDraft.customer_phone !== (inst.customer_phone ?? '')) tasks.push(saveInstallField(id, 'customer_phone', detailDraft.customer_phone))
     if (detailDraft.address !== (inst.address ?? '')) tasks.push(saveInstallField(id, 'address', detailDraft.address))
     if (detailDraft.scheduled_date !== (inst.scheduled_date ?? '')) tasks.push(saveInstallField(id, 'scheduled_date', detailDraft.scheduled_date))
@@ -1025,8 +1062,10 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
   function handleExcel() {
     import('xlsx').then(XLSX => {
       const rows = filteredInstalls.map(i => ({
-        고객명: i.customer_name,
+        상호명: i.customer_name,
+        고객명: i.contact_name ?? '',
         전화번호: i.customer_phone ?? '',
+        주소: i.address ?? '',
         제품: i.items.map(it => `${it.name} x${it.quantity}`).join(', '),
         상태: statusLabel(i.status, i.delivery_type),
         담당자: (i.assignee as any)?.name ?? '',
@@ -1125,6 +1164,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       if (dateTo && i.created_at > dateTo + 'T23:59:59') return false
       if (q && !(
         i.customer_name?.toLowerCase().includes(q) ||
+        i.contact_name?.toLowerCase().includes(q) ||
         i.customer_phone?.toLowerCase().includes(q) ||
         i.items?.some(it => it.name.toLowerCase().includes(q))
       )) return false
@@ -1511,7 +1551,7 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
         <div className="relative flex-1 min-w-48">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="고객명, 전화번호, 제품명 검색"
+            placeholder="상호명, 고객명, 전화번호, 제품명 검색"
             className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
@@ -1880,13 +1920,23 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
                       <td colSpan={(canDelete ? 1 : 0) + 1 + columns.length} className="px-6 py-4" onClick={e => e.stopPropagation()}>
                         <div className="grid grid-cols-4 gap-4 mb-3 text-sm">
                           <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">상호명</p>
                             {canEdit ? (
                               <input value={detailDraft?.customer_name ?? inst.customer_name} onClick={e => e.stopPropagation()}
                                 onChange={e => setDetailDraft(d => d ? { ...d, customer_name: e.target.value } : d)}
                                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             ) : (
                               <p className="text-slate-800">{inst.customer_name}</p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">고객명</p>
+                            {canEdit ? (
+                              <input value={detailDraft?.contact_name ?? (inst.contact_name ?? '')} onClick={e => e.stopPropagation()}
+                                onChange={e => setDetailDraft(d => d ? { ...d, contact_name: e.target.value } : d)}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            ) : (
+                              <p className="text-slate-800">{inst.contact_name || '-'}</p>
                             )}
                           </div>
                           <div>

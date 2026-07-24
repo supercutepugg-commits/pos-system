@@ -31,16 +31,19 @@ async function getInstallationEditor() {
 
 export async function createInstallation(input: {
   customerName: string
+  contactName?: string | null
   customerPhone: string | null
+  address?: string | null
   assignedTo: string | null
   notes: string | null
   items: { name: string; quantity: number }[]
   deliveryType: string
   scheduledDate?: string | null
+  scheduledTime?: string | null
 }) {
   const editor = await getInstallationEditor()
   if ('error' in editor) return { error: editor.error, installation: null }
-  if (!input.customerName.trim()) return { error: '고객명을 입력해주세요.', installation: null }
+  if (!input.customerName.trim()) return { error: '상호명을 입력해주세요.', installation: null }
   if (!['install', 'delivery', 'as', 'name_change', 'transfer'].includes(input.deliveryType)) {
     return { error: '잘못된 작업 유형입니다.', installation: null }
   }
@@ -48,12 +51,15 @@ export async function createInstallation(input: {
   const admin = createAdminClient()
   const { data: installation, error: insertError } = await admin.from('installations').insert({
     customer_name: input.customerName.trim(),
+    contact_name: input.contactName?.trim() || null,
     customer_phone: input.customerPhone,
+    address: input.address?.trim() || null,
     assigned_to: input.assignedTo,
     notes: input.notes,
     items: input.items,
     delivery_type: input.deliveryType,
     scheduled_date: input.scheduledDate || null,
+    scheduled_time: input.scheduledTime || null,
     created_by: editor.user.id,
     status: 'received',
     sort_order: Date.now(),

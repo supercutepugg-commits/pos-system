@@ -773,14 +773,11 @@ export default function InstallsClient({ profile, techUsers, initialInstalls, mi
       toast.warning('설치완료 승인요청은 기술지원매니저 또는 기술지원책임만 등록할 수 있습니다.')
       return
     }
-    const approvalNote = await promptNote(approvalRequestPrompt)
-    if (approvalNote === null) return
-
-
     if (completingRef.current) return
     completingRef.current = true
     setCompleting(true)
     const { id, notes } = completeModal
+    const approvalNote = notes.trim()
     const prevInst = installs.find(i => i.id === id)
     const prevNotes = (prevInst?.notes ?? '').trim()
     const saveValue = computeStampedNotes(prevNotes, notes)

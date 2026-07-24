@@ -15,9 +15,9 @@ npm install
 **주의: 운영(prod) Supabase 프로젝트의 키를 로컬 `.env`에 절대 사용하지 마세요.** 로컬 개발은 반드시 본인 소유의 별도 Supabase 프로젝트를 사용합니다.
 
 1. [supabase.com](https://supabase.com)에서 새 프로젝트 생성 (무료 티어로 충분)
-2. 프로젝트 대시보드 → `SQL Editor`에서 `supabase/` 폴더의 스키마/마이그레이션 파일을 순서대로 실행
-   - 기준 스키마: `supabase/schema.sql`
-   - 이후 `supabase/*.sql` 마이그레이션들을 파일명 기준 시간순으로 적용 (현재는 자동화된 마이그레이션 러너가 없어 수동 적용)
+2. 프로젝트 대시보드 → `SQL Editor`에서 `supabase/` 폴더의 `NNN_*.sql` 파일을 번호 순서대로 실행 (`001_schema.sql`부터 시작)
+   - 파일명 앞 번호는 실제 적용된 시간순(git 히스토리 기준)이며, 새 마이그레이션을 추가할 때는 가장 큰 번호 다음 번호를 이어서 사용
+   - 현재는 자동화된 마이그레이션 러너가 없어 수동 적용
 3. `Project Settings → API`에서 아래 값을 확인
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` 키 → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
